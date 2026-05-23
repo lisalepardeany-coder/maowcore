@@ -28,7 +28,7 @@ Music + moderation + auto-setup + smart features + multi-source streaming — al
 
 ```bash
 # 1. Clone
-git clone https://github.com/YOUR-USERNAME/maowcore.git
+git clone https://github.com/lisalepardeany-coder/maowcore.git
 cd maowcore
 
 # 2. Configure
@@ -54,7 +54,7 @@ sudo apt update && sudo apt install -y nodejs npm ffmpeg python3
 # (Fedora: sudo dnf install nodejs npm ffmpeg python3)
 # (Arch:   sudo pacman -S nodejs npm ffmpeg python)
 
-git clone https://github.com/YOUR-USERNAME/maowcore.git
+git clone https://github.com/lisalepardeany-coder/maowcore.git
 cd maowcore
 cp .env.example .env
 nano .env                  # fill in tokens
@@ -71,7 +71,7 @@ chmod +x scripts/install-startup.sh
 
 ```bash
 brew install node ffmpeg python3
-git clone https://github.com/YOUR-USERNAME/maowcore.git
+git clone https://github.com/lisalepardeany-coder/maowcore.git
 cd maowcore
 cp .env.example .env       # then edit
 npm install
@@ -86,7 +86,7 @@ npm start
 # Install ffmpeg:      winget install Gyan.FFmpeg
 # (Optional) Python:   winget install Python.Python.3.12  # for the desktop GUI
 
-git clone https://github.com/YOUR-USERNAME/maowcore.git
+git clone https://github.com/lisalepardeany-coder/maowcore.git
 cd maowcore
 Copy-Item .env.example .env
 notepad .env               # fill in tokens
