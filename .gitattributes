@@ -1,0 +1,7 @@
+# Force LF on shell scripts and dockerfile so they run on Linux
+*.sh text eol=lf
+Dockerfile text eol=lf
+docker-compose.yml text eol=lf
+
+# Default to OS-native for everything else
+* text=auto
