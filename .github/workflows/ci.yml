@@ -24,7 +24,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
-          cache: 'npm'
 
       # Install with --ignore-scripts so postinstall runs in its own step.
       # We still install ffmpeg-static which downloads ffmpeg; this can be slow.
