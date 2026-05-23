@@ -1,6 +1,6 @@
 # ◆ MaowCore
 
-[![smoke test](https://github.com/lisalepardeany-coder/maowcore/actions/workflows/ci.yml/badge.svg)](https://github.com/lisalepardeany-coder/maowcore/actions/workflows/ci.yml)
+[![CI](https://github.com/lisalepardeany-coder/maowcore/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/lisalepardeany-coder/maowcore/actions/workflows/ci.yml)
 
 A cosmic-themed Discord bot with **86 slash commands**, a **futuristic web dashboard**, a **Python desktop control panel**, a **Vencord plugin**, and a **browser extension**.
 
