@@ -498,6 +498,29 @@ client.on(Events.GuildMemberRemove, (member) => {
 // Auto voice rooms — joining the configured "Create Room" channel spawns a
 // personal temp voice channel that auto-deletes when empty.
 const tempVoiceChannels = new Set();
+
+// On ready: scan for orphaned temp voice channels left over from previous runs
+// (empty voice channels in the auto-voice category whose name starts with 🎙).
+client.once(Events.ClientReady, () => {
+  for (const guild of client.guilds.cache.values()) {
+    const cfg = getGuild(guild.id);
+    if (!cfg.autoVoiceRoomId) continue;
+    const triggerCh = guild.channels.cache.get(cfg.autoVoiceRoomId);
+    if (!triggerCh) continue;
+    const parentId = triggerCh.parentId;
+    for (const ch of guild.channels.cache.values()) {
+      if (ch.type !== ChannelType.GuildVoice) continue;
+      if (ch.id === cfg.autoVoiceRoomId) continue;          // never delete the trigger
+      if (ch.parentId !== parentId) continue;               // must be in same category
+      if (!ch.name.startsWith('🎙 ')) continue;             // only our temp rooms
+      if (ch.members.size > 0) {                            // still in use — track it
+        tempVoiceChannels.add(ch.id);
+        continue;
+      }
+      ch.delete('Orphaned temp voice room on restart').catch(() => {});
+    }
+  }
+});
 client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
   // Spawn on join of the trigger channel
   const cfg = getGuild(newState.guild.id);

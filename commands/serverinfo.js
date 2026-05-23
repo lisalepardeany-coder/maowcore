@@ -5,7 +5,7 @@ module.exports = {
   data: new SlashCommandBuilder().setName('serverinfo').setDescription('Show info about this server'),
   async execute(interaction) {
     const g = interaction.guild;
-    const owner = await g.fetchOwner();
+    const owner = await g.fetchOwner().catch(() => null);
     const bots = [...g.members.cache.values()].filter((m) => m.user.bot).length;
     const embed = new EmbedBuilder()
       .setColor(COLORS.COSMIC)
@@ -13,7 +13,7 @@ module.exports = {
       .setThumbnail(g.iconURL({ size: 256 }) || null)
       .addFields(
         { name: 'ID', value: g.id, inline: true },
-        { name: 'Owner', value: `${owner.user.tag}`, inline: true },
+        { name: 'Owner', value: owner ? `${owner.user.username}` : `<@${g.ownerId}>`, inline: true },
         { name: 'Created', value: `<t:${Math.floor(g.createdTimestamp / 1000)}:R>`, inline: true },
         { name: 'Members', value: `${g.memberCount}`, inline: true },
         { name: 'Bots', value: `${bots}`, inline: true },
