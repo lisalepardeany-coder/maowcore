@@ -1,0 +1,8 @@
+node_modules
+.git
+.env
+data
+*.log
+gui
+vencord-plugin
+browser-extension

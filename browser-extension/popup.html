@@ -1,0 +1,24 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<style>
+  body { width: 280px; padding: 14px; background: #0F0B22; color: #E5DDFB; font-family: 'Segoe UI', sans-serif; margin: 0; }
+  h1 { color: #8B5CF6; font-size: 16px; margin-bottom: 12px; }
+  label { display: block; font-size: 11px; color: #9088B8; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+  input { width: 100%; background: #221C3A; color: #E5DDFB; border: 1px solid #2A2245; border-radius: 6px; padding: 8px; font: inherit; font-size: 12px; outline: none; box-sizing: border-box; }
+  input:focus { border-color: #8B5CF6; }
+  button { background: #8B5CF6; color: white; border: none; border-radius: 6px; padding: 8px 14px; cursor: pointer; font: inherit; font-size: 12px; margin-top: 8px; width: 100%; }
+  button:hover { background: #7C3AED; }
+  .status { font-size: 11px; color: #9088B8; margin-top: 10px; text-align: center; }
+</style>
+</head>
+<body>
+  <h1>◆ MaowCore</h1>
+  <label>Bot URL</label>
+  <input id="bot-url" type="text" placeholder="http://127.0.0.1:8765"/>
+  <button id="save">Save</button>
+  <div class="status" id="status">Right-click any link → Queue in MaowCore</div>
+<script src="popup.js"></script>
+</body>
+</html>

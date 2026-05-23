@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+package-lock.json
+yarn.lock
+
+# Secrets — never commit
+.env
+.env.local
+.env.*.local
+
+# Runtime data (user-specific — favorites, history, configs, session state)
+data/
+gui/hotkeys.json
+
+# Vencord plugin build output
+vencord-plugin/dist/
+
+# Logs / OS / IDE
+*.log
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# Backups created by /backup command
+maowcore-backup-*.json

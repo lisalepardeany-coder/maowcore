@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "MaowCore Queue",
+  "version": "1.0.0",
+  "description": "Right-click any YouTube/Spotify/SoundCloud link → Queue in MaowCore.",
+  "permissions": ["contextMenus", "storage", "notifications"],
+  "host_permissions": ["http://127.0.0.1:8765/*", "http://localhost:8765/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "MaowCore Queue"
+  },
+  "icons": {
+    "128": "icon.png"
+  }
+}

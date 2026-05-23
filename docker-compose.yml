@@ -1,0 +1,12 @@
+services:
+  maowcore:
+    build: .
+    container_name: maowcore
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "8765:8765"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - CONTROL_HOST=0.0.0.0

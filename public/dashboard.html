@@ -1,0 +1,577 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>◆ MaowCore Control</title>
+<link rel="manifest" href="/manifest.json" />
+<link rel="icon" href="/icon.svg" type="image/svg+xml" />
+<meta name="theme-color" content="#8B5CF6" />
+<link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <!-- Shared SVG gradient definitions (referenced from CSS via url(#...)) -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <linearGradient id="cosmic-gradient" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0%" stop-color="#8B5CF6"/>
+        <stop offset="100%" stop-color="#06B6D4"/>
+      </linearGradient>
+    </defs>
+  </svg>
+
+  <div class="custom-bg" id="custom-bg"></div>
+  <div class="album-ambient" id="album-ambient"></div>
+
+  <!-- Toast container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- Notification center bell -->
+  <div class="notif-bell" id="notif-bell" title="Notifications">
+    🔔<span class="notif-count" id="notif-count" hidden>0</span>
+  </div>
+  <div class="notif-panel" id="notif-panel">
+    <header><h4>Notifications</h4><button id="notif-clear">Clear</button></header>
+    <div class="notif-list" id="notif-list"><div class="muted">No recent notifications.</div></div>
+  </div>
+
+  <!-- Command palette (Cmd+K) -->
+  <div class="palette-overlay" id="palette-overlay">
+    <div class="palette">
+      <input id="palette-input" type="text" placeholder="Search commands, pages, actions…" autocomplete="off" />
+      <div class="palette-results" id="palette-results"></div>
+    </div>
+  </div>
+
+  <!-- Onboarding tour -->
+  <div class="tour-overlay" id="tour-overlay">
+    <div class="tour-tip" id="tour-tip"></div>
+  </div>
+
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-glyph">◆</div>
+      <div class="brand-text">
+        <div class="brand-name">MaowCore</div>
+        <div class="brand-sub">stellar uplink</div>
+      </div>
+      <button class="sidebar-toggle" id="sidebar-toggle" title="Collapse sidebar">«</button>
+    </div>
+    <nav class="nav">
+      <a class="nav-item active" data-page="overview">
+        <span class="nav-glyph">◇</span><span>Overview</span>
+      </a>
+      <a class="nav-item" data-page="player">
+        <span class="nav-glyph">◆</span><span>Now Playing</span>
+      </a>
+      <a class="nav-item" data-page="search">
+        <span class="nav-glyph">⌬</span><span>Search</span>
+      </a>
+      <a class="nav-item" data-page="history">
+        <span class="nav-glyph">⟲</span><span>History</span>
+      </a>
+      <a class="nav-item" data-page="searches">
+        <span class="nav-glyph">⌕</span><span>Searches</span>
+      </a>
+      <a class="nav-item" data-page="favorites">
+        <span class="nav-glyph">★</span><span>Favorites</span>
+      </a>
+      <a class="nav-item" data-page="servers">
+        <span class="nav-glyph">⟡</span><span>Server</span>
+      </a>
+      <a class="nav-item" data-page="settings">
+        <span class="nav-glyph">⌬</span><span>Settings</span>
+      </a>
+      <a class="nav-item" data-page="console">
+        <span class="nav-glyph">›_</span><span>Console</span>
+      </a>
+      <a class="nav-item" data-page="performance">
+        <span class="nav-glyph">▰</span><span>Performance</span>
+      </a>
+      <a class="nav-item" data-page="stats">
+        <span class="nav-glyph">📊</span><span>Stats</span>
+      </a>
+      <a class="nav-item" data-page="profile">
+        <span class="nav-glyph">✦</span><span>Profile</span>
+      </a>
+      <a class="nav-item" data-page="activity">
+        <span class="nav-glyph">⌁</span><span>Activity</span>
+      </a>
+    </nav>
+    <div class="sidebar-foot">
+      <div class="server-picker">
+        <label class="muted">Server</label>
+        <select id="server-select" class="theme-select" title="Switch server"></select>
+      </div>
+      <div class="status-row">
+        <span class="status-dot" id="status-dot"></span>
+        <span id="status-text">connecting…</span>
+      </div>
+      <div class="ping-row">
+        <span class="muted">ws ping</span>
+        <span id="ping-value">— ms</span>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <!-- ===== Overview ===== -->
+    <section class="page" id="page-overview">
+      <header class="page-head">
+        <h1>Overview</h1>
+        <span class="muted" id="bot-tag">—</span>
+      </header>
+      <div class="grid grid-overview">
+        <div class="card stat-card"><div class="stat-label">Bot uptime</div><div class="stat-value" id="ov-uptime">—</div></div>
+        <div class="card stat-card"><div class="stat-label">Discord ping</div><div class="stat-value" id="ov-ping">—</div></div>
+        <div class="card stat-card"><div class="stat-label">Servers</div><div class="stat-value" id="ov-servers">—</div></div>
+        <div class="card stat-card"><div class="stat-label">Active queues</div><div class="stat-value" id="ov-queues">—</div></div>
+
+        <div class="card span-2">
+          <h3>◆ Now Transmitting</h3>
+          <div class="np-mini" id="ov-np">
+            <img class="np-thumb-mini" id="ov-thumb" />
+            <div class="np-info">
+              <div class="np-title" id="ov-title">— no signal —</div>
+              <div class="np-meta muted" id="ov-meta"></div>
+              <div class="np-progress" id="ov-progress">—</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card span-2">
+          <h3>⌬ Recent activity</h3>
+          <div class="log mini-log" id="ov-log"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Now Playing (full) ===== -->
+    <section class="page hidden" id="page-player">
+      <header class="page-head"><h1>Now Playing</h1></header>
+      <div class="grid grid-player">
+        <div class="card big-np">
+          <div class="big-np-thumb" id="np-thumb-wrap">
+            <img id="np-thumb" />
+            <div class="lyrics-overlay" id="np-lyrics-overlay"><div class="lyric-content"></div></div>
+            <div class="visualizer" id="np-visualizer">
+              <div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div>
+              <div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div>
+            </div>
+          </div>
+          <div class="big-np-info">
+            <div class="np-title-big" id="np-title">— no signal —</div>
+            <div class="np-meta muted" id="np-meta"></div>
+            <div class="np-progress" id="np-progress">—</div>
+            <div class="transport" id="transport">
+              <button data-action="pause-toggle">⏸/▶</button>
+              <button data-action="skip">⏭</button>
+              <button data-action="stop">⏹</button>
+              <button data-action="shuffle">✦</button>
+              <button data-action="loop">↻</button>
+              <button data-action="leave">⌬</button>
+            </div>
+            <div class="vol-row">
+              <span class="muted">⌬ vol</span>
+              <input id="vol-slider" type="range" min="0" max="150" value="100" />
+              <span id="vol-label">100%</span>
+            </div>
+            <div class="play-row">
+              <input id="play-input" type="text" placeholder="URL or search query…" />
+              <button class="primary" id="play-btn">✦ Play</button>
+              <button id="favorite-btn" title="Star this song">★</button>
+            </div>
+            <div class="quick-row" id="quick-row">
+              <button class="quick-btn" data-slot="0">slot 1</button>
+              <button class="quick-btn" data-slot="1">slot 2</button>
+              <button class="quick-btn" data-slot="2">slot 3</button>
+              <button class="quick-btn" data-slot="3">slot 4</button>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>✦ Up Next</h3>
+          <div class="queue" id="queue"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Server ===== -->
+    <section class="page hidden" id="page-servers">
+      <header class="page-head"><h1>Server</h1></header>
+      <div class="card server-header" id="server-header"></div>
+      <div class="grid grid-server">
+        <div class="card">
+          <h3>🎙 Voice Channels</h3>
+          <div id="voice-list" class="channel-list"></div>
+        </div>
+        <div class="card">
+          <h3># Text Channels</h3>
+          <div id="text-list" class="channel-list"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Search ===== -->
+    <section class="page hidden" id="page-search">
+      <header class="page-head"><h1>Search</h1></header>
+      <div class="card">
+        <div class="play-row">
+          <input id="search-input" type="text" placeholder="Search YouTube — song, artist, or any keywords…" />
+          <button class="primary" id="search-btn">⌬ Search</button>
+        </div>
+        <div id="search-results" class="search-results"></div>
+      </div>
+    </section>
+
+    <!-- ===== Searches ===== -->
+    <section class="page hidden" id="page-searches">
+      <header class="page-head"><h1>Search History</h1><button id="searches-clear">Clear</button></header>
+      <div class="card">
+        <div id="searches-list" class="history-list"></div>
+      </div>
+    </section>
+
+    <!-- ===== Favorites ===== -->
+    <section class="page hidden" id="page-favorites">
+      <header class="page-head"><h1>Favorites</h1><span class="muted" id="favorites-count">—</span></header>
+      <div class="card">
+        <div id="favorites-list" class="history-list"></div>
+      </div>
+    </section>
+
+    <!-- ===== History ===== -->
+    <section class="page hidden" id="page-history">
+      <header class="page-head"><h1>Listening History</h1><span class="muted" id="history-count">—</span></header>
+      <div class="card">
+        <div id="history-list" class="history-list"></div>
+      </div>
+    </section>
+
+    <!-- ===== Settings ===== -->
+    <section class="page hidden" id="page-settings">
+      <header class="page-head"><h1>Settings</h1></header>
+      <div class="card">
+        <h3>Appearance</h3>
+        <div class="setting-row">
+          <div>
+            <div class="setting-name">Theme</div>
+            <div class="setting-desc muted">Swap the entire color palette. Persists per browser.</div>
+          </div>
+          <div class="setting-control">
+            <select id="cfg-theme" class="theme-select">
+              <option value="cosmic">Cosmic (default)</option>
+              <option value="synthwave">Synthwave</option>
+              <option value="cyberpunk">Cyberpunk</option>
+              <option value="minimal">Minimal</option>
+              <option value="high-contrast">High Contrast (a11y)</option>
+              <option value="colorblind">Color-Blind Safe</option>
+            </select>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div>
+            <div class="setting-name">Reduced motion</div>
+            <div class="setting-desc muted">Disables transitions, gauge fills, gradient pulses.</div>
+          </div>
+          <label class="switch"><input type="checkbox" id="cfg-motion" /><span></span></label>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h3>📱  QR Phone Access</h3>
+        <p class="muted" style="margin-bottom:10px">Scan with your phone to open this dashboard on your mobile device (same Wi-Fi required).</p>
+        <div id="qr-box" style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">
+          <div id="qr-canvas" style="width:160px;height:160px;background:#fff;padding:8px;border-radius:8px"></div>
+          <div>
+            <div style="margin-bottom:8px"><strong>URL:</strong> <code id="qr-url" style="font-size:11px">—</code></div>
+            <p class="muted" style="font-size:11px">By default the bot only listens on <code>127.0.0.1</code>. To enable phone access, set <code>CONTROL_HOST=0.0.0.0</code> in <code>.env</code> and use your PC's LAN IP.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h3>Custom Background</h3>
+        <div class="setting-row">
+          <div>
+            <div class="setting-name">Background image URL</div>
+            <div class="setting-desc muted">Pasting a URL here adds a faded image behind the cosmic UI. Empty to remove.</div>
+          </div>
+          <div class="setting-control">
+            <input type="text" id="cfg-bg" placeholder="https://… or paste an image URL" style="width:280px"/>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h3>Server-wide</h3>
+        <div class="setting-row">
+          <div>
+            <div class="setting-name">24/7 stay mode</div>
+            <div class="setting-desc muted">Bot stays in voice forever; auto-disconnect is disabled.</div>
+          </div>
+          <label class="switch"><input type="checkbox" id="cfg-247" /><span></span></label>
+        </div>
+        <div class="setting-row">
+          <div>
+            <div class="setting-name">SponsorBlock</div>
+            <div class="setting-desc muted">Auto-skip sponsor / intro / outro / self-promo segments in YouTube videos.</div>
+          </div>
+          <label class="switch"><input type="checkbox" id="cfg-sponsorblock" /><span></span></label>
+        </div>
+        <div class="setting-row">
+          <div>
+            <div class="setting-name">Default volume</div>
+            <div class="setting-desc muted">Applied whenever the bot starts a new song.</div>
+          </div>
+          <div class="setting-control">
+            <input type="range" min="0" max="150" id="cfg-volume" />
+            <span id="cfg-volume-label">100%</span>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div>
+            <div class="setting-name">Auto-disconnect timer</div>
+            <div class="setting-desc muted">Minutes of idleness before bot leaves voice (1–60). Doesn't apply when /247 is engaged.</div>
+          </div>
+          <div class="setting-control">
+            <input type="range" min="1" max="60" id="cfg-idle"/>
+            <span id="cfg-idle-label">5m</span>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div>
+            <div class="setting-name">Default loop mode</div>
+            <div class="setting-desc muted">Applied on the first song of each new session.</div>
+          </div>
+          <div class="setting-control">
+            <select id="cfg-default-loop" class="theme-select">
+              <option value="0">off</option>
+              <option value="1">signal (current song)</option>
+              <option value="2">queue (whole manifest)</option>
+            </select>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div>
+            <div class="setting-name">Hide requester</div>
+            <div class="setting-desc muted">Anonymize who requested each song across the dashboard.</div>
+          </div>
+          <label class="switch"><input type="checkbox" id="cfg-hide-requester"/><span></span></label>
+        </div>
+        <div class="setting-row">
+          <div>
+            <div class="setting-name">Announce songs (text)</div>
+            <div class="setting-desc muted">Post "Now playing: …" in the text channel for each new song.</div>
+          </div>
+          <label class="switch"><input type="checkbox" id="cfg-announce"/><span></span></label>
+        </div>
+        <div class="setting-row">
+          <div>
+            <div class="setting-name">Crossfade</div>
+            <div class="setting-desc muted">5-second fade-in on each new song (simulated crossfade).</div>
+          </div>
+          <label class="switch"><input type="checkbox" id="cfg-crossfade"/><span></span></label>
+        </div>
+        <div class="setting-row">
+          <div>
+            <div class="setting-name">Welcome sound URL</div>
+            <div class="setting-desc muted">Plays when the bot joins a voice channel. Short audio recommended.</div>
+          </div>
+          <div class="setting-control">
+            <input type="text" id="cfg-welcome" placeholder="https://… (optional)" style="width:280px"/>
+          </div>
+        </div>
+        <h3 style="margin-top:24px">Per-queue (active session only)</h3>
+        <div class="setting-row">
+          <div>
+            <div class="setting-name">Autoplay</div>
+            <div class="setting-desc muted">When the manifest ends, automatically queue related signals.</div>
+          </div>
+          <label class="switch"><input type="checkbox" id="cfg-autoplay" /><span></span></label>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Console ===== -->
+    <section class="page hidden" id="page-console">
+      <header class="page-head">
+        <h1>Console</h1>
+        <span class="muted">type <code>help</code> for the command list</span>
+      </header>
+      <div class="card console-card">
+        <div class="console-output" id="console-output"></div>
+        <div class="console-input-row">
+          <span class="prompt">›</span>
+          <input id="console-input" type="text" placeholder="play https://… · skip · volume 80 · filter add bassboost · help" autocomplete="off" spellcheck="false" />
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Performance ===== -->
+    <section class="page hidden" id="page-performance">
+      <header class="page-head"><h1>Performance</h1></header>
+      <div class="grid grid-perf">
+        <div class="card gauge-card">
+          <div class="gauge-label">CPU</div>
+          <div class="gauge" id="gauge-cpu"><svg viewBox="0 0 100 56"><path class="gauge-bg" d="M 6 50 A 44 44 0 0 1 94 50"/><path class="gauge-fg" id="gauge-cpu-fg" d="M 6 50 A 44 44 0 0 1 94 50" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100"/></svg><div class="gauge-value" id="gauge-cpu-val">—</div></div>
+        </div>
+        <div class="card gauge-card">
+          <div class="gauge-label">RAM</div>
+          <div class="gauge" id="gauge-ram"><svg viewBox="0 0 100 56"><path class="gauge-bg" d="M 6 50 A 44 44 0 0 1 94 50"/><path class="gauge-fg" id="gauge-ram-fg" d="M 6 50 A 44 44 0 0 1 94 50" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100"/></svg><div class="gauge-value" id="gauge-ram-val">—</div></div>
+        </div>
+        <div class="card gauge-card">
+          <div class="gauge-label">Disk</div>
+          <div class="gauge" id="gauge-disk"><svg viewBox="0 0 100 56"><path class="gauge-bg" d="M 6 50 A 44 44 0 0 1 94 50"/><path class="gauge-fg" id="gauge-disk-fg" d="M 6 50 A 44 44 0 0 1 94 50" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100"/></svg><div class="gauge-value" id="gauge-disk-val">—</div></div>
+        </div>
+
+        <div class="card span-3">
+          <h3>System</h3>
+          <div class="info-grid">
+            <div><span class="muted">Hostname</span><span id="sys-host">—</span></div>
+            <div><span class="muted">Platform</span><span id="sys-plat">—</span></div>
+            <div><span class="muted">Architecture</span><span id="sys-arch">—</span></div>
+            <div><span class="muted">Release</span><span id="sys-rel">—</span></div>
+            <div><span class="muted">CPU</span><span id="sys-cpu">—</span></div>
+            <div><span class="muted">Cores</span><span id="sys-cores">—</span></div>
+            <div><span class="muted">System uptime</span><span id="sys-up">—</span></div>
+            <div><span class="muted">Load avg</span><span id="sys-load">—</span></div>
+          </div>
+        </div>
+        <div class="card span-3">
+          <h3>Resource history (last 5 min)</h3>
+          <svg id="perf-history-chart" viewBox="0 0 600 140" style="width:100%;height:140px"></svg>
+        </div>
+
+        <div class="card span-3">
+          <h3>Process</h3>
+          <div class="info-grid">
+            <div><span class="muted">Node version</span><span id="proc-node">—</span></div>
+            <div><span class="muted">PID / PPID</span><span id="proc-pid">—</span></div>
+            <div><span class="muted">Bot uptime</span><span id="proc-up">—</span></div>
+            <div><span class="muted">Heap used</span><span id="proc-heap">—</span></div>
+            <div><span class="muted">RSS</span><span id="proc-rss">—</span></div>
+            <div><span class="muted">External buffers</span><span id="proc-external">—</span></div>
+            <div><span class="muted">Discord ping</span><span id="proc-ping">—</span></div>
+            <div><span class="muted">Event loop lag</span><span id="proc-lag">—</span></div>
+            <div><span class="muted">Working dir</span><span id="proc-cwd" style="font-family:monospace;font-size:11px">—</span></div>
+          </div>
+        </div>
+
+        <div class="card span-3">
+          <h3>Discord</h3>
+          <div class="info-grid">
+            <div><span class="muted">Gateway status</span><span id="disc-status">—</span></div>
+            <div><span class="muted">Cached guilds</span><span id="disc-guilds">—</span></div>
+            <div><span class="muted">Cached users</span><span id="disc-users">—</span></div>
+            <div><span class="muted">Cached channels</span><span id="disc-channels">—</span></div>
+            <div><span class="muted">Active voice connections</span><span id="disc-voice">—</span></div>
+            <div><span class="muted">Active queues</span><span id="disc-queues">—</span></div>
+            <div><span class="muted">Shards</span><span id="disc-shards">—</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Stats ===== -->
+    <section class="page hidden" id="page-stats">
+      <header class="page-head">
+        <h1>Listening Stats</h1>
+        <div style="margin-left:auto;display:flex;gap:6px">
+          <button class="filter-chip active" data-range="all">All time</button>
+          <button class="filter-chip" data-range="month">Month</button>
+          <button class="filter-chip" data-range="week">Week</button>
+          <button class="filter-chip" data-range="today">Today</button>
+        </div>
+      </header>
+      <div class="grid grid-overview">
+        <div class="card stat-card"><div class="stat-label">Total plays</div><div class="stat-value" id="stats-total">—</div></div>
+        <div class="card stat-card"><div class="stat-label">Listening time</div><div class="stat-value" id="stats-listen">—</div></div>
+        <div class="card stat-card"><div class="stat-label">Top artist</div><div class="stat-value" id="stats-top-artist">—</div></div>
+        <div class="card stat-card"><div class="stat-label">Top song</div><div class="stat-value" id="stats-top-song">—</div></div>
+        <div class="card span-2">
+          <h3>Top 10 songs</h3>
+          <div id="stats-songs-list" class="queue"></div>
+        </div>
+        <div class="card span-2">
+          <h3>Top 10 artists</h3>
+          <div id="stats-artists-list" class="queue"></div>
+        </div>
+        <div class="card span-2">
+          <h3>Plays by hour of day</h3>
+          <svg id="stats-hours-chart" viewBox="0 0 480 140" style="width:100%;height:140px"></svg>
+        </div>
+        <div class="card span-2">
+          <h3>Genre breakdown</h3>
+          <div class="donut-wrap">
+            <svg class="donut" id="stats-donut" viewBox="0 0 100 100"></svg>
+            <div class="donut-legend" id="stats-donut-legend"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Profile ===== -->
+    <section class="page hidden" id="page-profile">
+      <header class="page-head"><h1>Listening Profile</h1></header>
+      <div class="grid grid-overview">
+        <div class="card stat-card row-2"><div class="stat-label">Listening streak</div><div class="stat-value" id="prof-streak">—</div><div class="muted" style="margin-top:8px" id="prof-streak-sub">consecutive days</div></div>
+        <div class="card stat-card"><div class="stat-label">Total plays</div><div class="stat-value" id="prof-total">—</div></div>
+        <div class="card stat-card"><div class="stat-label">Hours listened</div><div class="stat-value" id="prof-hours">—</div></div>
+        <div class="card span-2">
+          <h3>Current obsession</h3>
+          <div id="prof-obsession" class="np-mini"><div class="muted">Need at least 5 plays this week.</div></div>
+        </div>
+        <div class="card span-2">
+          <h3>Top artists (all time)</h3>
+          <div id="prof-artists" class="queue"></div>
+        </div>
+        <div class="card span-2">
+          <h3>Top songs (all time)</h3>
+          <div id="prof-songs" class="queue"></div>
+        </div>
+        <div class="card span-2">
+          <h3>Top requesters</h3>
+          <div id="prof-topusers" class="queue"></div>
+        </div>
+        <div class="card span-3">
+          <h3>365-day listening heatmap</h3>
+          <div id="prof-heatmap" class="heatmap"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Activity feed ===== -->
+    <section class="page hidden" id="page-activity">
+      <header class="page-head">
+        <h1>Activity Feed</h1>
+        <div style="margin-left:auto;display:flex;gap:6px">
+          <button class="filter-chip active" data-filter="all">all</button>
+          <button class="filter-chip" data-filter="info">plays</button>
+          <button class="filter-chip" data-filter="warn">warnings</button>
+          <button class="filter-chip" data-filter="error">errors</button>
+        </div>
+      </header>
+      <div class="card">
+        <div class="log" id="activity-feed" style="max-height:70vh"></div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ===== Floating mini-player dock ===== -->
+  <div class="mini-dock" id="mini-dock">
+    <img id="dock-thumb" />
+    <div class="info">
+      <div class="title" id="dock-title">— no signal —</div>
+      <div class="sub" id="dock-sub"></div>
+      <div class="bar"><div id="dock-bar"></div></div>
+    </div>
+    <button class="dock-btn" id="dock-pause">⏸</button>
+    <button class="dock-btn" id="dock-skip">⏭</button>
+    <button class="dock-btn" id="dock-fs" title="Fullscreen">⛶</button>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
