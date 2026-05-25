@@ -279,6 +279,16 @@
       </div>
 
       <div class="card" style="margin-top:16px">
+        <h3>✦  Invite link</h3>
+        <p class="muted" style="margin-bottom:10px">Add MaowCore to another Discord server. The OAuth2 link grants every permission the bot actually uses — no Administrator.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <input id="invite-url" type="text" readonly style="flex:1;min-width:280px;font-size:11px;padding:8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--fg)" value="loading…" />
+          <button id="invite-copy" class="primary" style="padding:8px 14px">Copy</button>
+          <a id="invite-open" href="#" target="_blank" rel="noopener" class="primary" style="padding:8px 14px;text-decoration:none">Open ↗</a>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
         <h3>📱  QR Phone Access</h3>
         <p class="muted" style="margin-bottom:10px">Scan with your phone to open this dashboard on your mobile device (same Wi-Fi required).</p>
         <div id="qr-box" style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">

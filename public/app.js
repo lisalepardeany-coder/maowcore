@@ -153,7 +153,12 @@
   }
   function send(action, extra = {}) {
     if (!connected) return;
-    ws.send(JSON.stringify({ type: 'cmd', action, ...extra }));
+    // Pin commands to the currently-selected server so multi-guild bots route
+    // transport actions to the right queue. resolveGuildId() on the backend
+    // falls back to "first queue" if no guildId is supplied.
+    const server = currentServer();
+    const guildId = extra.guildId ?? server?.id;
+    ws.send(JSON.stringify({ type: 'cmd', action, ...(guildId ? { guildId } : {}), ...extra }));
   }
   function setStatus(ok, text) {
     $('status-dot').classList.toggle('ok', ok);
@@ -219,7 +224,19 @@
     renderPerformance();
   }
 
-  function firstQueue() { return state?.queues?.[0] || null; }
+  // Returns the queue for the currently-selected server, falling back to the
+  // first queue if no server is selected or the selection has no active queue.
+  // (The legacy name "firstQueue" survives so the many call sites don't need
+  // to change.)
+  function firstQueue() {
+    if (!state?.queues?.length) return null;
+    const server = currentServer();
+    if (server) {
+      const match = state.queues.find((q) => q.guildId === server.id);
+      if (match) return match;
+    }
+    return state.queues[0];
+  }
 
   function renderOverview() {
     const ping = state.ping || {};
@@ -335,9 +352,9 @@
       document.body.appendChild(previewEl);
     }
     previewEl.innerHTML = `
-      ${song.thumbnail ? `<img src="${song.thumbnail}" />` : ''}
+      ${song.thumbnail ? `<img src="${escapeHtmlSafe(song.thumbnail)}" />` : ''}
       <div class="pp-title">${escapeHtmlSafe(song.name)}</div>
-      <div class="pp-meta">${song.formattedDuration}</div>
+      <div class="pp-meta">${escapeHtmlSafe(song.formattedDuration || '')}</div>
     `;
     previewEl.style.display = 'block';
     const rect = evt.currentTarget.getBoundingClientRect();
@@ -355,7 +372,7 @@
       return;
     }
     $('server-header').innerHTML = `
-      ${server.iconURL ? `<img class="server-icon" src="${server.iconURL}" />` : '<div class="server-icon" style="background:linear-gradient(135deg,var(--cosmic),var(--nebula));display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700">◆</div>'}
+      ${server.iconURL ? `<img class="server-icon" src="${escapeHtmlSafe(server.iconURL)}" />` : '<div class="server-icon" style="background:linear-gradient(135deg,var(--cosmic),var(--nebula));display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700">◆</div>'}
       <div class="server-info">
         <h2>${escapeHtml(server.name)}</h2>
         <div class="muted">${server.memberCount} members · ${server.channels.length} channels</div>
@@ -576,7 +593,7 @@
       const row = document.createElement('div');
       row.className = 'search-row';
       row.innerHTML = `
-        ${r.thumbnail ? `<img src="${r.thumbnail}" />` : '<div style="width:80px;height:60px;border-radius:6px;background:var(--bg-input)"></div>'}
+        ${r.thumbnail ? `<img src="${escapeHtmlSafe(r.thumbnail)}" />` : '<div style="width:80px;height:60px;border-radius:6px;background:var(--bg-input)"></div>'}
         <div class="meta">
           <div class="title">${escapeHtml(r.name)}</div>
           <div class="sub">${escapeHtml(r.uploader || 'unknown')} · ${fmtClock(r.duration)}</div>
@@ -637,12 +654,12 @@
         row.className = 'history-row';
         const when = new Date(e.ts).toLocaleString();
         row.innerHTML = `
-          ${e.thumbnail ? `<img src="${e.thumbnail}" />` : '<div style="width:56px;height:42px;border-radius:6px;background:var(--bg-input)"></div>'}
+          ${e.thumbnail ? `<img src="${escapeHtmlSafe(e.thumbnail)}" />` : '<div style="width:56px;height:42px;border-radius:6px;background:var(--bg-input)"></div>'}
           <div class="meta">
             <div class="title">${escapeHtml(e.name)}</div>
             <div class="sub">${escapeHtml(e.user || 'unknown')} · ${when}</div>
           </div>
-          <button data-url="${e.url || ''}" class="primary">▶ Replay</button>
+          <button data-url="${escapeHtmlSafe(e.url || '')}" class="primary">▶ Replay</button>
         `;
         out.appendChild(row);
       });
@@ -750,6 +767,15 @@
     { glyph: '↻', label: 'Cycle loop mode', meta: 'control', action: () => { const q = firstQueue(); if (q) send('loop', { value: (q.repeatMode + 1) % 3 }); } },
     { glyph: '⛶', label: 'Toggle fullscreen Now Playing', meta: 'view', action: () => toggleFullscreen() },
     { glyph: '🎨', label: 'Cycle theme', meta: 'view', action: () => cycleTheme() },
+    { glyph: '✦', label: 'Copy invite link', meta: 'invite', action: async () => {
+      try {
+        const r = await fetch('/api/invite');
+        const d = await r.json();
+        if (!d.url) return toast('▲ Invite unavailable', 'Client ID not ready yet', 'error', 2500);
+        await navigator.clipboard.writeText(d.url);
+        toast('✦ Copied', 'Invite link copied', 'success', 2000);
+      } catch { toast('▲ Copy failed', '', 'error', 2000); }
+    } },
   ];
 
   const openPalette = () => {
@@ -793,7 +819,7 @@
   $('palette-overlay')?.addEventListener('click', (e) => { if (e.target.id === 'palette-overlay') closePalette(); });
   document.addEventListener('keydown', (e) => {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); openPalette(); }
-    if (e.key === 'F' && !$('palette-overlay').classList.contains('open')) {
+    if ((e.key === 'f' || e.key === 'F') && !$('palette-overlay').classList.contains('open')) {
       const active = document.activeElement?.tagName;
       if (active !== 'INPUT' && active !== 'TEXTAREA') toggleFullscreen();
     }
@@ -866,7 +892,7 @@
       const obsEntry = obs ? history.find((h) => h.name === obs[0]) : null;
       if (obsEntry) {
         $('prof-obsession').innerHTML = `
-          ${obsEntry.thumbnail ? `<img class="np-thumb-mini" src="${obsEntry.thumbnail}" />` : '<div class="np-thumb-mini"></div>'}
+          ${obsEntry.thumbnail ? `<img class="np-thumb-mini" src="${escapeHtmlSafe(obsEntry.thumbnail)}" />` : '<div class="np-thumb-mini"></div>'}
           <div class="np-info">
             <div class="np-title">${escapeHtmlSafe(obsEntry.name)}</div>
             <div class="np-meta muted">${obs[1]} plays this week</div>
@@ -1306,13 +1332,13 @@
         const row = document.createElement('div');
         row.className = 'history-row';
         row.innerHTML = `
-          ${e.thumbnail ? `<img src="${e.thumbnail}" />` : '<div style="width:56px;height:42px;border-radius:6px;background:var(--bg-input)"></div>'}
+          ${e.thumbnail ? `<img src="${escapeHtmlSafe(e.thumbnail)}" />` : '<div style="width:56px;height:42px;border-radius:6px;background:var(--bg-input)"></div>'}
           <div class="meta">
             <div class="title">★ ${escapeHtmlSafe(e.name)}</div>
-            <div class="sub">${e.formattedDuration || ''}</div>
+            <div class="sub">${escapeHtmlSafe(e.formattedDuration || '')}</div>
           </div>
-          <button data-url="${e.url}" class="primary">▶ Play</button>
-          <button data-rm="${e.url}">✕</button>
+          <button data-url="${escapeHtmlSafe(e.url || '')}" class="primary">▶ Play</button>
+          <button data-rm="${escapeHtmlSafe(e.url || '')}">✕</button>
         `;
         out.appendChild(row);
       });
@@ -1415,6 +1441,43 @@
     box.innerHTML = `<img src="${qrSrc}" alt="QR code" style="width:140px;height:140px"/>`;
   };
   renderQr();
+
+  // ===== Invite link =====
+  // Backend builds the OAuth2 URL with the right scopes/permissions and the
+  // live bot client ID — we just fetch + display + copy.
+  const loadInvite = async () => {
+    const input = $('invite-url');
+    const copyBtn = $('invite-copy');
+    const openLink = $('invite-open');
+    if (!input || !copyBtn || !openLink) return;
+    try {
+      const res = await fetch('/api/invite');
+      const data = await res.json();
+      if (data.url) {
+        input.value = data.url;
+        openLink.href = data.url;
+      } else {
+        input.value = '— client ID not available —';
+        openLink.removeAttribute('href');
+      }
+    } catch {
+      input.value = '— failed to load invite URL —';
+    }
+  };
+  $('invite-copy')?.addEventListener('click', async () => {
+    const input = $('invite-url');
+    if (!input?.value || input.value.startsWith('—')) return;
+    try {
+      await navigator.clipboard.writeText(input.value);
+      toast('✦ Copied', 'Invite link copied to clipboard', 'success', 2000);
+    } catch {
+      // Fallback for non-secure contexts / older browsers
+      input.select();
+      document.execCommand('copy');
+      toast('✦ Copied', 'Invite link copied (fallback)', 'success', 2000);
+    }
+  });
+  loadInvite();
 
   const cfgBg = $('cfg-bg');
   if (cfgBg) {

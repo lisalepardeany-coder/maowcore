@@ -31,7 +31,6 @@ const spotifyFeatures = require('./lib/spotify-features');
 const abLoop = require('./lib/ab-loop');
 const sleepTimer = require('./lib/sleep-timer');
 const history = require('./lib/history');
-const lrclib = require('./lib/lrclib');
 const tts = require('./lib/tts');
 const undo = require('./lib/undo');
 const automod = require('./lib/automod');
@@ -250,6 +249,11 @@ client.distube
   .on('playSong', async (queue, song) => {
     clearIdleTimer(queue.id);
     abLoop.stop(queue.id);  // clear any prior A-B loop when a new song starts
+    // Hoist dedication from DisTube metadata onto the song itself. This is
+    // race-free vs. the older "attach to queue.songs[last] after play()" trick
+    // — metadata sticks to the exact track DisTube spawned, even if other
+    // plays interleave.
+    if (song.metadata?.dedication && !song.dedication) song.dedication = song.metadata.dedication;
     presence.setPlaying(client, song);
     sponsorblock.onPlay(queue, song, (text, level) => control.log(text, level));
     session.set(queue.id, queue);
@@ -265,11 +269,6 @@ client.distube
       song._announced = true;
       queue.textChannel?.send(`📢  Now playing: **${song.name}**`).catch(() => {});
     }
-    lrclib.fetchSynced({
-      trackName: song.name,
-      artistName: song.uploader?.name || song.artist,
-      duration: song.duration,
-    }).then((r) => { if (r?.synced?.length) song.syncedLyrics = r.synced; }).catch(() => {});
     history.record(queue.id, song, song.user?.displayName || song.user?.username);
     // Event mode — append to current event's setlist
     {
@@ -307,6 +306,9 @@ client.distube
   })
   .on('addSong', (queue, song) => {
     clearIdleTimer(queue.id);
+    // Hoist dedication metadata as soon as the song lands in the queue so
+    // /queue and /nowplaying see it without waiting for playSong.
+    if (song.metadata?.dedication && !song.dedication) song.dedication = song.metadata.dedication;
     session.set(queue.id, queue);
     queue.textChannel?.send({
       embeds: [
@@ -316,7 +318,7 @@ client.distube
           `**${song.name}** \`${song.formattedDuration}\`\n› requested by ${song.user}`,
         ),
       ],
-    });
+    }).catch(() => {});
   })
   .on('addList', (queue, playlist) => {
     clearIdleTimer(queue.id);
@@ -329,7 +331,7 @@ client.distube
           `**${playlist.name}** — \`${playlist.songs.length}\` signals queued`,
         ),
       ],
-    });
+    }).catch(() => {});
   })
   .on('error', (error, queue) => {
     console.error('DisTube error:', error);
@@ -351,7 +353,7 @@ client.distube
             : `Disengaging in ${EMPTY_MS / 1000}s if no one rejoins.`,
         ),
       ],
-    });
+    }).catch(() => {});
     scheduleIdleLeave(queue.id, queue.textChannel, EMPTY_MS, 'Channel was deserted.');
   })
   .on('finish', (queue) => {
@@ -371,7 +373,7 @@ client.distube
             : `Queue exhausted. Auto-disengage in ${getIdleMs(queue.id) / 60000}m.`,
         ),
       ],
-    });
+    }).catch(() => {});
     scheduleIdleLeave(queue.id, queue.textChannel, getIdleMs(queue.id), 'Idle timeout reached.');
   })
   .on('disconnect', (queue) => {
@@ -383,7 +385,7 @@ client.distube
     presence.setIdle(client);
     queue.textChannel?.send({
       embeds: [themedEmbed(COLORS.COSMIC, '⌬  RETURNING TO THE VOID', 'Disconnected from voice.')],
-    });
+    }).catch(() => {});
   });
 
 // Interaction handler (slash commands + now-playing buttons)
@@ -473,8 +475,9 @@ const welcomeEmbed = (member, isJoin) => {
 };
 
 client.on(Events.GuildMemberAdd, (member) => {
-  // Anti-raid check first
-  if (automod.checkRaid(member.guild, member)) {
+  // Anti-raid check first. checkRaid takes just the guild — it tracks rolling
+  // join timestamps per guild and trips at 5 joins in <10s.
+  if (automod.checkRaid(member.guild)) {
     modlog.post(member.guild, { action: 'raid', target: member.user, mod: 'automod', reason: '5+ joins in <10s detected' });
   }
   const cfg = getGuild(member.guild.id);
@@ -588,8 +591,16 @@ client.on(Events.MessageReactionAdd, (r, u) => handleReaction(r, u, true));
 client.on(Events.MessageReactionRemove, (r, u) => handleReaction(r, u, false));
 
 // Bot self-introduction when joining a new server
+const { deployToGuild, forgetGuild } = require('./lib/command-deploy');
 client.on(Events.GuildCreate, async (guild) => {
   control.log(`+ Joined server: ${guild.name}`);
+  // Auto-deploy slash commands to the new guild — they show up instantly
+  // (vs. up-to-1-hour wait if we relied on global commands).
+  if (process.env.AUTO_DEPLOY_COMMANDS !== 'false') {
+    const r = await deployToGuild(client, guild.id);
+    if (r.ok && r.deployed) control.log(`✦ Deployed ${r.count} slash commands to ${guild.name}`);
+    else if (!r.ok) control.log(`✕ Command deploy failed for ${guild.name}: ${r.error}`, 'error');
+  }
   const target = guild.systemChannel || guild.channels.cache.find((c) =>
     c.type === ChannelType.GuildText && c.permissionsFor(guild.members.me)?.has(PermissionFlagsBits.SendMessages),
   );
@@ -607,6 +618,12 @@ client.on(Events.GuildCreate, async (guild) => {
     ].join('\n'),
   );
   target.send({ embeds: [embed] }).catch(() => {});
+});
+
+// Drop the cached command hash for guilds we leave so the file stays tidy.
+client.on(Events.GuildDelete, (guild) => {
+  control.log(`- Left server: ${guild.name || guild.id}`);
+  forgetGuild(guild.id);
 });
 
 // Auto-update server stats channels every 10 minutes (Discord rate-limits name changes)
@@ -660,3 +677,38 @@ setInterval(async () => {
 }, 15000);
 
 client.login(process.env.DISCORD_TOKEN);
+
+// ===== Graceful shutdown =====
+// When the process gets SIGINT (Ctrl+C) or SIGTERM (Stop-Process / `kill`),
+// destroy the Discord client cleanly so Discord receives a proper WebSocket
+// close frame and marks the bot offline immediately — instead of waiting
+// ~30–45s for the heartbeat to time out (which leaves the bot showing as
+// "online" in Discord clients long after npm start has exited).
+let shuttingDown = false;
+const shutdown = async (signal) => {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`\n◌  ${signal} received — closing uplink…`);
+  // Cap the total shutdown time at 5s. If destroy hangs (rare but possible
+  // on a stuck WebSocket), force-exit anyway so the user isn't stuck.
+  const force = setTimeout(() => {
+    console.warn('▲ shutdown timed out — force-exiting');
+    process.exit(1);
+  }, 5000);
+  try {
+    // Drop the voice connection first so audio sessions don't linger.
+    for (const voice of client.distube.voices.collection.values()) {
+      try { voice.leave(); } catch { /* ignored */ }
+    }
+    // Tear down WS + REST. discord.js fires the proper Gateway close frame.
+    await client.destroy();
+  } catch (e) {
+    console.warn('▲ shutdown error:', e.message);
+  } finally {
+    clearTimeout(force);
+    console.log('◇  uplink severed cleanly.');
+    process.exit(0);
+  }
+};
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('SIGTERM', () => shutdown('SIGTERM'));
