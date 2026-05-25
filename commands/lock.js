@@ -12,6 +12,9 @@ module.exports = {
     const targets = all
       ? [...interaction.guild.channels.cache.values()].filter((c) => c.type === ChannelType.GuildText)
       : [interaction.channel];
+    // Discord interactions time out after 3s. Iterating 50+ channels with
+    // per-channel awaits blows past that, so defer when locking everything.
+    if (all) await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     let count = 0;
     for (const ch of targets) {
       try {
@@ -24,6 +27,7 @@ module.exports = {
       target: all ? `${count} channels` : interaction.channel.name,
       mod: interaction.user,
     });
-    return interaction.reply(`🔒  Locked ${all ? `${count} channels` : `**#${interaction.channel.name}**`}.`);
+    const msg = `🔒  Locked ${all ? `${count} channels` : `**#${interaction.channel.name}**`}.`;
+    return all ? interaction.editReply(msg) : interaction.reply(msg);
   },
 };

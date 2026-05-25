@@ -776,7 +776,10 @@ body.fullscreen:not(.cursor-hidden) .transport,
 body.fullscreen:not(.cursor-hidden) .vol-row,
 body.fullscreen:not(.cursor-hidden) .play-row { opacity: 1; }
 
-/* ===== Lyrics overlay on big album art ===== */
+/* ===== Lyrics overlay on big album art =====
+   Pre-existing visual flourish: a subtle hover-only overlay over the album
+   art. Intentionally empty content — populated by the Lyrics Overlay roadmap
+   item if/when that's built. */
 .lyrics-overlay {
   position: absolute; inset: 0;
   background: linear-gradient(180deg, transparent, rgba(8,6,26,0.9));

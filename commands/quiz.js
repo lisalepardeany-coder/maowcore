@@ -66,10 +66,10 @@ module.exports = {
           if (q && song.duration > 30) { try { q.seek(Math.floor(song.duration / 2)); } catch {} }
         }, 1500);
       } catch (e) {
-        interaction.channel.send(`▲ Round ${state.current} skipped: ${e.message}`);
+        interaction.channel.send(`▲ Round ${state.current} skipped: ${e.message}`).catch(() => {});
         return setTimeout(nextRound, 500);
       }
-      interaction.channel.send(`**Round ${state.current}/${rounds}** — guess the song! (${CLIP_SECONDS}s clip)`);
+      interaction.channel.send(`**Round ${state.current}/${rounds}** — guess the song! (${CLIP_SECONDS}s clip)`).catch(() => {});
 
       // Listen for messages
       const collector = interaction.channel.createMessageCollector({ time: CLIP_SECONDS * 1000 });
@@ -84,12 +84,12 @@ module.exports = {
                                             guess === expected;
         if (matched) {
           state.scores.set(m.author.id, (state.scores.get(m.author.id) || 0) + 1);
-          interaction.channel.send(`✅ **${m.author.username}** got it! It was **${song.name}**. (+1)`);
+          interaction.channel.send(`✅ **${m.author.username}** got it! It was **${song.name}**. (+1)`).catch(() => {});
           collector.stop('answered');
         }
       });
       collector.on('end', (_collected, reason) => {
-        if (reason !== 'answered') interaction.channel.send(`⏰ Time's up! It was **${song.name}**.`);
+        if (reason !== 'answered') interaction.channel.send(`⏰ Time's up! It was **${song.name}**.`).catch(() => {});
         const q = interaction.client.distube.getQueue(interaction.guildId);
         if (q) try { q.skip().catch(() => q.stop()); } catch {}
         setTimeout(nextRound, 2000);
@@ -102,7 +102,7 @@ module.exports = {
       const lines = ranked.length
         ? ranked.map(([id, score], i) => `${i + 1}. <@${id}> — **${score}**`).join('\n')
         : '*— no winners —*';
-      interaction.channel.send({ embeds: [new EmbedBuilder().setColor(COLORS.COSMIC).setAuthor({ name: '🏆 Quiz over!' }).setDescription(lines)] });
+      interaction.channel.send({ embeds: [new EmbedBuilder().setColor(COLORS.COSMIC).setAuthor({ name: '🏆 Quiz over!' }).setDescription(lines)] }).catch(() => {});
     };
 
     nextRound();

@@ -309,6 +309,6 @@ MIT. Do whatever — fork, modify, deploy. Attribution appreciated but not requi
 
 ## 💜 Credits
 
-Built with [discord.js](https://discord.js.org), [DisTube](https://distube.js.org), [yt-dlp](https://github.com/yt-dlp/yt-dlp), [lrclib.net](https://lrclib.net), [SponsorBlock](https://sponsor.ajay.app), [Genius](https://genius.com), and [Bandsintown](https://www.bandsintown.com).
+Built with [discord.js](https://discord.js.org), [DisTube](https://distube.js.org), [yt-dlp](https://github.com/yt-dlp/yt-dlp), [SponsorBlock](https://sponsor.ajay.app), [Genius](https://genius.com), and [Bandsintown](https://www.bandsintown.com).
 
 Made with cosmic violet and electric cyan. ✦

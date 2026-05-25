@@ -24,10 +24,15 @@ module.exports = {
     const queue = await requireQueue(interaction);
     if (!queue) return;
     const semis = interaction.options.getInteger('semitones');
-    queue.filters.remove('_pitch');
-    if (semis === 0) return interaction.reply('🎼  Pitch reset to 0 (no shift).');
-    queue.client.distube.filters._pitch = buildPitchChain(semis);
-    queue.filters.add('_pitch');
+    // Per-guild filter slot — see commands/eq.js for rationale.
+    const slot = `_pitch_${interaction.guildId}`;
+    queue.filters.remove(slot);
+    if (semis === 0) {
+      delete queue.client.distube.filters[slot];
+      return interaction.reply('🎼  Pitch reset to 0 (no shift).');
+    }
+    queue.client.distube.filters[slot] = buildPitchChain(semis);
+    queue.filters.add(slot);
     return interaction.reply(`🎼  Pitch shifted **${semis > 0 ? '+' : ''}${semis}** semitones.`);
   },
 };

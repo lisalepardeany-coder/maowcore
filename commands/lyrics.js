@@ -9,7 +9,6 @@ const {
 } = require('discord.js');
 const Genius = require('genius-lyrics');
 const { COLORS } = require('../lib/theme');
-const lrclib = require('../lib/lrclib');
 const { translate } = require('../lib/translate');
 const sentiment = require('../lib/sentiment');
 

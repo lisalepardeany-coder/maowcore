@@ -20,13 +20,15 @@ module.exports = {
     const queue = await requireQueue(interaction);
     if (!queue) return;
     const factor = interaction.options.getNumber('factor');
-    // Remove any previous speed filter; we attach a custom one named "_speed".
-    queue.filters.remove('_speed');
+    // Per-guild filter slot — see commands/eq.js for rationale.
+    const slot = `_speed_${interaction.guildId}`;
+    queue.filters.remove(slot);
     if (Math.abs(factor - 1.0) < 0.001) {
+      delete queue.client.distube.filters[slot];
       return interaction.reply('⏵  Speed reset to 1.0×.');
     }
-    queue.client.distube.filters._speed = buildAtempoChain(factor);
-    queue.filters.add('_speed');
+    queue.client.distube.filters[slot] = buildAtempoChain(factor);
+    queue.filters.add(slot);
     return interaction.reply(`⏵  Playback speed set to **${factor.toFixed(2)}×** (pitch preserved).`);
   },
 };

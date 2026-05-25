@@ -20,6 +20,20 @@ module.exports = {
     const title = interaction.options.getString('title');
     const role = interaction.options.getRole('role');
     const emoji = interaction.options.getString('emoji');
+    // Validate the role is grantable. The bot can only manage roles strictly
+    // below its own highest role and can't touch @everyone or managed (bot)
+    // roles. Catching this here avoids the silent "reactions do nothing"
+    // failure mode the user would otherwise hit later.
+    if (role.id === interaction.guild.id) {
+      return interaction.reply({ content: '◌ Cannot use @everyone as a reaction role.', flags: MessageFlags.Ephemeral });
+    }
+    if (role.managed) {
+      return interaction.reply({ content: '◌ Managed roles (bot-owned) can\'t be assigned by another bot.', flags: MessageFlags.Ephemeral });
+    }
+    const me = interaction.guild.members.me;
+    if (me && role.position >= me.roles.highest.position) {
+      return interaction.reply({ content: '◌ That role is higher than my highest role — move my role above it first, or pick a lower role.', flags: MessageFlags.Ephemeral });
+    }
     const embed = new EmbedBuilder()
       .setColor(COLORS.COSMIC)
       .setTitle(`✦  ${title}`)

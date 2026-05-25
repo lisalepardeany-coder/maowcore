@@ -34,11 +34,18 @@ module.exports = {
     const queue = await requireQueue(interaction);
     if (!queue) return;
     const sub = interaction.options.getSubcommand();
-    queue.filters.remove('_eq');
-    if (sub === 'off') return interaction.reply('✕  EQ disengaged.');
+    // Per-guild filter slot so multi-guild bots don't clobber each other's EQ.
+    // distube.filters is a global object; we register a uniquely-named filter
+    // per guild ID. Always remove the prior slot first to avoid layering.
+    const slot = `_eq_${interaction.guildId}`;
+    queue.filters.remove(slot);
+    if (sub === 'off') {
+      delete queue.client.distube.filters[slot];
+      return interaction.reply('✕  EQ disengaged.');
+    }
     const name = interaction.options.getString('name');
-    queue.client.distube.filters._eq = buildEQFilter(PRESETS[name]);
-    queue.filters.add('_eq');
+    queue.client.distube.filters[slot] = buildEQFilter(PRESETS[name]);
+    queue.filters.add(slot);
     return interaction.reply(`🎚  EQ preset **${name}** engaged.`);
   },
 };

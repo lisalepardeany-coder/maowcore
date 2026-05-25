@@ -54,7 +54,7 @@ module.exports = {
           '*Or open the dashboard:* `http://127.0.0.1:8765/`',
         ].join('\n'),
       )
-      .setFooter({ text: '✦  YouTube · Spotify · SoundCloud · Genius · SponsorBlock · lrclib · Bandsintown' });
+      .setFooter({ text: '✦  YouTube · Spotify · SoundCloud · Genius · SponsorBlock · Bandsintown' });
     return interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
   },
 };

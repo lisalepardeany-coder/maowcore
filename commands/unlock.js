@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionFlagsBits, ChannelType } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags, PermissionFlagsBits, ChannelType } = require('discord.js');
 const modlog = require('../lib/modlog');
 
 module.exports = {
@@ -12,6 +12,7 @@ module.exports = {
     const targets = all
       ? [...interaction.guild.channels.cache.values()].filter((c) => c.type === ChannelType.GuildText)
       : [interaction.channel];
+    if (all) await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     let count = 0;
     for (const ch of targets) {
       try {
@@ -24,6 +25,7 @@ module.exports = {
       target: all ? `${count} channels` : interaction.channel.name,
       mod: interaction.user,
     });
-    return interaction.reply(`🔓  Unlocked ${all ? `${count} channels` : `**#${interaction.channel.name}**`}.`);
+    const msg = `🔓  Unlocked ${all ? `${count} channels` : `**#${interaction.channel.name}**`}.`;
+    return all ? interaction.editReply(msg) : interaction.reply(msg);
   },
 };

@@ -17,15 +17,15 @@ module.exports = {
     const note = interaction.options.getString('note') || '';
     await interaction.deferReply();
     try {
+      // Pass dedication via DisTube metadata; the playSong handler in
+      // index.js attaches `song.dedication` from metadata on the actual song
+      // object. The previous approach (set dedication on queue.songs[last]
+      // after play resolves) was racy when other plays interleaved.
       await interaction.client.distube.play(voice, query, {
         textChannel: interaction.channel,
         member: interaction.member,
-        metadata: { dedicatedTo: recipient, dedicationNote: note },
+        metadata: { dedication: { to: recipient, note } },
       });
-      const queue = interaction.client.distube.getQueue(interaction.guildId);
-      // Attach dedication to the just-queued song (last one in queue)
-      const target = queue?.songs?.[queue.songs.length - 1];
-      if (target) target.dedication = { to: recipient, note };
       return interaction.editReply(`✦  Dedicated to **${recipient}**${note ? ` — "${note}"` : ''}.`);
     } catch (err) {
       return interaction.editReply(`▲ Dedication failed: ${err.message || err}`);
