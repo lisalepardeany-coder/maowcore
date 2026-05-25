@@ -6,6 +6,85 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-05-26
+
+Dashboard restructure release. The biggest visual change since the bot
+launched — the funky cosmic-themed dashboard is replaced with a clean
+Discord-native layout and three switchable alternates. Plus a critical
+fix for `/play` that was crashing on certain YouTube searches.
+
+### Added
+
+- **4 switchable dashboard themes** with a picker in Settings:
+  - **Discord** (default) — blurple, dark, Inter, rounded
+  - **Linear** — pure black, sharp edges, minimal, no animations
+  - **Spotify** — green accent, big circular play button, music-app feel
+  - **Glass** — frosted blur cards over a purple/pink ambient gradient
+- **Consolidated 5-page IA** (down from 10): Home, Library, Insights,
+  Server, Settings — fewer pages, denser, more focused
+- **Library page** with tabs for Search / History / Favorites / Recent
+  searches — replaces 3 separate pages
+- **Insights page** unifying stats + profile + activity feed in one view
+- **Settings → Advanced** accordion containing the old Performance,
+  Console, and Diagnostics pages (collapsed by default — they're devtool
+  views, not daily-use)
+- **Persistent top bar** with brand, connection dot, server selector,
+  Cmd+K trigger, and notification bell
+- **Collapsible left sidebar**
+- **`scripts/kill-stuck-gits.ps1`** — Windows utility to clear leaked
+  `git.exe` processes that Claude Code occasionally piles up. Safe to
+  run anytime; only kills read-only `git ls-files` queries.
+
+### Changed
+
+- Default theme migrated from `cosmic` to `discord`. Existing users on
+  any legacy theme (cosmic / synthwave / cyberpunk / minimal /
+  high-contrast / colorblind) auto-migrate to `discord` on first load.
+- Cosmic-flavored copy on the dashboard ("Now Transmitting", "Subspace
+  scan", "Cargo manifest", ✦ ◇ ⌬ glyphs) replaced with neutral copy.
+  Discord embed and slash-command response copy left untouched.
+- Cmd+K palette action list updated for the new 5-page IA.
+- All native `<select>` elements get `color-scheme: dark` so Chrome's
+  OS-painted dropdown popups match the theme on Windows.
+
+### Fixed
+
+- **`@distube/ytsr` patched twice more** (`scripts/patch-ytsr.js`):
+  - `prepImg(...)[0].url` — videos with no thumbnails crashed the parser
+  - `commandMetadata.webCommandMetadata.url` — some channels omit the
+    full metadata block, breaking `_parseAuthor` / `_parseOwner`
+
+  Surface symptom: `/play <search>` failed with `Cannot read properties
+  of undefined (reading 'url')` on certain queries (live streams
+  especially). All three patches are idempotent; postinstall reapplies
+  them on every `npm install`.
+- **`commands/play.js`** defensive filter — drops null/incomplete ytsr
+  results before they reach Discord's select-menu builder.
+- **`renderPerformance`** TypeError on every state tick — was reaching
+  for `proc-up` (bot uptime) which didn't exist in the old HTML. Added
+  to the new Diagnostics grid.
+- **Insights page** now includes `prof-hours`, `prof-songs`, and
+  `prof-topusers` slots so all profile renderers complete cleanly.
+- **Glass theme dropdown** opacity — Chrome was rendering the popup with
+  Windows light colors against translucent topbar; forced opaque-enough
+  `<select>` bg + explicit `color-scheme: dark` on the element.
+
+### Removed
+
+- **Onboarding tour** — was friction more than help. Can be added back
+  later if anyone misses it.
+
+### Upgrade
+
+```bash
+git pull
+npm install   # postinstall reapplies all patches
+npm start
+```
+
+Hard-refresh the dashboard (`Ctrl+F5`) after upgrading so it loads the
+new CSS instead of cached old styles.
+
 ## [1.1.0] — 2026-05-25
 
 Maintenance + quality-of-life release. Three review passes turned up 22 real
@@ -154,5 +233,6 @@ If you previously ran `npm run deploy` with `GUILD_ID` set, your bot was
 missing commands in every other server. Auto-deploy fixes that the next
 time you start the bot — no manual action needed.
 
-[Unreleased]: https://github.com/lisalepardeany-coder/maowcore/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/lisalepardeany-coder/maowcore/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/lisalepardeany-coder/maowcore/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/lisalepardeany-coder/maowcore/compare/136eea4...v1.1.0
