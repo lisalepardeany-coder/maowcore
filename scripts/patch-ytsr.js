@@ -48,13 +48,21 @@ patch(
   (s) => s.replace(/\s*noCallHome:\s*true,?/g, ''),
 );
 
-// 3. ytsr parseItem — `.browseEndpoint.canonicalBaseUrl` / `.browseEndpoint.browseId`
-//    crash when YouTube omits the inner object. Insert optional chaining.
-//    Idempotent: after the first run, the regex no longer matches the patched
-//    version (it has `?.` which `\.browseEndpoint\.` doesn't), so re-running is
-//    a no-op.
+// 3. ytsr parseItem — defensive optional chaining on YouTube's frequently-
+//    omitted internal fields. YouTube ships several response shape variants
+//    depending on the video type (regular, shorts, live, members-only, etc.)
+//    and ytsr 2.0.4 only handles the common case. Three patches:
+//      (a) `.browseEndpoint.canonicalBaseUrl/browseId` → optional
+//      (b) `prepImg(...)[0].url` → optional (some videos have no thumbnails)
+//      (c) `commandMetadata.webCommandMetadata.url` → optional (some channels
+//          omit the full metadata block; author/owner can be partial)
+//    All three are idempotent: after the first run, the regex no longer
+//    matches the patched form, so re-running is a no-op.
 patch(
   'ytsr parseItem',
   path.join(ROOT, 'node_modules', '@distube', 'ytsr', 'lib', 'parseItem.js'),
-  (s) => s.replace(/\.browseEndpoint\.(canonicalBaseUrl|browseId)/g, '.browseEndpoint?.$1'),
+  (s) => s
+    .replace(/\.browseEndpoint\.(canonicalBaseUrl|browseId)/g, '.browseEndpoint?.$1')
+    .replace(/UTIL\.prepImg\(([^)]+)\)\[0\]\.url/g, 'UTIL.prepImg($1)[0]?.url')
+    .replace(/commandMetadata\.webCommandMetadata\.url/g, 'commandMetadata?.webCommandMetadata?.url'),
 );

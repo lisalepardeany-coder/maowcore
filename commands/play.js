@@ -48,7 +48,11 @@ module.exports = {
     } catch (err) {
       return interaction.editReply(`▲ Subspace scan failed: ${err.message || err}`);
     }
-    if (!results?.length) return interaction.editReply(`◌ No signals matched  \`${truncate(query, 80)}\``);
+    // Defensive filter — ytsr can return null entries or entries missing the
+    // url/name when YouTube ships an unusual response shape. Don't pass those
+    // to Discord (would crash the select-menu builder) or to DisTube.
+    results = (results || []).filter((r) => r && r.url && r.name);
+    if (!results.length) return interaction.editReply(`◌ No signals matched  \`${truncate(query, 80)}\``);
 
     const menu = new StringSelectMenuBuilder()
       .setCustomId(`play:pick:${interaction.user.id}`)
