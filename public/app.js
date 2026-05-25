@@ -3,7 +3,11 @@
   const $$ = (sel) => document.querySelectorAll(sel);
 
   // ===== Theme + motion preferences (localStorage) =====
-  const savedTheme = localStorage.getItem('maow.theme') || 'cosmic';
+  const VALID_THEMES = ['discord', 'linear', 'spotify', 'glass'];
+  let savedTheme = localStorage.getItem('maow.theme') || 'discord';
+  // Migrate users from the old theme names (cosmic / synthwave / cyberpunk /
+  // minimal / high-contrast / colorblind) to the new 4-theme system.
+  if (!VALID_THEMES.includes(savedTheme)) savedTheme = 'discord';
   const savedMotion = localStorage.getItem('maow.motion') || 'full';
   document.body.setAttribute('data-theme', savedTheme);
   document.body.setAttribute('data-motion', savedMotion);
@@ -75,7 +79,7 @@
   let ws = null;
   let connected = false;
   let state = null;
-  let activePage = 'overview';
+  let activePage = 'home';
   let volTimer = null;
   // The user-selected server. All data-driven panels (history, stats, profile,
   // favorites, server view) query this guild ID. Defaults to the first server
@@ -190,18 +194,21 @@
       try { populateServerSelect(); } catch { /* defined later */ }
       renderAll();
       try { pushPerfHistory(); } catch { /* defined later in this IIFE */ }
-      // Live-refresh data-driven pages while user is viewing them
+      // Live-refresh data-driven pages while user is viewing them.
+      // Stage-1 IA: insights bundles stats+profile+activity; library tabs
+      // refresh on tab-click rather than every tick (less churn).
       try {
-        if (activePage === 'history') renderHistory();
-        else if (activePage === 'profile') renderProfile();
-        else if (activePage === 'stats') renderStats();
-        else if (activePage === 'activity') renderActivity();
+        if (activePage === 'insights') {
+          renderStats?.(); renderProfile?.(); renderActivity?.();
+        }
       } catch { /* renderers defined later in this IIFE */ }
       return;
     }
     if (msg.type === 'hello') {
-      $('bot-tag').textContent = msg.botTag || '';
-      document.title = `◆ MaowCore — ${msg.botTag || 'bot'}`;
+      const tag = msg.botTag || '';
+      const tagEl = $('bot-tag');
+      if (tagEl) tagEl.textContent = tag;
+      document.title = `MaowCore${tag ? ' — ' + tag : ''}`;
     }
   }
 
@@ -565,14 +572,55 @@
   });
 
   // ===== Theme & motion controls =====
+  // Theme picker — visual swatch buttons + hidden select for legacy callers.
   const themeSelect = $('cfg-theme');
+  const applyTheme = (t) => {
+    if (!VALID_THEMES.includes(t)) t = 'discord';
+    document.body.setAttribute('data-theme', t);
+    localStorage.setItem('maow.theme', t);
+    if (themeSelect) themeSelect.value = t;
+    document.querySelectorAll('.theme-swatch').forEach((el) => {
+      el.classList.toggle('active', el.dataset.theme === t);
+    });
+  };
   if (themeSelect) {
     themeSelect.value = savedTheme;
-    themeSelect.addEventListener('change', () => {
-      document.body.setAttribute('data-theme', themeSelect.value);
-      localStorage.setItem('maow.theme', themeSelect.value);
-    });
+    themeSelect.addEventListener('change', () => applyTheme(themeSelect.value));
   }
+  document.querySelectorAll('.theme-swatch').forEach((btn) => {
+    btn.addEventListener('click', () => applyTheme(btn.dataset.theme));
+  });
+  // Mark the currently-active swatch on initial render.
+  applyTheme(savedTheme);
+
+  // ===== Library tabs (search / history / favorites / recent searches) =====
+  document.querySelectorAll('#library-tabs .tab').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const target = btn.dataset.tab;
+      document.querySelectorAll('#library-tabs .tab').forEach((t) => t.classList.toggle('active', t === btn));
+      document.querySelectorAll('#page-library .tab-panel').forEach((p) => p.classList.toggle('hidden', p.id !== `tab-${target}`));
+      // Lazy-load each tab's content so we don't fetch everything on first paint.
+      try {
+        if (target === 'history') renderHistory?.();
+        else if (target === 'favorites') renderFavorites?.();
+        else if (target === 'searches') renderSearches?.();
+      } catch { /* renderers defined later in this IIFE */ }
+    });
+  });
+
+  // ===== Sidebar collapse toggle =====
+  $('sidebar-toggle')?.addEventListener('click', () => {
+    document.body.classList.toggle('sidebar-collapsed');
+    localStorage.setItem('maow.sidebarCollapsed', document.body.classList.contains('sidebar-collapsed') ? '1' : '0');
+  });
+
+  // ===== Notification bell toggle =====
+  $('notif-bell')?.addEventListener('click', () => {
+    $('notif-panel')?.classList.toggle('open');
+  });
+
+  // ===== Palette trigger button (top bar) =====
+  $('palette-trigger')?.addEventListener('click', () => openPalette?.());
   const motionToggle = $('cfg-motion');
   if (motionToggle) {
     motionToggle.checked = savedMotion === 'reduced';
@@ -705,10 +753,22 @@
     } catch (e) { /* silent */ }
   };
 
-  // Re-render history/stats when switching to those pages
+  // Re-render history/stats when switching to those pages.
+  // Stage-1 IA: 'library' lazy-renders via its tabs; 'insights' renders
+  // stats + profile + activity since they all live on the same page now.
   const originalSwitchPage = switchPage;
   switchPage = function (name) {
     originalSwitchPage(name);
+    if (name === 'library') {
+      // Library defaults to the Search tab — nothing to fetch on mount.
+      // Other tabs lazy-load via their click handlers.
+    }
+    if (name === 'insights') {
+      try { renderStats?.(); } catch {}
+      try { renderProfile?.(); } catch {}
+      try { renderActivity?.(); } catch {}
+    }
+    // Legacy direct page names still supported (palette/Cmd+K entries).
     if (name === 'history') renderHistory();
     if (name === 'stats') renderStats();
   };
@@ -748,17 +808,11 @@
 
   // ===== Command palette (Cmd+K / Ctrl+K) =====
   const PALETTE_ACTIONS = [
-    { glyph: '◇', label: 'Go to Overview', meta: 'page', action: () => switchPage('overview') },
-    { glyph: '◆', label: 'Go to Now Playing', meta: 'page', action: () => switchPage('player') },
-    { glyph: '⌬', label: 'Go to Search', meta: 'page', action: () => switchPage('search') },
-    { glyph: '⟲', label: 'Go to History', meta: 'page', action: () => switchPage('history') },
-    { glyph: '⟡', label: 'Go to Server', meta: 'page', action: () => switchPage('servers') },
-    { glyph: '⌬', label: 'Go to Settings', meta: 'page', action: () => switchPage('settings') },
-    { glyph: '›_', label: 'Go to Console', meta: 'page', action: () => switchPage('console') },
-    { glyph: '▰', label: 'Go to Performance', meta: 'page', action: () => switchPage('performance') },
-    { glyph: '📊', label: 'Go to Stats', meta: 'page', action: () => switchPage('stats') },
-    { glyph: '✦', label: 'Go to Profile', meta: 'page', action: () => switchPage('profile') },
-    { glyph: '⌁', label: 'Go to Activity', meta: 'page', action: () => switchPage('activity') },
+    { glyph: '⌂', label: 'Go to Home', meta: 'page', action: () => switchPage('home') },
+    { glyph: '≡', label: 'Go to Library', meta: 'page', action: () => switchPage('library') },
+    { glyph: '◐', label: 'Go to Insights', meta: 'page', action: () => switchPage('insights') },
+    { glyph: '⌬', label: 'Go to Server', meta: 'page', action: () => switchPage('server') },
+    { glyph: '⚙', label: 'Go to Settings', meta: 'page', action: () => switchPage('settings') },
     { glyph: '⏸', label: 'Pause / Resume', meta: 'control', action: () => { const q = firstQueue(); if (q) send(q.paused ? 'resume' : 'pause'); } },
     { glyph: '⏭', label: 'Skip', meta: 'control', action: () => send('skip') },
     { glyph: '⏹', label: 'Stop', meta: 'control', action: () => send('stop') },
@@ -827,7 +881,7 @@
   });
 
   // ===== Theme cycler (palette shortcut) =====
-  const THEMES = ['cosmic', 'synthwave', 'cyberpunk', 'minimal', 'high-contrast', 'colorblind'];
+  const THEMES = VALID_THEMES;
   const cycleTheme = () => {
     const current = document.body.getAttribute('data-theme') || 'cosmic';
     const next = THEMES[(THEMES.indexOf(current) + 1) % THEMES.length];
@@ -1512,14 +1566,6 @@
   renderPlayer = function () {
     origRenderPlayer();
     renderQuickButtons();
-  };
-
-  // Extend switchPage to include new pages
-  const prev2 = switchPage;
-  switchPage = function (name) {
-    prev2(name);
-    if (name === 'searches') renderSearches();
-    if (name === 'favorites') renderFavorites();
   };
 
   connect();
