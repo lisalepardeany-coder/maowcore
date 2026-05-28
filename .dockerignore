@@ -1,8 +1,36 @@
+# Never copy these into the build context / image.
+
+# Host node_modules — CRITICAL: contains Windows/host-native binaries
+# (@snazzah/davey, ffmpeg-static, yt-dlp). The image installs Linux ones.
 node_modules
-.git
+package-lock.json
+
+# Secrets + runtime state (injected via env_file / mounted as a volume)
 .env
+.env.*
+!.env.example
 data
-*.log
+maowcore-backup-*.json
+
+# Client-side / non-runtime pieces not needed in the container
 gui
 vencord-plugin
 browser-extension
+test
+
+# Docs, VCS, CI, editor cruft
+.git
+.gitignore
+.gitattributes
+.github
+*.md
+.vscode
+.idea
+*.log
+.DS_Store
+Thumbs.db
+
+# Docker files themselves
+Dockerfile
+docker-compose.yml
+.dockerignore

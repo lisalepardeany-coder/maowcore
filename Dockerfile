@@ -1,33 +1,82 @@
-# MaowCore — Discord music bot + cosmic dashboard
-# Build: docker build -t maowcore .
-# Run:   docker run --env-file .env -v $(pwd)/data:/app/data -p 8765:8765 maowcore
+# ============================================================
+# MaowCore — Discord music bot + dashboard
+# Multi-stage build for a lean, Linux-native runtime image.
+#
+#   Build:  docker build -t maowcore .
+#   Run:    docker compose up -d           (recommended — see docker-compose.yml)
+#     or:   docker run -d --name maowcore --env-file .env \
+#             -e CONTROL_HOST=0.0.0.0 -p 8765:8765 \
+#             -v maowcore-data:/app/data maowcore
+#
+# IMPORTANT: never COPY the host's node_modules into the image — it contains
+# Windows/host-specific native binaries (@snazzah/davey, ffmpeg-static,
+# yt-dlp). The builder stage runs a fresh `npm install` so the LINUX binaries
+# are fetched. (.dockerignore excludes node_modules to enforce this.)
+# ============================================================
 
-FROM node:22-bookworm-slim
+# ---------- Stage 1: build / install dependencies ----------
+FROM node:22-bookworm-slim AS builder
 
-# ffmpeg + python3 (for yt-dlp) + build deps for opusscript fallback
+# Toolchain for any native module that needs node-gyp, plus python3 (yt-dlp)
+# and CA certs (ffmpeg-static + yt-dlp download their binaries over HTTPS).
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ffmpeg \
-    python3 \
-    ca-certificates \
+      python3 \
+      make \
+      g++ \
+      ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Cache deps install layer
-COPY package.json package-lock.json* ./
-RUN npm install --omit=dev || npm install
+# Copy the manifest AND the postinstall patch script first. `npm install`
+# runs `postinstall` (scripts/patch-ytsr.js), which must exist at that point —
+# copying scripts/ beforehand is what makes the install succeed.
+# (No package-lock.json is committed, so we install from package.json.)
+COPY package.json ./
+COPY scripts ./scripts
 
-# Copy app source
+# Install production deps. This fetches the Linux-native ffmpeg-static,
+# yt-dlp, and @snazzah/davey binaries, then runs the ytsr/yt-dlp patches.
+RUN npm install --omit=dev
+
+
+# ---------- Stage 2: runtime ----------
+FROM node:22-bookworm-slim
+
+# python3 (yt-dlp may shell out to it) + CA certs for outbound HTTPS to
+# YouTube / Spotify / Genius / etc. ffmpeg is NOT installed — the bot uses the
+# bundled ffmpeg-static binary copied in via node_modules.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      python3 \
+      ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+ENV NODE_ENV=production
+
+# Bring the already-installed, already-patched Linux node_modules from builder.
+COPY --from=builder /app/node_modules ./node_modules
+
+# App source (node_modules / .env / data excluded via .dockerignore).
 COPY . .
 
-# Run the post-install patches (handles yt-dlp deprecation flags)
-RUN node scripts/patch-ytsr.js || true
-
-# Mount /app/data for persistent state (history, sessions, favorites)
+# Persistent state: config, history, sessions, favorites, uploaded library.
+# Owned by the unprivileged `node` user so the named volume inherits writable
+# permissions on first run.
+RUN mkdir -p /app/data && chown -R node:node /app
 VOLUME /app/data
 
-# Default control-server port + dashboard
-EXPOSE 8765
+# The control server / dashboard MUST bind 0.0.0.0 inside the container to be
+# reachable via the published port (it defaults to 127.0.0.1, host-only).
 ENV CONTROL_HOST=0.0.0.0
+ENV CONTROL_PORT=8765
+EXPOSE 8765
+
+# Drop privileges.
+USER node
+
+# Tiny healthcheck against the dashboard's /health endpoint.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD node -e "require('http').get('http://127.0.0.1:'+(process.env.CONTROL_PORT||8765)+'/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
 
 CMD ["node", "index.js"]

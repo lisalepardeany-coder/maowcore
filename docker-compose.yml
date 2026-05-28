@@ -1,12 +1,48 @@
+# MaowCore — Discord music bot + dashboard
+#
+#   Start:   docker compose up -d --build
+#   Logs:    docker compose logs -f
+#   Stop:    docker compose down          (graceful — bot drops offline cleanly)
+#   Update:  git pull && docker compose up -d --build
+#
+# Requires a .env file next to this one with at least DISCORD_TOKEN + CLIENT_ID
+# (copy .env.example and fill it in). The dashboard is at http://localhost:8765/
+
 services:
   maowcore:
     build: .
+    image: maowcore
     container_name: maowcore
     restart: unless-stopped
+
+    # Secrets + config (DISCORD_TOKEN, CLIENT_ID, SPOTIFY_*, GENIUS_TOKEN, …).
     env_file: .env
-    ports:
-      - "8765:8765"
-    volumes:
-      - ./data:/app/data
+
     environment:
+      # Bind the dashboard to all interfaces inside the container so the
+      # published port below can reach it. Do NOT set this to 127.0.0.1 here.
       - CONTROL_HOST=0.0.0.0
+      - CONTROL_PORT=8765
+
+    ports:
+      # host:container — open http://<server-ip>:8765/ for the dashboard.
+      # Use "127.0.0.1:8765:8765" instead if you only want local access.
+      - "8765:8765"
+
+    volumes:
+      # Named volume: persists config, history, sessions, and uploaded songs
+      # across restarts/rebuilds. Docker manages permissions (works with the
+      # non-root container user out of the box).
+      #
+      # Prefer host files instead? Replace the line below with:
+      #     - ./data:/app/data
+      # then run once:  sudo chown -R 1000:1000 ./data
+      # (1000 = the uid of the `node` user inside the image).
+      - maowcore-data:/app/data
+
+    # SIGTERM from `docker compose down` triggers the bot's graceful shutdown
+    # (leaves voice + closes the gateway so Discord marks it offline instantly).
+    stop_grace_period: 10s
+
+volumes:
+  maowcore-data:
