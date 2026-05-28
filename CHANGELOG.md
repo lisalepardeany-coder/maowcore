@@ -6,6 +6,57 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [1.3.0] — 2026-05-29
+
+Local song uploads, a real fix for local-file playback, and Docker support.
+
+### Added
+
+- **Upload your own songs** — a new **Uploads** tab in the dashboard Library
+  with drag-and-drop. Files are stored in `data/library/` and play instantly.
+  - Formats: mp3, wav, ogg, m4a, flac, opus, aac, webm
+  - **No song-count limit** (was capped) and **500 MB per file**
+  - **Play now** (insert next + skip) vs **+ Queue** (append) buttons, plus
+    in-browser **Preview** and delete
+  - Real track **duration** shown — probed with ffmpeg on upload and
+    backfilled on startup (yt-dlp can't measure an HTTP stream, so the
+    embed used to show 00:00)
+- **`/library play|list|remove`** slash command with autocomplete.
+- **Docker support** — multi-stage `Dockerfile`, `docker-compose.yml`, and
+  `.dockerignore` for one-command deployment on a Linux host. Builds Linux
+  -native binaries inside the container, runs non-root, has a healthcheck,
+  and persists data in a named volume.
+
+### Fixed
+
+- **Local-file playback never worked** — `/sb` soundboard (and the new
+  uploads) handed DisTube a local file *path*, but yt-dlp reads `C:/…` as an
+  unsupported URL scheme and fails. Both now **stream over the control
+  server's HTTP endpoint** (`/library/<file>`, `/sounds/<file>`, with Range
+  support), which yt-dlp resolves correctly.
+- **Uploaded-song display** — shows the friendly name (not the yt-dlp-derived
+  filename) and the correct duration instead of `00:00`.
+- **Graceful Discord login failure** — a bad/expired `DISCORD_TOKEN` no longer
+  hard-crashes the whole process. The dashboard + library server stay up and
+  print a clear "reset your token" message, so you can still reach the UI.
+
+### Tests
+
+- 12 new library tests (add/list/remove/rename, format + size rejection,
+  path-traversal sanitization, ffmpeg duration probe). Suite: **61/61**.
+
+### Upgrade
+
+```bash
+git pull
+npm install        # postinstall reapplies patches
+npm start
+# — or with Docker —
+docker compose up -d --build
+```
+
+Restart required: the running bot has the old code in memory.
+
 ## [1.2.0] — 2026-05-26
 
 Dashboard restructure release. The biggest visual change since the bot
@@ -233,6 +284,7 @@ If you previously ran `npm run deploy` with `GUILD_ID` set, your bot was
 missing commands in every other server. Auto-deploy fixes that the next
 time you start the bot — no manual action needed.
 
-[Unreleased]: https://github.com/lisalepardeany-coder/maowcore/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/lisalepardeany-coder/maowcore/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/lisalepardeany-coder/maowcore/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/lisalepardeany-coder/maowcore/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/lisalepardeany-coder/maowcore/compare/136eea4...v1.1.0
