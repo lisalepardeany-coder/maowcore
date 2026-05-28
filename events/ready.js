@@ -1,6 +1,7 @@
 const { Events, ActivityType } = require('discord.js');
 const { inviteUrl, resolveClientId } = require('../lib/invite');
 const { deployToAll } = require('../lib/command-deploy');
+const library = require('../lib/library');
 
 module.exports = {
   name: Events.ClientReady,
@@ -8,6 +9,12 @@ module.exports = {
   async execute(client) {
     console.log(`◆ Uplink stable · Logged in as ${client.user.tag}`);
     client.user.setActivity('cosmic transmissions · /help', { type: ActivityType.Listening });
+
+    // Backfill durations for any library uploads missing one (e.g. uploaded
+    // before duration-probing existed). Runs in the background.
+    library.backfillDurations().then((n) => {
+      if (n) console.log(`♫ Probed duration for ${n} library upload${n === 1 ? '' : 's'}.`);
+    }).catch(() => {});
 
     // Print the OAuth2 invite URL so the bot owner doesn't need to fish around
     // in the Discord developer portal every time they want to add it to a new

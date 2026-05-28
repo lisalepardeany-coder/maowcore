@@ -39,9 +39,14 @@ module.exports = {
     }
     await interaction.deferReply();
     try {
-      await interaction.client.distube.play(voice, path.join(SOUND_DIR, file), {
+      // Stream via the control server's HTTP endpoint — DisTube/yt-dlp can't
+      // play a local file PATH (reads "C:/" as an unsupported url scheme), but
+      // resolves http(s) URLs fine.
+      const soundUrl = interaction.client.control._soundUrl(file);
+      await interaction.client.distube.play(voice, soundUrl, {
         textChannel: interaction.channel,
         member: interaction.member,
+        metadata: { localName: name },
       });
       return interaction.editReply(`🔊  Played **${name}**`);
     } catch (err) {

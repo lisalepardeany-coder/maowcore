@@ -604,6 +604,7 @@
         if (target === 'history') renderHistory?.();
         else if (target === 'favorites') renderFavorites?.();
         else if (target === 'searches') renderSearches?.();
+        else if (target === 'uploads') renderUploads?.();
       } catch { /* renderers defined later in this IIFE */ }
     });
   });
@@ -1567,6 +1568,125 @@
     origRenderPlayer();
     renderQuickButtons();
   };
+
+  // ===== Local library (uploaded songs) =====
+  const fmtBytes2 = (b) => {
+    if (b < 1024) return `${b} B`;
+    if (b < 1024 * 1024) return `${(b / 1024).toFixed(0)} KB`;
+    return `${(b / 1024 / 1024).toFixed(1)} MB`;
+  };
+
+  const renderUploads = async () => {
+    const out = $('uploads-list');
+    const countEl = $('uploads-count');
+    if (!out) return;
+    try {
+      const res = await fetch('/api/library');
+      const data = await res.json();
+      const songs = data.songs || [];
+      if (countEl) countEl.textContent = `${songs.length} song${songs.length === 1 ? '' : 's'}`;
+      if (!songs.length) {
+        out.innerHTML = '<div class="queue-empty">— no uploads yet —</div>';
+        return;
+      }
+      out.innerHTML = '';
+      songs.forEach((s) => {
+        const row = document.createElement('div');
+        row.className = 'upload-row';
+        row.innerHTML = `
+          <div style="min-width:0">
+            <div class="u-name">${escapeHtmlSafe(s.name)}</div>
+            <div class="u-meta">${escapeHtmlSafe(s.ext || '')} · ${fmtBytes2(s.size || 0)}${s.durationSec ? ' · ' + fmtClock(s.durationSec) : ''}</div>
+          </div>
+          <div class="u-actions">
+            <button class="primary" data-act="play" data-id="${escapeHtmlSafe(s.id)}">▶ Play now</button>
+            <button data-act="queue" data-id="${escapeHtmlSafe(s.id)}">+ Queue</button>
+            <button data-act="preview" data-id="${escapeHtmlSafe(s.id)}" data-file="${escapeHtmlSafe(s.file)}">🔈 Preview</button>
+            <button class="danger" data-act="delete" data-id="${escapeHtmlSafe(s.id)}">✕</button>
+          </div>`;
+        out.appendChild(row);
+      });
+      out.querySelectorAll('button[data-act]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const id = btn.dataset.id;
+          const act = btn.dataset.act;
+          if (act === 'play') {
+            send('library_play', { id });
+            toast('♫ Playing now', 'Sent to the bot — make sure it’s in a voice channel', 'success', 2500);
+          } else if (act === 'queue') {
+            send('library_queue', { id });
+            toast('+ Queued', 'Added to the end of the queue', 'success', 2000);
+          } else if (act === 'preview') {
+            // In-browser preview via the range-supporting /library/<file> route.
+            previewAudio(`/library/${encodeURIComponent(btn.dataset.file)}`);
+          } else if (act === 'delete') {
+            if (!confirm('Delete this uploaded song? This removes the file permanently.')) return;
+            fetch('/api/library/delete', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id }),
+            }).then(() => { toast('✕ Deleted', '', 'info', 1500); renderUploads(); });
+          }
+        });
+      });
+    } catch (e) {
+      out.innerHTML = `<div class="error">▲ ${escapeHtmlSafe(e.message)}</div>`;
+    }
+  };
+
+  // Lightweight in-browser audio preview (shared single <audio> element).
+  let previewEl2 = null;
+  const previewAudio = (src) => {
+    if (!previewEl2) { previewEl2 = new Audio(); }
+    if (!previewEl2.paused && previewEl2.src.endsWith(src)) { previewEl2.pause(); return; }
+    previewEl2.src = src;
+    previewEl2.play().catch(() => toast('▲ Preview failed', 'Browser could not play this file', 'error', 2500));
+  };
+
+  // ===== Upload handling (drag-drop + browse) =====
+  const uploadZone = $('upload-zone');
+  const uploadInput = $('upload-input');
+  const uploadProgress = $('upload-progress');
+
+  const uploadFiles = async (files) => {
+    const list = [...files];
+    if (!list.length) return;
+    if (uploadProgress) { uploadProgress.hidden = false; }
+    let done = 0;
+    for (const file of list) {
+      if (uploadProgress) uploadProgress.textContent = `Uploading ${file.name} (${done + 1}/${list.length})…`;
+      try {
+        const res = await fetch('/api/library/upload', {
+          method: 'POST',
+          headers: { 'X-Filename': encodeURIComponent(file.name) },
+          body: file,
+        });
+        const data = await res.json();
+        if (data.error) { toast('▲ Upload failed', `${file.name}: ${data.error}`, 'error', 4000); }
+        else { done++; }
+      } catch (e) {
+        toast('▲ Upload failed', `${file.name}: ${e.message}`, 'error', 4000);
+      }
+    }
+    if (uploadProgress) {
+      uploadProgress.textContent = `✓ Uploaded ${done}/${list.length} file${list.length === 1 ? '' : 's'}.`;
+      setTimeout(() => { uploadProgress.hidden = true; }, 3000);
+    }
+    if (done) toast('⬆ Uploaded', `${done} song${done === 1 ? '' : 's'} added to your library`, 'success', 2500);
+    renderUploads();
+  };
+
+  if (uploadZone && uploadInput) {
+    uploadZone.addEventListener('click', () => uploadInput.click());
+    uploadInput.addEventListener('change', () => { uploadFiles(uploadInput.files); uploadInput.value = ''; });
+    ['dragenter', 'dragover'].forEach((ev) =>
+      uploadZone.addEventListener(ev, (e) => { e.preventDefault(); uploadZone.classList.add('dragover'); }));
+    ['dragleave', 'drop'].forEach((ev) =>
+      uploadZone.addEventListener(ev, (e) => { e.preventDefault(); uploadZone.classList.remove('dragover'); }));
+    uploadZone.addEventListener('drop', (e) => {
+      if (e.dataTransfer?.files?.length) uploadFiles(e.dataTransfer.files);
+    });
+  }
 
   connect();
 })();

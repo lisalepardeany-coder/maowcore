@@ -187,6 +187,7 @@
           <h1>Library</h1>
           <div class="tabs" id="library-tabs">
             <button class="tab active" data-tab="search">Search</button>
+            <button class="tab" data-tab="uploads">Uploads</button>
             <button class="tab" data-tab="history">History</button>
             <button class="tab" data-tab="favorites">Favorites</button>
             <button class="tab" data-tab="searches">Recent searches</button>
@@ -200,6 +201,23 @@
               <button id="search-btn" class="primary">Search</button>
             </div>
             <div class="search-results" id="search-results"><div class="muted">— results will appear here —</div></div>
+          </div>
+        </div>
+
+        <div class="tab-panel hidden" id="tab-uploads">
+          <div class="card">
+            <div class="card-head">
+              <h3>Your uploads</h3>
+              <div class="muted small" id="uploads-count">—</div>
+            </div>
+            <p class="muted small" style="margin-bottom:12px">Upload audio files (mp3, wav, ogg, m4a, flac, opus) and play them instantly. The bot must be in a voice channel — start a session with <code>/play</code> first. Up to 500 MB per file.</p>
+            <div class="upload-zone" id="upload-zone">
+              <div class="upload-icon">⬆</div>
+              <div class="upload-text">Drag &amp; drop audio files here, or <span class="upload-browse">browse</span></div>
+              <input type="file" id="upload-input" accept=".mp3,.wav,.ogg,.m4a,.flac,.opus,.aac,.webm,audio/*" multiple hidden />
+            </div>
+            <div class="upload-progress" id="upload-progress" hidden></div>
+            <div class="uploads-list" id="uploads-list" style="margin-top:14px"><div class="muted">Loading…</div></div>
           </div>
         </div>
 

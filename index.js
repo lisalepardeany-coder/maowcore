@@ -254,6 +254,14 @@ client.distube
     // — metadata sticks to the exact track DisTube spawned, even if other
     // plays interleave.
     if (song.metadata?.dedication && !song.dedication) song.dedication = song.metadata.dedication;
+    // Uploaded library songs stream over an HTTP URL whose yt-dlp-derived
+    // title is ugly (the filename) and whose duration comes back 0 (yt-dlp
+    // can't measure an HTTP stream). Override both from the probed metadata.
+    if (song.metadata?.localName) song.name = song.metadata.localName;
+    if (song.metadata?.durationSec && !song.duration) {
+      song.duration = song.metadata.durationSec;
+      song.formattedDuration = fmtClock(song.metadata.durationSec);
+    }
     presence.setPlaying(client, song);
     sponsorblock.onPlay(queue, song, (text, level) => control.log(text, level));
     session.set(queue.id, queue);
@@ -309,6 +317,11 @@ client.distube
     // Hoist dedication metadata as soon as the song lands in the queue so
     // /queue and /nowplaying see it without waiting for playSong.
     if (song.metadata?.dedication && !song.dedication) song.dedication = song.metadata.dedication;
+    if (song.metadata?.localName) song.name = song.metadata.localName;
+    if (song.metadata?.durationSec && !song.duration) {
+      song.duration = song.metadata.durationSec;
+      song.formattedDuration = fmtClock(song.metadata.durationSec);
+    }
     session.set(queue.id, queue);
     queue.textChannel?.send({
       embeds: [
@@ -676,7 +689,30 @@ setInterval(async () => {
   }
 }, 15000);
 
-client.login(process.env.DISCORD_TOKEN);
+// Log in. A bad/expired token throws asynchronously — catch it so we don't
+// hard-crash the whole process (which would also kill the dashboard + library
+// server). Keep those running so the operator can still reach the UI, see the
+// error, and fix DISCORD_TOKEN without flying blind.
+client.login(process.env.DISCORD_TOKEN).catch((err) => {
+  const tokenIssue = err?.code === 'TokenInvalid' || /token/i.test(err?.message || '');
+  console.error('');
+  console.error('  ╭─ DISCORD LOGIN FAILED ────────────────────────────────────────');
+  console.error('  │');
+  if (tokenIssue) {
+    console.error('  │  Your DISCORD_TOKEN is invalid, expired, or was reset.');
+    console.error('  │  → Open the Discord Developer Portal → your app → Bot →');
+    console.error('  │    Reset Token, then paste the new value into .env as');
+    console.error('  │    DISCORD_TOKEN=… and restart the bot.');
+  } else {
+    console.error(`  │  ${err?.message || err}`);
+  }
+  console.error('  │');
+  console.error('  │  The dashboard + library server stay up at the URL above so');
+  console.error('  │  you can still browse/upload — Discord features are offline');
+  console.error('  │  until login succeeds.');
+  console.error('  ╰───────────────────────────────────────────────────────────────');
+  console.error('');
+});
 
 // ===== Graceful shutdown =====
 // When the process gets SIGINT (Ctrl+C) or SIGTERM (Stop-Process / `kill`),

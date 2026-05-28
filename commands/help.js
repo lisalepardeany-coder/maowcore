@@ -18,7 +18,7 @@ module.exports = {
           '',
           '**◇ Sources**',
           '`/radio <station>` · `/radiosearch <q>` · `/podcast subscribe|play|list`',
-          '`/sb <name>` *(soundboard from data/sounds/)*',
+          '`/sb <name>` *(soundboard)* · `/library play|list|remove` *(your uploads)*',
           '',
           '**◇ Queue**',
           '`/queue` · `/nowplaying` · `/remove <pos>` · `/shuffle` (smart)',
