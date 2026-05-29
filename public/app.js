@@ -481,7 +481,14 @@
     $('proc-heap').textContent = `${fmtBytes(proc.heapUsed)} / ${fmtBytes(proc.heapTotal)}`;
     $('proc-rss').textContent = fmtBytes(proc.rss);
     if ($('proc-external')) $('proc-external').textContent = fmtBytes(proc.external);
-    $('proc-ping').textContent = ping.websocket != null ? `${Math.round(ping.websocket)} ms` : '—';
+    {
+      // Show the breakdown so it's clear where the number comes from:
+      // gateway heartbeat (— when Discord hasn't ack'd one yet) + measured
+      // REST round-trip.
+      const hb = (typeof ping.heartbeat === 'number' && ping.heartbeat >= 0) ? `${Math.round(ping.heartbeat)}ms` : '—';
+      const rest = ping.rest != null ? `${Math.round(ping.rest)}ms` : '—';
+      $('proc-ping').textContent = `heartbeat ${hb} · REST ${rest}`;
+    }
     if ($('proc-lag') && proc.eventLoopLagMs != null) $('proc-lag').textContent = `${proc.eventLoopLagMs.toFixed(2)} ms`;
     if ($('proc-cwd')) $('proc-cwd').textContent = proc.cwd || '—';
 
@@ -1625,7 +1632,13 @@
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ id }),
-            }).then(() => { toast('✕ Deleted', '', 'info', 1500); renderUploads(); });
+            })
+              .then((r) => {
+                if (!r.ok) throw new Error(`server returned ${r.status}`);
+                toast('✕ Deleted', '', 'info', 1500);
+                renderUploads();
+              })
+              .catch((err) => toast('▲ Delete failed', err.message, 'error', 3000));
           }
         });
       });

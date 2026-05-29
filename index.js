@@ -18,7 +18,12 @@ const { SpotifyPlugin } = require('@distube/spotify');
 const { SoundCloudPlugin } = require('@distube/soundcloud');
 const { YouTubePlugin } = require('@distube/youtube');
 const { YtDlpPlugin, json: ytdlpJson } = require('@distube/yt-dlp');
-const ffmpegPath = require('ffmpeg-static');
+// Prefer a system ffmpeg if FFMPEG_PATH is set (e.g. /usr/bin/ffmpeg in the
+// Docker image) — more reliable in Linux containers than the ffmpeg-static
+// download. Falls back to the bundled static binary on Windows/dev.
+// (yt-dlp is likewise overridable via YTDLP_DIR / YTDLP_FILENAME env vars,
+//  honored by @distube/yt-dlp itself — set in the Dockerfile.)
+const ffmpegPath = process.env.FFMPEG_PATH || require('ffmpeg-static');
 const { generateDependencyReport } = require('@discordjs/voice');
 const { getGuild } = require('./lib/config');
 const { COLORS, themedEmbed } = require('./lib/theme');
@@ -40,6 +45,11 @@ const reminders = require('./lib/reminders');
 console.log('--- Voice dependency report ---');
 console.log(generateDependencyReport());
 console.log('--- FFmpeg path:', ffmpegPath, '---');
+// Show which yt-dlp the @distube/yt-dlp plugin will use (env-overridden in
+// Docker to the system /usr/local/bin/yt-dlp). Helps diagnose playback issues.
+console.log('--- yt-dlp:', process.env.YTDLP_DIR
+  ? `${process.env.YTDLP_DIR}/${process.env.YTDLP_FILENAME || 'yt-dlp'} (env override)`
+  : 'bundled (@distube/yt-dlp)', '---');
 
 const client = new Client({
   intents: [
@@ -688,6 +698,20 @@ setInterval(async () => {
     reminderTickRunning = false;
   }
 }, 15000);
+
+// ===== Global crash safety net =====
+// Last-resort handlers so an unhandled rejection or a stray uncaught error
+// (e.g. a third-party lib's background promise) logs instead of silently
+// killing the bot. Explicit error handling everywhere else is still the rule;
+// this is just a backstop so a music bot doesn't die mid-session.
+process.on('unhandledRejection', (reason) => {
+  console.error('[unhandledRejection]', reason?.message || reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('[uncaughtException]', err?.stack || err?.message || err);
+  // Intentionally not exiting — keep the bot + dashboard alive. If this fires
+  // repeatedly something is genuinely wrong; check the logs.
+});
 
 // Log in. A bad/expired token throws asynchronously — catch it so we don't
 // hard-crash the whole process (which would also kill the dashboard + library

@@ -43,16 +43,33 @@ RUN npm install --omit=dev
 # ---------- Stage 2: runtime ----------
 FROM node:22-bookworm-slim
 
-# python3 (yt-dlp may shell out to it) + CA certs for outbound HTTPS to
-# YouTube / Spotify / Genius / etc. ffmpeg is NOT installed — the bot uses the
-# bundled ffmpeg-static binary copied in via node_modules.
+# Media stack — the reliable part of the "song removed immediately" fix:
+#   * system ffmpeg  — the bundled ffmpeg-static binary is flaky/fragile in
+#     containers; the distro ffmpeg is rock-solid and in PATH.
+#   * latest standalone yt-dlp — @distube/yt-dlp's auto-downloaded binary can
+#     be stale or mis-resolved, and YouTube breaks old yt-dlp constantly. We
+#     fetch the current PyInstaller build (no Python needed) and point the bot
+#     at it via YTDLP_DIR / YTDLP_FILENAME below.
+# python3 stays as a safety net; CA certs for outbound HTTPS.
 RUN apt-get update && apt-get install -y --no-install-recommends \
+      ffmpeg \
       python3 \
       ca-certificates \
+      curl \
+    && curl -fsSL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux \
+         -o /usr/local/bin/yt-dlp \
+    && chmod a+rx /usr/local/bin/yt-dlp \
+    && /usr/local/bin/yt-dlp --version \
+    && apt-get purge -y curl && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 ENV NODE_ENV=production
+
+# Point the bot at the system media binaries (see index.js + @distube/yt-dlp).
+ENV FFMPEG_PATH=/usr/bin/ffmpeg
+ENV YTDLP_DIR=/usr/local/bin
+ENV YTDLP_FILENAME=yt-dlp
 
 # Bring the already-installed, already-patched Linux node_modules from builder.
 COPY --from=builder /app/node_modules ./node_modules
