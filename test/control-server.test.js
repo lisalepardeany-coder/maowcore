@@ -32,6 +32,7 @@ const buildServer = ({ queues = new Map(), voices = new Map() } = {}) => {
   const cs = new ControlServer({ port: 0, host: '127.0.0.1', distube, client });
   cs.httpServer.close();
   clearInterval(cs.ticker);
+  clearInterval(cs.pingTimer);
   return cs;
 };
 

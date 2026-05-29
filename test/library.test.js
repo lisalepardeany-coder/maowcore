@@ -132,6 +132,41 @@ test('library.probeDuration reads a real file length via ffmpeg', async () => {
   }
 });
 
+test('library.createUploadTarget + commitUpload (streaming path)', () => {
+  const fs = require('node:fs');
+  const target = library.createUploadTarget('My Song (Remix).mp3');
+  try {
+    // Target has a sanitized on-disk filename but a human display name.
+    assert.match(target.file, /\.mp3$/);
+    assert.ok(!target.file.includes(' '));      // on-disk name is sanitized
+    assert.equal(target.name, 'My Song (Remix)'); // display name preserved
+    assert.equal(target.ext, 'mp3');
+    // Simulate the streamed write, then commit.
+    fs.writeFileSync(target.fullPath, Buffer.alloc(2048, 3));
+    const entry = library.commitUpload(target, 2048);
+    assert.equal(entry.id, target.id);
+    assert.equal(entry.name, 'My Song (Remix)');
+    assert.equal(entry.size, 2048);
+    assert.ok(library.getPath(entry.id));
+  } finally {
+    library.remove(target.id);
+  }
+});
+
+test('library.createUploadTarget rejects bad extensions', () => {
+  assert.throws(() => library.createUploadTarget('evil.exe'), /Unsupported format/);
+});
+
+test('library.add preserves the original display name (no underscore mangling)', () => {
+  const entry = library.add('Song With Spaces & Stuff.mp3', Buffer.alloc(128));
+  try {
+    assert.equal(entry.name, 'Song With Spaces & Stuff');  // spaces/punct kept
+    assert.ok(!entry.file.includes(' '));                  // file still sanitized
+  } finally {
+    library.remove(entry.id);
+  }
+});
+
 test('library.probeDuration returns null for a non-audio file', async () => {
   const path = require('node:path');
   const fs = require('node:fs');
