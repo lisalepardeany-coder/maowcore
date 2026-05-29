@@ -6,6 +6,45 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [1.3.1] — 2026-05-29
+
+Reliability patch — fixes YouTube playback in Docker, an inaccurate ping
+reading, and a set of robustness bugs found in a deep review of the upload
+code.
+
+### Fixed
+
+- **YouTube "song removed immediately" on Linux/Docker** — the container now
+  uses **system `ffmpeg`** + a freshly-downloaded **standalone `yt-dlp`**
+  instead of the fragile bundled binaries. `index.js` honors `FFMPEG_PATH`,
+  and the Dockerfile sets `YTDLP_DIR`/`YTDLP_FILENAME` so `@distube/yt-dlp`
+  uses the system one. Startup now logs which ffmpeg + yt-dlp are in use.
+- **Inaccurate ping** — `client.ws.ping` (gateway heartbeat) is often `-1` on
+  discord.js v14, which the dashboard rendered as a misleading `0 ms`. The bot
+  now measures a real REST round-trip to Discord every 10s and shows that when
+  the heartbeat is unavailable; Advanced diagnostics shows both numbers.
+- **Crash risk in the file-serve routes** — `/library/<file>` and
+  `/sounds/<file>` streamed with no `'error'` handler; a mid-stream read error
+  or a client/yt-dlp aborting a range request (e.g. a skip) could take down the
+  whole process. Both now have error handling and destroy the read stream when
+  the client disconnects. (A global `uncaughtException`/`unhandledRejection`
+  backstop was also added.)
+- **Range-request handling** — over-large/open-ended `end` values are now
+  clamped to the last byte instead of being 416-rejected (library) or sending
+  a wrong `Content-Length` that hangs the client (sounds).
+- **500 MB uploads no longer buffer in memory** — the upload streams straight
+  to disk with backpressure + size-cap enforcement, instead of holding the
+  whole file (and a copy) in RAM and blocking the event loop on a sync write.
+- **Uploaded-song display names** preserve spaces/punctuation again
+  (`My Song (Remix).mp3` → "My Song (Remix)", not "My Song Remix").
+- **Dashboard delete** now surfaces failures instead of silently swallowing
+  them; **duration probe** uses a larger stderr buffer.
+
+### Tests
+
+- 3 new library tests (streaming upload target/commit, display-name
+  preservation). Suite: **64/64**.
+
 ## [1.3.0] — 2026-05-29
 
 Local song uploads, a real fix for local-file playback, and Docker support.
@@ -284,7 +323,8 @@ If you previously ran `npm run deploy` with `GUILD_ID` set, your bot was
 missing commands in every other server. Auto-deploy fixes that the next
 time you start the bot — no manual action needed.
 
-[Unreleased]: https://github.com/lisalepardeany-coder/maowcore/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/lisalepardeany-coder/maowcore/compare/v1.3.1...HEAD
+[1.3.1]: https://github.com/lisalepardeany-coder/maowcore/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/lisalepardeany-coder/maowcore/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/lisalepardeany-coder/maowcore/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/lisalepardeany-coder/maowcore/compare/136eea4...v1.1.0
