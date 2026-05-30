@@ -28,7 +28,6 @@
     "ws": "^8.20.1"
   },
   "optionalDependencies": {
-    "_comment": "Native-compiled performance upgrades. npm tries to build them; if a C compiler / Python / node-gyp isn't installed it silently skips and the JS fallbacks (opusscript + libsodium-wrappers) keep working. Linux + macOS usually 'just work'; Windows needs Visual Studio Build Tools (npm install --global windows-build-tools, OR install 'Desktop development with C++' from Visual Studio Installer). See scripts/install-native.js for one-shot setup.",
     "@discordjs/opus": "^0.10.0",
     "sodium-native": "^4.3.1"
   },
