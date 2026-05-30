@@ -6,6 +6,72 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [1.9.0] — 2026-06-01
+
+A server-admin polish + music-UX release — surface the welcome/farewell
+and reaction-roles backends with proper visual editors, add a listening
+heatmap and auto-subscribed playlists, and make the queue panel
+properly interactive (drag-reorder, remove, save-as-playlist).
+
+### Added
+
+- **Welcome / Farewell builder** (`✦ Welcome` sidebar item) — channel
+  picker, message templates with `{user}` and `{server}` token
+  substitution, join/leave sound URL fields, and a **live preview**
+  that renders the same embed shape as Discord would, updated as you
+  type. Save persists to per-guild config; Revert reloads.
+- **Reaction roles editor** (`❉ Reaction roles`) — visual editor for
+  the existing `/reactionrole` backend. Create new mappings with
+  channel + role + emoji + title pickers; the bot posts the embed and
+  reacts with the emoji. Active mappings list shows the message ID,
+  bot-side role/color, and a stale flag if the role was deleted.
+  Inline ✕ Remove.
+- **Listening heatmap** on Insights — GitHub-contribution-graph-style
+  365-day grid colored by plays per day. Cell tooltips show the date
+  and play count; legend at the bottom. Derived from existing
+  `lib/history.js` data via a new `byDay()` helper.
+- **Auto-subscribed playlists** — new `lib/playlist-subscriptions.js`
+  module that polls subscribed YouTube/SoundCloud/Bandcamp playlist
+  URLs on a configurable interval (1–168 h) and auto-installs new
+  tracks via the existing install pipeline. UI on the Library →
+  Uploads tab: list, add (URL + name + format + interval), force-sync,
+  remove. Last sync time, next sync time, and last error are shown
+  per subscription. State persists to `<LIBRARY_DIR>/_subs.json`.
+- **Queue editor enhancements** on the Home page:
+  - **Per-row ✕ remove** button (appears on hover)
+  - **💾 Save as playlist** toolbar above the queue (saves all upcoming
+    URLs as a named playlist under your Discord user ID, persisted to
+    localStorage for next time)
+  - Existing drag-to-reorder still works — backend now accepts both
+    legacy `queue_move` and new `queue_reorder` action names
+  - Drag handle visually indicated by `⋮⋮` on the left of each row
+- **8 new API endpoints** + 3 new WS actions:
+  - `GET  /api/admin/welcome?guildId=…`
+  - `POST /api/admin/welcome`
+  - `GET  /api/admin/reaction-roles?guildId=…`
+  - `POST /api/admin/reaction-roles/create`
+  - `POST /api/admin/reaction-roles/delete`
+  - `GET  /api/admin/playlist-subs`
+  - `POST /api/admin/playlist-subs/{add,update,remove,sync}`
+  - `GET  /api/admin/heatmap?guildId=…&days=…`
+  - WS actions: `queue_remove { index }`, `queue_reorder { from, to }`,
+    `queue_save_as_playlist { name, userId }`
+
+### Changed
+
+- The control-server constructor now boots a **background scheduler**
+  for playlist subscriptions — ticks every 5 minutes, kicks off due
+  syncs. The timer is `unref`'d so it doesn't prevent process exit.
+- Sidebar `Servers` group gains two new entries (Welcome, Reaction
+  roles) under the existing Overview/Members/Channels/Roles.
+
+### Notes
+
+- 83 tests pass — no new tests added for the network-bound endpoints.
+- The auto-subscription scheduler kicks off ~10s after boot to give
+  the bot time to settle; subsequent ticks run every 5 minutes
+  regardless of how many subscriptions exist.
+
 ## [1.8.0] — 2026-05-31
 
 A server-admin upgrade — three new dashboard pages for browsing members,
