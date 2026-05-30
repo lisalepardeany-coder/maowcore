@@ -32,11 +32,26 @@ module.exports = {
           ))),
 
   async autocomplete(interaction) {
-    const focused = interaction.options.getFocused().toLowerCase();
-    const songs = library.list().filter((s) => s.name.toLowerCase().includes(focused));
-    await interaction.respond(
-      songs.slice(0, 25).map((s) => ({ name: s.name.slice(0, 100), value: s.id })),
-    );
+    try {
+      const focused = String(interaction.options.getFocused() || '').toLowerCase();
+      // Defensive: drop malformed manifest entries (no name / no id) so the
+      // dropdown can't render "undefined / undefined / undefined" rows when
+      // a partial install/upload left stale rows in the manifest.
+      const songs = library.list().filter((s) =>
+        s && typeof s.name === 'string' && s.name.length > 0
+          && typeof s.id === 'string' && s.id.length > 0,
+      ).filter((s) => s.name.toLowerCase().includes(focused));
+      await interaction.respond(
+        songs.slice(0, 25).map((s) => ({
+          name: String(s.name).slice(0, 100) || 'Untitled',
+          value: String(s.id).slice(0, 100),
+        })),
+      );
+    } catch {
+      // Never throw out of autocomplete — Discord will show an empty
+      // dropdown which is better than the bot crashing on a malformed entry.
+      try { await interaction.respond([]); } catch { /* ignore */ }
+    }
   },
 
   async execute(interaction) {

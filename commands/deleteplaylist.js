@@ -9,10 +9,16 @@ module.exports = {
       opt.setName('name').setDescription('Playlist to delete').setRequired(true).setAutocomplete(true),
     ),
   async autocomplete(interaction) {
-    const focused = interaction.options.getFocused().toLowerCase();
-    const userLists = playlists.listFor(interaction.guildId, interaction.user.id);
-    const names = Object.keys(userLists).filter((n) => n.toLowerCase().includes(focused));
-    await interaction.respond(names.slice(0, 25).map((n) => ({ name: n, value: n })));
+    try {
+      const focused = String(interaction.options.getFocused() || '').toLowerCase();
+      const userLists = playlists.listFor(interaction.guildId, interaction.user.id);
+      const names = Object.keys(userLists || {}).filter(
+        (n) => typeof n === 'string' && n && n !== 'undefined' && n.toLowerCase().includes(focused),
+      );
+      await interaction.respond(names.slice(0, 25).map((n) => ({ name: n.slice(0, 100), value: n.slice(0, 100) })));
+    } catch {
+      try { await interaction.respond([]); } catch { /* ignore */ }
+    }
   },
   async execute(interaction) {
     const name = interaction.options.getString('name');

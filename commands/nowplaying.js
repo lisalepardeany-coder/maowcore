@@ -32,12 +32,17 @@ module.exports = {
       .setThumbnail(song.thumbnail || null)
       .setFooter({ text: '✧  Stellar uplink stable' });
 
+    // Only add Spotify-features fields if the values are actually present.
+    // Otherwise the embed renders 3 fields whose Discord-side string coercion
+    // shows the literal text "undefined" — which is what was leaking into
+    // chat after some playlist installs.
     if (song.features) {
-      embed.addFields(
-        { name: '♪ tempo', value: `${song.features.tempo} BPM`, inline: true },
-        { name: '♫ key', value: song.features.key, inline: true },
-        { name: '⚡ energy', value: energyLabel(song.features.energy), inline: true },
-      );
+      const f = song.features;
+      const fields = [];
+      if (f.tempo != null) fields.push({ name: '♪ tempo', value: `${Math.round(f.tempo)} BPM`, inline: true });
+      if (f.key) fields.push({ name: '♫ key', value: String(f.key), inline: true });
+      if (f.energy != null) fields.push({ name: '⚡ energy', value: energyLabel(f.energy), inline: true });
+      if (fields.length) embed.addFields(...fields);
     }
     return interaction.reply({ embeds: [embed] });
   },
