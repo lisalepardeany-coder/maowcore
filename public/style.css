@@ -1695,9 +1695,16 @@ button.link:hover { background: var(--accent-soft); }
   cursor: pointer;
   transition: background 120ms, border-color 120ms;
   font-family: var(--font);
+  /* Lock the chip to a single line so "1 warn in 5m" can't wrap into a
+     taller pill that crashes into the neighboring topbar controls. */
+  white-space: nowrap;
+  flex-shrink: 0;
+  line-height: 1.2;
+  height: 30px;
 }
 .topbar-diag:hover { background: var(--bg-hover); color: var(--fg); }
-.topbar-diag-dot { font-size: 14px; color: var(--fg-dim); }
+.topbar-diag-dot { font-size: 14px; color: var(--fg-dim); line-height: 1; }
+.topbar-diag-text { white-space: nowrap; }
 .topbar-diag[data-health="ok"] { border-color: rgba(35, 165, 89, 0.4); }
 .topbar-diag[data-health="ok"] .topbar-diag-dot { color: var(--success); }
 .topbar-diag[data-health="degraded"] { border-color: rgba(240, 178, 50, 0.5); }
