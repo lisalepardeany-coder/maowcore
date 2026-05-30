@@ -17,6 +17,8 @@ const { spawnSync } = require('node:child_process');
 const PKGS = [
   { name: '@discordjs/opus', reason: 'Native Opus encoder (~2-3× faster than opusscript)' },
   { name: 'sodium-native',   reason: 'Native libsodium (~2-3× faster than libsodium-wrappers)' },
+  { name: '@noble/ciphers',  reason: 'Pure-JS crypto fallback (used if sodium-native fails to load)' },
+  { name: '@stablelib/xchacha20poly1305', reason: 'Pure-JS XChaCha20-Poly1305 fallback' },
 ];
 
 const tryInstall = (pkg) => {
