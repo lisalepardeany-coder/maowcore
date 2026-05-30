@@ -6,6 +6,34 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.0.0] — 2026-06-01
+
+**Major version — production polish.** Pulls the loose ends together
+into a self-hosted-ready release.
+
+### Added
+
+- **Observability + alerting** (`lib/observability.js`) — every
+  error-level log entry feeds an in-memory error budget (default:
+  ≤10 errors per 5-min window). Set `ALERT_WEBHOOK_URL` to a Discord
+  webhook URL and budget breaches POST a styled embed there with
+  top categories + recent samples. Cooldown: 5 min between alerts
+  to avoid flooding.
+- New endpoints: `GET /api/observability/status` (budget +
+  burn-rate), `POST /api/observability/alert` (fire a manual alert).
+- New env vars: `ALERT_WEBHOOK_URL`, `ERROR_BUDGET_5MIN` (default 10).
+
+### Notes
+
+PWA shell, service worker, install-as-app, multi-bot, OAuth,
+moderation suite, library install, automation, economy, server
+templates — everything we built across v1.6.0–v2.7.0 ships as a
+coherent self-hosted product. See the version-by-version notes below
+for what each tag adds.
+
+This is a logical milestone, not a breaking change. v2.x setups work
+unchanged; the new alert pipeline is opt-in via `ALERT_WEBHOOK_URL`.
+
 ## [2.7.0] — 2026-06-01
 
 Game night minigames + server templates.
