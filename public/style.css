@@ -1363,6 +1363,30 @@ button.link:hover { background: var(--accent-soft); }
 }
 .dl-job-cancel:hover { background: rgba(242, 63, 67, 0.1); }
 
+/* ===== v2.3.0: backup + marketplace ===== */
+.backup-row, .market-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 14px;
+  background: var(--bg-input);
+  border-radius: 6px;
+  margin-bottom: 4px;
+}
+.backup-row .br-name, .market-row .mr-name { font-size: 13px; font-weight: 600; }
+.backup-row .br-meta, .market-row .mr-meta { font-size: 11px; color: var(--fg-dim); font-family: var(--font-mono); margin-top: 2px; }
+.market-row .mr-kind {
+  padding: 2px 8px;
+  font-size: 10px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+}
+.backup-row button, .market-row button { padding: 4px 10px; font-size: 11px; border-radius: 4px; }
+
 /* ===== v2.2.0: dev page + integrations ===== */
 .dev-int-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
 .dev-int { padding: 12px; background: var(--bg-input); border-radius: 8px; border-left: 3px solid var(--success); }

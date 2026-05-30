@@ -773,7 +773,139 @@
   switchPage = (name) => {
     origSwitchPageDev(name);
     if (name === 'dev') renderDevPage();
+    if (name === 'backup') renderBackupPage();
   };
+
+  // ===== v2.3.0: Backup + Marketplace =====
+  const fmtBytesBackup = (b) => b < 1024 * 1024 ? `${(b / 1024).toFixed(0)} KB` : `${(b / 1024 / 1024).toFixed(2)} MB`;
+
+  async function renderBackupPage() {
+    // Snapshots
+    try {
+      const d = await fetchJson('/api/backup/list');
+      const wrap = $('backup-list');
+      const snaps = d.snapshots || [];
+      if (!snaps.length) {
+        wrap.innerHTML = '<div class="muted">No snapshots yet. Click <strong>+ Take snapshot now</strong>.</div>';
+      } else {
+        wrap.innerHTML = snaps.map((s) =>
+          `<div class="backup-row"><div><div class="br-name">${escapeHtmlSafe(s.name)}</div><div class="br-meta">${new Date(s.createdAt).toLocaleString()} · ${fmtBytesBackup(s.size)}</div></div><button class="backup-restore" data-n="${escapeHtmlSafe(s.name)}">↺ Restore</button><button class="backup-delete" data-n="${escapeHtmlSafe(s.name)}" style="background:transparent;color:var(--danger);border:1px solid rgba(242,63,67,0.4)">✕</button></div>`,
+        ).join('');
+        wrap.querySelectorAll('.backup-restore').forEach((b) => b.addEventListener('click', async () => {
+          const name = b.dataset.n;
+          if (!confirm(`Restore from ${name}? This overwrites current config + history + sessions + social. Bot restart recommended after.`)) return;
+          try {
+            const d = await fetchJson('/api/backup/restore', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+            if (d.error) throw new Error(d.error);
+            toast('↺ Restored', `${d.restored} files. Restart the bot.`, 'success', 5000);
+          } catch (e) { toast('▲ Restore failed', e.message, 'error', 4000); }
+        }));
+        wrap.querySelectorAll('.backup-delete').forEach((b) => b.addEventListener('click', async () => {
+          if (!confirm(`Delete snapshot ${b.dataset.n}?`)) return;
+          try {
+            await fetchJson('/api/backup/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: b.dataset.n }) });
+            renderBackupPage();
+          } catch (e) { toast('▲ Delete failed', e.message, 'error', 3000); }
+        }));
+      }
+    } catch (e) {
+      $('backup-list').innerHTML = `<div class="error">▲ ${escapeHtmlSafe(e.message)}</div>`;
+    }
+    // Marketplace
+    try {
+      const d = await fetchJson('/api/market/list');
+      const wrap = $('market-list');
+      const bundles = d.bundles || [];
+      if (!bundles.length) {
+        wrap.innerHTML = '<div class="muted">No saved bundles. Export current config or import from URL to populate.</div>';
+      } else {
+        wrap.innerHTML = bundles.map((b) =>
+          `<div class="market-row"><div><div class="mr-name">${escapeHtmlSafe(b.name)}</div><div class="mr-meta">${escapeHtmlSafe(b.author || 'anon')} · ${new Date(b.createdAt).toLocaleDateString()} · ${fmtBytesBackup(b.size)}</div></div><span class="mr-kind">${escapeHtmlSafe(b.kind)}</span><div><button class="market-apply" data-f="${escapeHtmlSafe(b.file)}">↺ Apply</button> <button class="market-del" data-f="${escapeHtmlSafe(b.file)}" style="background:transparent;color:var(--danger);border:1px solid rgba(242,63,67,0.4)">✕</button></div></div>`,
+        ).join('');
+        wrap.querySelectorAll('.market-apply').forEach((b) => b.addEventListener('click', async () => {
+          const gId = activeGuildId();
+          if (!gId) return toast('▲ No server', 'Select a server.', 'error', 2000);
+          if (!confirm('Apply this bundle to the active server?')) return;
+          try {
+            // Read file content via list-then-read pattern: load list and find the bundle.
+            const lst = await fetchJson('/api/market/list');
+            const meta = lst.bundles.find((x) => x.file === b.dataset.f);
+            // Fetching raw — we have to add an "/api/market/read" endpoint, but simpler:
+            // include payload in the list response next iteration. For now just refuse if
+            // we don't have it. (Workaround: server-side reads file directly via import).
+            const d = await fetchJson('/api/market/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ guildId: gId, bundleFile: b.dataset.f }) });
+            if (d.error) throw new Error(d.error);
+            toast('✓ Applied', d.result?.name || '', 'success', 2500);
+          } catch (e) { toast('▲ Apply failed', e.message, 'error', 4000); }
+        }));
+        wrap.querySelectorAll('.market-del').forEach((b) => b.addEventListener('click', async () => {
+          if (!confirm('Delete this bundle?')) return;
+          try {
+            await fetchJson('/api/market/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ file: b.dataset.f }) });
+            renderBackupPage();
+          } catch (e) { toast('▲ Delete failed', e.message, 'error', 3000); }
+        }));
+      }
+    } catch (e) {
+      $('market-list').innerHTML = `<div class="error">▲ ${escapeHtmlSafe(e.message)}</div>`;
+    }
+  }
+
+  $('backup-create')?.addEventListener('click', async () => {
+    try {
+      const d = await fetchJson('/api/backup/create', { method: 'POST' });
+      if (d.error) throw new Error(d.error);
+      toast('✓ Snapshot created', d.snapshot.name, 'success', 2500);
+      renderBackupPage();
+    } catch (e) { toast('▲ Snapshot failed', e.message, 'error', 4000); }
+  });
+  $('backup-refresh')?.addEventListener('click', renderBackupPage);
+  $('market-refresh')?.addEventListener('click', renderBackupPage);
+
+  $('market-import-url')?.addEventListener('click', async () => {
+    const url = prompt('URL of a bundle JSON file:');
+    if (!url) return;
+    try {
+      const d = await fetchJson('/api/market/fetch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
+      if (d.error) throw new Error(d.error);
+      if (!confirm(`Bundle "${d.bundle.name}" (${d.bundle.kind}) — save to local library?`)) return;
+      const s = await fetchJson('/api/market/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bundle: d.bundle }) });
+      toast('✓ Saved', s.file, 'success', 2500);
+      renderBackupPage();
+    } catch (e) { toast('▲ Import failed', e.message, 'error', 4000); }
+  });
+
+  $('market-export')?.addEventListener('click', async () => {
+    const gId = activeGuildId();
+    if (!gId) return toast('▲ No server', 'Select a server.', 'error', 2000);
+    const kind = prompt('Export what? (welcome / automod / playlist)', 'welcome');
+    if (!kind) return;
+    const body = { kind, guildId: gId };
+    if (kind === 'playlist') {
+      const name = prompt('Playlist name:');
+      const userId = localStorage.getItem('maow.userId') || prompt('Your Discord user ID:');
+      if (!name || !userId) return;
+      localStorage.setItem('maow.userId', userId);
+      body.name = name; body.userId = userId;
+    } else {
+      body.label = prompt('Display name:', `${kind} from ${currentServer()?.name || 'server'}`);
+    }
+    body.description = prompt('Description (optional):', '');
+    try {
+      const d = await fetchJson('/api/market/export', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      if (d.error) throw new Error(d.error);
+      // Offer download + save-to-local.
+      const blob = new Blob([JSON.stringify(d.bundle, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${d.bundle.kind}-${d.bundle.name.replace(/[^a-zA-Z0-9._-]+/g, '_')}.json`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      const save = await fetchJson('/api/market/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bundle: d.bundle }) });
+      toast('✓ Exported', save.file, 'success', 3000);
+      renderBackupPage();
+    } catch (e) { toast('▲ Export failed', e.message, 'error', 4000); }
+  });
   function send(action, extra = {}) {
     if (!connected) return;
     // Pin commands to the currently-selected server so multi-guild bots route

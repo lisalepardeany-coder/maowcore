@@ -6,6 +6,37 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [2.3.0] — 2026-06-01
+
+Disaster recovery + community sharing.
+
+### Added
+
+- **Backup system** (`lib/backup.js`) — daily auto-snapshots (5 min
+  after boot, then every 24h, retains last 14). Snapshot is a single
+  JSON file under `data/backups/` containing manifest, config,
+  history, sessions, social, subscriptions, library config. One-click
+  restore + delete + manual snapshot from the dashboard.
+- **Marketplace** (`lib/marketplace.js`) — portable JSON bundles of
+  playlists / automod rules / welcome templates. Export current config
+  to a downloadable file, import from URL, save locally for re-use.
+  Local-first: no central server, share however you want (Discord
+  file, gist, pastebin).
+- **⎘ Backup & Share** sidebar page (under System) with both
+  snapshot list and marketplace bundle list, plus actions.
+- 9 new endpoints: `/api/backup/{list,create,restore,delete}` +
+  `/api/market/{list,export,save,import,delete,fetch}`.
+
+### Notes
+
+- Snapshots do NOT include audio files (too large). They reference
+  them by filename so restored manifests will list any orphans the
+  operator needs to re-download.
+- Restore overwrites current state — bot restart strongly recommended
+  after.
+- Bundles use `bundleVersion: 1` schema. Future versions will preserve
+  back-compat.
+
 ## [2.2.0] — 2026-06-01
 
 External integrations + i18n + dev tooling.

@@ -248,6 +248,10 @@
               <span class="nav-label">Diagnostics</span>
               <span class="nav-badge" id="nav-diag-badge" hidden></span>
             </a>
+            <a class="nav-item" data-page="backup">
+              <span class="nav-icon">⎘</span>
+              <span class="nav-label">Backup &amp; Share</span>
+            </a>
             <a class="nav-item" data-page="dev">
               <span class="nav-icon">⌨</span>
               <span class="nav-label">Developer</span>
@@ -256,7 +260,7 @@
         </div>
       </nav>
       <div class="sidebar-footer">
-        <div class="muted small">v2.2.0</div>
+        <div class="muted small">v2.3.0</div>
       </div>
     </aside>
 
@@ -314,6 +318,41 @@
       <!-- =================================================== -->
       <!-- FLEET — multi-bot overview                          -->
       <!-- =================================================== -->
+      <!-- =================================================== -->
+      <!-- BACKUP & SHARE — snapshots + marketplace bundles    -->
+      <!-- =================================================== -->
+      <section class="page hidden" id="page-backup">
+        <div class="page-head">
+          <h2>⎘ Backup &amp; Share</h2>
+          <div class="muted small">Snapshots of bot state + portable config bundles you can share with other servers.</div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3>Snapshots</h3>
+            <div>
+              <button id="backup-create" class="primary">+ Take snapshot now</button>
+              <button id="backup-refresh" class="primary">⟳</button>
+            </div>
+          </div>
+          <div class="muted small">Daily auto-backup runs at 24h intervals (retains last 14). Includes manifest, config, history, sessions, social, subscriptions.</div>
+          <div id="backup-list" style="margin-top:10px"><div class="muted">Loading…</div></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3>Marketplace bundles</h3>
+            <div>
+              <button id="market-import-url" class="primary">⤓ Import from URL</button>
+              <button id="market-export" class="primary">⤴ Export current config</button>
+              <button id="market-refresh" class="primary">⟳</button>
+            </div>
+          </div>
+          <div class="muted small">Local registry of shareable bundles — playlists, automod rules, welcome templates. Export to share, import to apply.</div>
+          <div id="market-list" style="margin-top:10px"><div class="muted">Loading…</div></div>
+        </div>
+      </section>
+
       <!-- =================================================== -->
       <!-- DEVELOPER — API explorer + plugins + integrations   -->
       <!-- =================================================== -->
