@@ -61,6 +61,12 @@
       </div>
       <div class="topbar-spacer"></div>
       <div class="topbar-controls">
+        <!-- Instance picker — selects which bot the dashboard talks to -->
+        <button class="topbar-instance" id="topbar-instance" title="Active bot instance">
+          <span class="topbar-instance-dot" id="topbar-instance-dot">●</span>
+          <span class="topbar-instance-name" id="topbar-instance-name">Loading…</span>
+          <span class="topbar-instance-chev">▾</span>
+        </button>
         <!-- Diagnostics health chip — relocated from the bottom-right floating panel -->
         <button class="topbar-diag" id="topbar-diag-chip" title="Diagnostics — click to open">
           <span class="topbar-diag-dot" id="topbar-diag-dot">●</span>
@@ -73,6 +79,48 @@
         </button>
       </div>
     </header>
+
+    <!-- Instance picker popover -->
+    <div class="instance-picker hidden" id="instance-picker">
+      <div class="instance-picker-head">Bot instances</div>
+      <div class="instance-picker-list" id="instance-picker-list"></div>
+      <div class="instance-picker-foot">
+        <button class="instance-add-btn" id="instance-add-btn">+ Add instance</button>
+        <button class="instance-manage-btn" id="instance-manage-btn">⚙ Manage…</button>
+      </div>
+    </div>
+
+    <!-- Instance add/edit modal -->
+    <div class="instance-modal hidden" id="instance-modal">
+      <div class="instance-modal-card">
+        <div class="instance-modal-head">
+          <h3 id="instance-modal-title">Add bot instance</h3>
+          <button class="instance-modal-close" id="instance-modal-close">×</button>
+        </div>
+        <div class="instance-modal-body">
+          <label>
+            <div class="muted small">Display name</div>
+            <input id="instance-edit-name" type="text" placeholder="e.g. Main bot / Dev bot" />
+          </label>
+          <label>
+            <div class="muted small">Control server URL</div>
+            <input id="instance-edit-url" type="text" placeholder="http://127.0.0.1:8765" />
+          </label>
+          <label>
+            <div class="muted small">Bearer token (the bot's CONTROL_TOKEN — leave empty for legacy open mode)</div>
+            <input id="instance-edit-token" type="password" placeholder="(optional)" />
+          </label>
+          <div class="muted small" id="instance-edit-status">—</div>
+        </div>
+        <div class="instance-modal-foot">
+          <button class="instance-test-btn" id="instance-test-btn">⚡ Test connection</button>
+          <div>
+            <button class="instance-cancel-btn" id="instance-cancel-btn">Cancel</button>
+            <button class="primary" id="instance-save-btn">Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- Icon picker popover -->
     <div class="icon-picker hidden" id="icon-picker">
@@ -103,6 +151,10 @@
         <a class="nav-item active" data-page="home">
           <span class="nav-icon">⌂</span>
           <span class="nav-label">Home</span>
+        </a>
+        <a class="nav-item" data-page="fleet">
+          <span class="nav-icon">⊞</span>
+          <span class="nav-label">Fleet</span>
         </a>
 
         <!-- CONTENT -->
@@ -183,7 +235,7 @@
         </div>
       </nav>
       <div class="sidebar-footer">
-        <div class="muted small">v1.9.0</div>
+        <div class="muted small">v2.0.0</div>
       </div>
     </aside>
 
@@ -193,6 +245,26 @@
       <!-- =================================================== -->
       <!-- HOME — Now Playing + queue + activity log           -->
       <!-- =================================================== -->
+      <!-- =================================================== -->
+      <!-- FLEET — multi-bot overview                          -->
+      <!-- =================================================== -->
+      <section class="page hidden" id="page-fleet">
+        <div class="page-head">
+          <h2>⊞ Fleet</h2>
+          <div class="muted small">All configured bot instances at a glance. Click a card to switch.</div>
+        </div>
+        <div class="card">
+          <div class="card-head">
+            <h3>Instances</h3>
+            <div>
+              <button id="fleet-add" class="primary">+ Add instance</button>
+              <button id="fleet-refresh" class="primary">⟳ Refresh</button>
+            </div>
+          </div>
+          <div class="fleet-grid" id="fleet-grid"><div class="muted">Loading…</div></div>
+        </div>
+      </section>
+
       <section class="page" id="page-home">
         <div class="now-playing">
           <div class="np-art" id="np-thumb-wrap">

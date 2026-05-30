@@ -46,21 +46,93 @@
   };
   const escapeHtmlSafe = (s) => String(s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
+  // ===== Multi-bot instance registry (v2.0.0) =====
+  //
+  // The dashboard can talk to multiple MaowCore instances. Each instance is
+  // stored in localStorage with its base URL + Bearer token. The active
+  // instance drives every API call + WebSocket connection.
+  //
+  // Default: one instance pointing at the same origin we were served from
+  // (legacy single-bot behavior, no auth required if the bot has no
+  // CONTROL_TOKEN set).
+  const instancesState = {
+    instances: [],
+    activeId: null,
+    healthByInstance: {},     // id → { status, version, botTag, lastCheck }
+  };
+
+  function loadInstances() {
+    try {
+      const raw = localStorage.getItem('maow.instances');
+      const parsed = raw ? JSON.parse(raw) : null;
+      if (parsed && Array.isArray(parsed.instances) && parsed.instances.length) {
+        instancesState.instances = parsed.instances;
+        instancesState.activeId = parsed.activeId || parsed.instances[0]?.id || null;
+        return;
+      }
+    } catch { /* */ }
+    // Default: same-origin instance with no token (legacy single-bot mode).
+    instancesState.instances = [{
+      id: 'local',
+      name: 'This bot',
+      url: location.origin,
+      token: '',
+    }];
+    instancesState.activeId = 'local';
+  }
+  function saveInstances() {
+    localStorage.setItem('maow.instances', JSON.stringify({
+      instances: instancesState.instances,
+      activeId: instancesState.activeId,
+    }));
+  }
+  function activeInstance() {
+    return instancesState.instances.find((i) => i.id === instancesState.activeId)
+      || instancesState.instances[0]
+      || { id: 'local', name: 'Local', url: location.origin, token: '' };
+  }
+  loadInstances();
+
   // Wrap fetch+json so a 404 that returns the static-file "Not found" body
   // (i.e. the route doesn't exist in the running backend yet — usually the bot
   // wasn't restarted after pulling a new version) shows a clear hint instead
   // of "Unexpected token 'N', "Not found" is not valid JSON".
-  async function fetchJson(url, opts) {
-    const res = await fetch(url, opts);
+  //
+  // Also: route all API calls through the *active instance* so multi-bot
+  // setups send each request to the right bot. Absolute URLs are left alone
+  // so we don't double-prefix.
+  async function fetchJson(url, opts = {}) {
+    const inst = activeInstance();
+    const isAbsolute = /^https?:\/\//i.test(url);
+    const fullUrl = isAbsolute ? url : `${inst.url.replace(/\/$/, '')}${url.startsWith('/') ? url : '/' + url}`;
+    const headers = { ...(opts.headers || {}) };
+    if (inst.token && !headers.Authorization) {
+      headers.Authorization = `Bearer ${inst.token}`;
+    }
+    // Retry once on transient network failure — multi-bot dashboards have to
+    // tolerate brief instance restarts gracefully.
+    const doFetch = async () => fetch(fullUrl, { ...opts, headers });
+    let res;
+    try { res = await doFetch(); }
+    catch (e) {
+      // Connection refused / DNS — wait 400ms and try once more before giving up.
+      await new Promise((r) => setTimeout(r, 400));
+      res = await doFetch();
+    }
+    if (res.status === 401) {
+      throw new Error(
+        `${inst.name}: 401 Unauthorized. Check the Bearer token on this instance.`,
+      );
+    }
     const text = await res.text();
     if (!res.ok && /^Not found/i.test(text.trim())) {
       throw new Error(
-        `Endpoint ${url.split('?')[0]} not registered. Restart the bot — the running process is older than the dashboard you have open.`,
+        `Endpoint ${url.split('?')[0]} not registered on ${inst.name}. Restart that bot — it's running an older version than the dashboard.`,
       );
     }
     try { return JSON.parse(text); }
     catch {
-      throw new Error(`Server returned non-JSON for ${url.split('?')[0]} (HTTP ${res.status}). Restart the bot if it's running an older version.`);
+      throw new Error(`${inst.name} returned non-JSON for ${url.split('?')[0]} (HTTP ${res.status}). Restart the bot if it's running an older version.`);
     }
   }
 
@@ -179,11 +251,19 @@
   const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
   // ===== WebSocket =====
+  // Connects to the *active instance*. Tokens go in the query string because
+  // browser WebSocket can't set custom headers. Reconnects automatically; if
+  // the active instance changes, switchInstance() closes this socket which
+  // triggers the auto-reconnect against the new instance.
   function connect() {
-    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    ws = new WebSocket(`${proto}//${location.host}/`);
-    setStatus(false, 'connecting…');
-    ws.onopen = () => { connected = true; setStatus(true, 'connected'); };
+    const inst = activeInstance();
+    const wsUrl = new URL(inst.url);
+    wsUrl.protocol = wsUrl.protocol === 'https:' ? 'wss:' : 'ws:';
+    if (inst.token) wsUrl.searchParams.set('token', inst.token);
+    try { ws = new WebSocket(wsUrl.toString()); }
+    catch (e) { setStatus(false, `connect failed: ${e.message}`); setTimeout(connect, 2000); return; }
+    setStatus(false, `connecting to ${inst.name}…`);
+    ws.onopen = () => { connected = true; setStatus(true, `connected to ${inst.name}`); };
     ws.onclose = () => { connected = false; setStatus(false, 'disconnected'); setTimeout(connect, 2000); };
     ws.onerror = () => {};
     ws.onmessage = (e) => {
@@ -191,6 +271,235 @@
       catch (err) { console.warn('[dashboard] handler error:', err); }
     };
   }
+
+  // Switch to a different instance. Closes the current WS (auto-reconnects
+  // to the new instance) and refreshes the current page's data.
+  function switchInstance(id) {
+    if (!instancesState.instances.find((i) => i.id === id)) return;
+    instancesState.activeId = id;
+    saveInstances();
+    // Visual: fade out, switch, fade in.
+    document.querySelectorAll('.page').forEach((p) => p.classList.add('switching'));
+    // Reset state so we don't show stale data from the previous instance.
+    state = null;
+    // Close current WS — onclose triggers auto-reconnect against new instance.
+    try { ws?.close(); } catch { /* */ }
+    // Visual feedback + re-render the current page if it has its own renderer.
+    setTimeout(() => {
+      renderInstancePicker();
+      if (typeof renderAll === 'function') renderAll();
+      document.querySelectorAll('.page').forEach((p) => p.classList.remove('switching'));
+    }, 200);
+  }
+
+  // ===== Instance picker UI =====
+  function renderInstancePicker() {
+    // Update topbar chip
+    const inst = activeInstance();
+    const nameEl = document.getElementById('topbar-instance-name');
+    const chip = document.getElementById('topbar-instance');
+    if (nameEl) nameEl.textContent = inst.name;
+    if (chip) {
+      const h = instancesState.healthByInstance[inst.id]?.status || 'pending';
+      chip.setAttribute('data-health', h === 'pending' ? '' : h);
+    }
+    // Update popover list
+    const list = document.getElementById('instance-picker-list');
+    if (!list) return;
+    list.innerHTML = '';
+    instancesState.instances.forEach((i) => {
+      const item = document.createElement('div');
+      item.className = 'instance-picker-item' + (i.id === inst.id ? ' active' : '');
+      const h = instancesState.healthByInstance[i.id]?.status || '';
+      if (h) item.setAttribute('data-health', h);
+      item.innerHTML = `
+        <span class="ip-dot"></span>
+        <div>
+          <div class="ip-name">${escapeHtmlSafe(i.name)}</div>
+          <div class="ip-url">${escapeHtmlSafe(i.url)}</div>
+        </div>
+        <button class="ip-edit" data-id="${escapeHtmlSafe(i.id)}" title="Edit">✎</button>`;
+      item.addEventListener('click', (ev) => {
+        if (ev.target.classList.contains('ip-edit')) return;
+        if (i.id !== inst.id) switchInstance(i.id);
+        document.getElementById('instance-picker').classList.add('hidden');
+      });
+      item.querySelector('.ip-edit').addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        openInstanceModal(i.id);
+      });
+      list.appendChild(item);
+    });
+  }
+
+  // Topbar picker toggle.
+  document.getElementById('topbar-instance')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const picker = document.getElementById('instance-picker');
+    picker?.classList.toggle('hidden');
+    renderInstancePicker();
+  });
+  document.addEventListener('click', (e) => {
+    const picker = document.getElementById('instance-picker');
+    if (!picker || picker.classList.contains('hidden')) return;
+    if (!picker.contains(e.target) && e.target.id !== 'topbar-instance' && !document.getElementById('topbar-instance').contains(e.target)) {
+      picker.classList.add('hidden');
+    }
+  });
+
+  // ===== Instance add/edit modal =====
+  let editingInstanceId = null;
+  function openInstanceModal(id) {
+    editingInstanceId = id;
+    const modal = document.getElementById('instance-modal');
+    const title = document.getElementById('instance-modal-title');
+    const inst = id ? instancesState.instances.find((i) => i.id === id) : null;
+    if (inst) {
+      title.textContent = `Edit instance: ${inst.name}`;
+      document.getElementById('instance-edit-name').value = inst.name;
+      document.getElementById('instance-edit-url').value = inst.url;
+      document.getElementById('instance-edit-token').value = inst.token || '';
+    } else {
+      title.textContent = 'Add bot instance';
+      document.getElementById('instance-edit-name').value = '';
+      document.getElementById('instance-edit-url').value = 'http://127.0.0.1:8765';
+      document.getElementById('instance-edit-token').value = '';
+    }
+    document.getElementById('instance-edit-status').textContent = '—';
+    modal.classList.remove('hidden');
+    document.getElementById('instance-picker')?.classList.add('hidden');
+  }
+  function closeInstanceModal() {
+    document.getElementById('instance-modal').classList.add('hidden');
+    editingInstanceId = null;
+  }
+  document.getElementById('instance-modal-close')?.addEventListener('click', closeInstanceModal);
+  document.getElementById('instance-cancel-btn')?.addEventListener('click', closeInstanceModal);
+  document.getElementById('instance-add-btn')?.addEventListener('click', () => openInstanceModal(null));
+
+  document.getElementById('instance-save-btn')?.addEventListener('click', () => {
+    const name = document.getElementById('instance-edit-name').value.trim();
+    const url = document.getElementById('instance-edit-url').value.trim().replace(/\/$/, '');
+    const token = document.getElementById('instance-edit-token').value.trim();
+    if (!name || !url) return toast('▲ Missing fields', 'Name + URL required.', 'error', 2500);
+    if (!/^https?:\/\//.test(url)) return toast('▲ Bad URL', 'Must start with http:// or https://', 'error', 2500);
+    if (editingInstanceId) {
+      const inst = instancesState.instances.find((i) => i.id === editingInstanceId);
+      if (inst) { inst.name = name; inst.url = url; inst.token = token; }
+    } else {
+      const id = `inst-${Date.now().toString(36)}`;
+      instancesState.instances.push({ id, name, url, token });
+      // Auto-activate newly-added instances.
+      switchInstance(id);
+    }
+    saveInstances();
+    closeInstanceModal();
+    renderInstancePicker();
+    probeAllInstances();
+    toast('✓ Saved', name, 'success', 2000);
+  });
+
+  document.getElementById('instance-test-btn')?.addEventListener('click', async () => {
+    const url = document.getElementById('instance-edit-url').value.trim().replace(/\/$/, '');
+    const token = document.getElementById('instance-edit-token').value.trim();
+    const status = document.getElementById('instance-edit-status');
+    status.textContent = 'Probing…';
+    try {
+      const res = await fetch(`${url}/api/health`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      let msg = `✓ ${data.name || 'bot'} · v${data.version || '?'}`;
+      if (data.botTag) msg += ` · ${data.botTag}`;
+      if (data.authRequired && !token) msg += '  (▲ this bot requires a token)';
+      else if (data.authRequired && token) {
+        // Verify token works by hitting an auth'd endpoint.
+        const authRes = await fetch(`${url}/api/library`, { headers: { Authorization: `Bearer ${token}` } });
+        if (authRes.status === 401) msg += '  (▲ wrong token)';
+        else msg += '  ✓ token ok';
+      }
+      status.textContent = msg;
+      status.style.color = msg.includes('▲') ? 'var(--warning)' : 'var(--success)';
+    } catch (e) {
+      status.textContent = `▲ ${e.message}`;
+      status.style.color = 'var(--danger)';
+    }
+  });
+
+  // ===== Health probes for all instances =====
+  async function probeInstance(inst) {
+    const start = Date.now();
+    try {
+      const res = await fetch(`${inst.url}/api/health`, { signal: AbortSignal.timeout(5000) });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      instancesState.healthByInstance[inst.id] = {
+        status: 'ok',
+        version: data.version,
+        botTag: data.botTag,
+        latencyMs: Date.now() - start,
+        lastCheck: Date.now(),
+      };
+    } catch (e) {
+      instancesState.healthByInstance[inst.id] = {
+        status: 'down',
+        error: e.message,
+        lastCheck: Date.now(),
+      };
+    }
+  }
+  async function probeAllInstances() {
+    await Promise.all(instancesState.instances.map(probeInstance));
+    renderInstancePicker();
+    if (activePage === 'fleet') renderFleet();
+  }
+  // Initial probe + then every 15s while the dashboard is open.
+  setTimeout(probeAllInstances, 500);
+  setInterval(probeAllInstances, 15000);
+
+  // ===== Fleet page =====
+  function renderFleet() {
+    const grid = document.getElementById('fleet-grid');
+    if (!grid) return;
+    if (!instancesState.instances.length) {
+      grid.innerHTML = '<div class="muted">No instances configured. Click + Add instance to get started.</div>';
+      return;
+    }
+    grid.innerHTML = '';
+    instancesState.instances.forEach((inst) => {
+      const h = instancesState.healthByInstance[inst.id] || { status: 'pending' };
+      const card = document.createElement('div');
+      card.className = 'fleet-card' + (inst.id === instancesState.activeId ? ' active' : '');
+      card.setAttribute('data-health', h.status || 'pending');
+      const errHtml = h.status === 'down' ? `<div class="fleet-card-err">▲ ${escapeHtmlSafe(h.error || 'unreachable')}</div>` : '';
+      card.innerHTML = `
+        <div class="fleet-card-head">
+          <div class="fleet-card-name">${escapeHtmlSafe(inst.name)}</div>
+          <div class="fleet-card-version">${escapeHtmlSafe(h.version ? 'v' + h.version : '?')}</div>
+        </div>
+        <div class="fleet-card-url">${escapeHtmlSafe(inst.url)}</div>
+        <div class="fleet-card-stats">
+          <div><div class="fs-label">Bot</div><div class="fs-val">${escapeHtmlSafe(h.botTag || '—')}</div></div>
+          <div><div class="fs-label">Latency</div><div class="fs-val">${h.latencyMs != null ? h.latencyMs + ' ms' : '—'}</div></div>
+        </div>
+        ${errHtml}`;
+      card.addEventListener('click', () => {
+        if (inst.id !== instancesState.activeId) switchInstance(inst.id);
+        else switchPage('home');
+      });
+      grid.appendChild(card);
+    });
+  }
+  document.getElementById('fleet-add')?.addEventListener('click', () => openInstanceModal(null));
+  document.getElementById('fleet-refresh')?.addEventListener('click', probeAllInstances);
+
+  // Hook into page switcher.
+  const origSwitchPageMulti = switchPage;
+  switchPage = (name) => {
+    origSwitchPageMulti(name);
+    if (name === 'fleet') renderFleet();
+  };
+  // Initial picker render
+  setTimeout(renderInstancePicker, 50);
   function send(action, extra = {}) {
     if (!connected) return;
     // Pin commands to the currently-selected server so multi-guild bots route
