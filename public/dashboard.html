@@ -104,34 +104,78 @@
           <span class="nav-icon">⌂</span>
           <span class="nav-label">Home</span>
         </a>
-        <a class="nav-item" data-page="library">
-          <span class="nav-icon">≡</span>
-          <span class="nav-label">Library</span>
-        </a>
-        <a class="nav-item" data-page="insights">
-          <span class="nav-icon">◐</span>
-          <span class="nav-label">Insights</span>
-        </a>
-        <a class="nav-item" data-page="server">
-          <span class="nav-icon">⌬</span>
-          <span class="nav-label">Server</span>
-        </a>
+
+        <!-- CONTENT -->
+        <div class="nav-group" data-group="content">
+          <div class="nav-group-head">
+            <span class="nav-group-chevron">▾</span>
+            <span class="nav-group-label">Content</span>
+          </div>
+          <div class="nav-group-body">
+            <a class="nav-item" data-page="library">
+              <span class="nav-icon">≡</span>
+              <span class="nav-label">Library</span>
+            </a>
+            <a class="nav-item" data-page="insights">
+              <span class="nav-icon">◐</span>
+              <span class="nav-label">Insights</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- SERVERS -->
+        <div class="nav-group" data-group="servers">
+          <div class="nav-group-head">
+            <span class="nav-group-chevron">▾</span>
+            <span class="nav-group-label">Servers</span>
+          </div>
+          <div class="nav-group-body">
+            <a class="nav-item" data-page="server">
+              <span class="nav-icon">⌬</span>
+              <span class="nav-label">Overview</span>
+            </a>
+            <a class="nav-item" data-page="members">
+              <span class="nav-icon">👥</span>
+              <span class="nav-label">Members</span>
+            </a>
+            <a class="nav-item" data-page="channels">
+              <span class="nav-icon">#</span>
+              <span class="nav-label">Channels</span>
+            </a>
+            <a class="nav-item" data-page="roles">
+              <span class="nav-icon">▦</span>
+              <span class="nav-label">Roles</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- MODERATION -->
         <a class="nav-item" data-page="moderation">
           <span class="nav-icon">⚖</span>
           <span class="nav-label">Moderation</span>
         </a>
-        <a class="nav-item" data-page="settings">
-          <span class="nav-icon">⚙</span>
-          <span class="nav-label">Settings</span>
-        </a>
-        <a class="nav-item" data-page="diagnostics">
-          <span class="nav-icon">⌗</span>
-          <span class="nav-label">Diagnostics</span>
-          <span class="nav-badge" id="nav-diag-badge" hidden></span>
-        </a>
+
+        <!-- SYSTEM -->
+        <div class="nav-group" data-group="system">
+          <div class="nav-group-head">
+            <span class="nav-group-chevron">▾</span>
+            <span class="nav-group-label">System</span>
+          </div>
+          <div class="nav-group-body">
+            <a class="nav-item" data-page="settings">
+              <span class="nav-icon">⚙</span>
+              <span class="nav-label">Settings</span>
+            </a>
+            <a class="nav-item" data-page="diagnostics">
+              <span class="nav-icon">⌗</span>
+              <span class="nav-label">Diagnostics</span>
+              <span class="nav-badge" id="nav-diag-badge" hidden></span>
+            </a>
+          </div>
+        </div>
       </nav>
       <div class="sidebar-footer">
-        <div class="muted small">v1.7.0</div>
+        <div class="muted small">v1.8.0</div>
       </div>
     </aside>
 
@@ -683,6 +727,112 @@
       <!-- DIAGNOSTICS — boot timeline + health + full console -->
       <!-- =================================================== -->
       <!-- =================================================== -->
+      <!-- MEMBERS — paginated guild member browser            -->
+      <!-- =================================================== -->
+      <section class="page hidden" id="page-members">
+        <div class="page-head">
+          <h2>👥 Members</h2>
+          <div class="muted small">Browse, search, and quick-action members of the selected server.</div>
+        </div>
+        <div class="card">
+          <div class="card-head">
+            <h3>Member browser</h3>
+            <div class="mod-tools">
+              <input id="members-search" type="text" placeholder="🔍 Search by name / ID…" />
+              <select id="members-perpage" title="Per page">
+                <option value="25">25</option>
+                <option value="50" selected>50</option>
+                <option value="100">100</option>
+              </select>
+              <button id="members-refresh" class="primary">⟳ Refresh</button>
+            </div>
+          </div>
+          <div class="muted small" id="members-summary">—</div>
+          <div class="muted small" id="members-cache-notice" hidden></div>
+          <div class="members-list" id="members-list"><div class="muted">Select a server first.</div></div>
+          <div class="pagination" id="members-pagination" hidden></div>
+        </div>
+      </section>
+
+      <!-- =================================================== -->
+      <!-- CHANNELS — list grouped by category                 -->
+      <!-- =================================================== -->
+      <section class="page hidden" id="page-channels">
+        <div class="page-head">
+          <h2># Channels</h2>
+          <div class="muted small">Edit slowmode, NSFW, topic. Channels grouped by category.</div>
+        </div>
+        <div class="card">
+          <div class="card-head">
+            <h3>Channels</h3>
+            <div class="mod-tools">
+              <input id="channels-search" type="text" placeholder="🔍 Filter…" />
+              <button id="channels-refresh" class="primary">⟳ Refresh</button>
+            </div>
+          </div>
+          <div class="channels-list" id="channels-list"><div class="muted">Select a server first.</div></div>
+        </div>
+      </section>
+
+      <!-- =================================================== -->
+      <!-- ROLES — list, color swatches, create/edit/delete    -->
+      <!-- =================================================== -->
+      <section class="page hidden" id="page-roles">
+        <div class="page-head">
+          <h2>▦ Roles</h2>
+          <div class="muted small">List, create, edit, and delete roles. Permission editor with the common ~20 flags.</div>
+        </div>
+        <div class="card">
+          <div class="card-head">
+            <h3>Roles</h3>
+            <div class="mod-tools">
+              <input id="roles-search" type="text" placeholder="🔍 Filter…" />
+              <button id="roles-new" class="primary">+ Create role</button>
+              <button id="roles-refresh" class="primary">⟳ Refresh</button>
+            </div>
+          </div>
+          <div class="roles-list" id="roles-list"><div class="muted">Select a server first.</div></div>
+        </div>
+
+        <!-- Role edit modal (hidden by default) -->
+        <div class="role-modal hidden" id="role-modal">
+          <div class="role-modal-card">
+            <div class="role-modal-head">
+              <h3 id="role-modal-title">Edit role</h3>
+              <button class="role-modal-close" id="role-modal-close">×</button>
+            </div>
+            <div class="role-modal-body">
+              <label>
+                <div class="muted small">Name</div>
+                <input id="role-edit-name" type="text" />
+              </label>
+              <label>
+                <div class="muted small">Color</div>
+                <input id="role-edit-color" type="color" />
+              </label>
+              <label class="role-toggle">
+                <input id="role-edit-hoist" type="checkbox" />
+                <span>Display separately in member list</span>
+              </label>
+              <label class="role-toggle">
+                <input id="role-edit-mentionable" type="checkbox" />
+                <span>Allow anyone to @-mention this role</span>
+              </label>
+              <div class="muted small" style="margin-top:8px"><strong>Permissions</strong></div>
+              <div class="role-perms" id="role-perms"></div>
+            </div>
+            <div class="role-modal-foot">
+              <button class="role-modal-delete" id="role-modal-delete">✕ Delete role</button>
+              <div>
+                <button class="role-modal-cancel" id="role-modal-cancel">Cancel</button>
+                <button class="primary" id="role-modal-save">Save</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- =================================================== -->
       <!-- MODERATION — bans, kicks, timeouts, warns, automod, modlog -->
       <!-- =================================================== -->
       <section class="page hidden" id="page-moderation">
@@ -923,6 +1073,23 @@
               <div class="net-label">Rate cap (per stream)</div>
               <div class="net-val" id="net-rate-cap">—</div>
               <div class="net-sub" id="net-concurrency">— concurrent</div>
+            </div>
+          </div>
+
+          <!-- Speedtest -->
+          <div style="margin-top:14px; padding:12px; background:var(--bg-input); border-radius:8px">
+            <div style="display:flex; justify-content:space-between; align-items:center">
+              <div>
+                <div style="font-size:13px; font-weight:600">Speedtest</div>
+                <div class="muted small">Runs `librespeed-cli` (preferred) or `speedtest-cli` if installed on the host. Cached between runs.</div>
+              </div>
+              <button id="speedtest-run" class="primary">⚡ Run speedtest</button>
+            </div>
+            <div class="speedtest-result hidden" id="speedtest-result">
+              <div><div class="st-label">↓ Download</div><div class="st-val" id="st-down">—</div></div>
+              <div><div class="st-label">↑ Upload</div><div class="st-val" id="st-up">—</div></div>
+              <div><div class="st-label">⏱ Ping</div><div class="st-val" id="st-ping">—</div></div>
+              <div class="st-meta" id="st-meta">—</div>
             </div>
           </div>
         </div>

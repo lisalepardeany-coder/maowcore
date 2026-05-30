@@ -106,8 +106,26 @@
     activePage = name;
     $$('.nav-item').forEach((el) => el.classList.toggle('active', el.dataset.page === name));
     $$('.page').forEach((el) => el.classList.toggle('hidden', el.id !== `page-${name}`));
+    // When a sub-page activates, ensure its parent nav-group is expanded so the
+    // user can see what they navigated to.
+    const activeItem = document.querySelector(`.nav-item[data-page="${name}"]`);
+    const parentGroup = activeItem?.closest('.nav-group');
+    if (parentGroup) parentGroup.classList.remove('collapsed');
     if (state) renderAll();
   }
+
+  // ===== Collapsible nav groups =====
+  const collapsedGroups = new Set(JSON.parse(localStorage.getItem('maow.navCollapsed') || '[]'));
+  $$('.nav-group').forEach((g) => {
+    const key = g.dataset.group;
+    if (collapsedGroups.has(key)) g.classList.add('collapsed');
+    g.querySelector('.nav-group-head')?.addEventListener('click', () => {
+      g.classList.toggle('collapsed');
+      if (g.classList.contains('collapsed')) collapsedGroups.add(key);
+      else collapsedGroups.delete(key);
+      localStorage.setItem('maow.navCollapsed', JSON.stringify([...collapsedGroups]));
+    });
+  });
 
   // ===== Formatters =====
   const fmtClock = (sec) => {
@@ -1585,6 +1603,54 @@
     }
   }
 
+  // ===== Speedtest =====
+  function renderSpeedtestResult(result) {
+    const wrap = $('speedtest-result');
+    if (!wrap || !result) return;
+    if (result.error) {
+      wrap.classList.remove('hidden');
+      $('st-down').textContent = '—';
+      $('st-up').textContent = '—';
+      $('st-ping').textContent = '—';
+      $('st-meta').textContent = `▲ ${result.error}`;
+      return;
+    }
+    wrap.classList.remove('hidden');
+    $('st-down').textContent = result.downloadMbps != null ? `${result.downloadMbps.toFixed(1)} Mbps` : '—';
+    $('st-up').textContent = result.uploadMbps != null ? `${result.uploadMbps.toFixed(1)} Mbps` : '—';
+    $('st-ping').textContent = result.pingMs != null ? `${Math.round(result.pingMs)} ms` : '—';
+    const when = new Date(result.ts).toLocaleTimeString();
+    const meta = [`Tool: ${result.tool || '?'}`, `Ran at: ${when}`];
+    if (result.server) meta.push(`Server: ${result.server}`);
+    if (result.isp) meta.push(`ISP: ${result.isp}`);
+    $('st-meta').textContent = meta.join(' · ');
+  }
+
+  // Fetch cached result on dashboard load.
+  fetch('/api/admin/speedtest').then((r) => r.json()).then((d) => {
+    if (d.result) renderSpeedtestResult(d.result);
+  }).catch(() => { /* */ });
+
+  $('speedtest-run')?.addEventListener('click', async () => {
+    const btn = $('speedtest-run');
+    btn.disabled = true;
+    btn.textContent = '⏱ Running…';
+    try {
+      const res = await fetch('/api/admin/speedtest', { method: 'POST' });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      toast('⚡ Speedtest started', 'Running in background — results in ~30s', 'info', 3000);
+    } catch (e) {
+      toast('▲ Speedtest failed', e.message, 'error', 4000);
+    } finally {
+      // The result arrives via WebSocket; re-enable after a delay.
+      setTimeout(() => {
+        btn.disabled = false;
+        btn.textContent = '⚡ Run speedtest';
+      }, 2000);
+    }
+  });
+
   // Public IP — gated so it doesn't leak into screenshots.
   $('net-show-ip')?.addEventListener('click', async () => {
     const val = $('net-public-ip');
@@ -2235,6 +2301,462 @@
   }
   $('audit-refresh')?.addEventListener('click', () => renderAuditTab(true));
   $('audit-type')?.addEventListener('change', () => renderAuditTab(true));
+
+  // ===== Members page =====
+  const membersState = {
+    members: [],
+    total: 0,
+    page: 1,
+    perPage: 50,
+    search: '',
+    cacheNotice: null,
+  };
+
+  async function renderMembersPage() {
+    const list = $('members-list');
+    const summary = $('members-summary');
+    const notice = $('members-cache-notice');
+    const gId = activeGuildId();
+    if (!gId) { if (list) list.innerHTML = '<div class="muted">Select a server first.</div>'; return; }
+    list.innerHTML = '<div class="muted">Loading…</div>';
+    const qs = new URLSearchParams({
+      guildId: gId,
+      page: String(membersState.page),
+      perPage: String(membersState.perPage),
+    });
+    if (membersState.search) qs.set('search', membersState.search);
+    try {
+      const res = await fetch(`/api/admin/members?${qs}`);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      membersState.members = data.members || [];
+      membersState.total = data.total || 0;
+      membersState.cacheNotice = data.cacheNotice || null;
+    } catch (e) {
+      list.innerHTML = `<div class="error">▲ ${escapeHtmlSafe(e.message)}</div>`;
+      return;
+    }
+    if (summary) {
+      const start = (membersState.page - 1) * membersState.perPage + 1;
+      const end = Math.min(start + membersState.perPage - 1, membersState.total);
+      summary.textContent = membersState.total
+        ? `Showing ${start}–${end} of ${membersState.total} members`
+        : 'No members.';
+    }
+    if (notice) {
+      if (membersState.cacheNotice) {
+        notice.hidden = false;
+        notice.textContent = membersState.cacheNotice;
+      } else {
+        notice.hidden = true;
+      }
+    }
+    if (!membersState.members.length) {
+      list.innerHTML = '<div class="muted">No members match.</div>';
+      return;
+    }
+    list.innerHTML = '';
+    membersState.members.forEach((m) => {
+      const row = document.createElement('div');
+      row.className = 'member-row' + (m.bot ? ' bot' : '');
+      const rolesHtml = (m.roles || []).map((r) => {
+        const color = r.color ? `style="color:#${r.color.toString(16).padStart(6, '0')}"` : '';
+        return `<span class="m-role" ${color}>${escapeHtmlSafe(r.name)}</span>`;
+      }).join('');
+      const voiceTag = m.voiceChannel ? ` · 🔊 ${escapeHtmlSafe(m.voiceChannel.name)}` : '';
+      row.innerHTML = `
+        <img src="${escapeHtmlSafe(m.avatar)}" alt="" />
+        <div>
+          <div class="m-name">${escapeHtmlSafe(m.displayName || m.tag)}</div>
+          <div class="m-meta">${escapeHtmlSafe(m.tag)} · ${escapeHtmlSafe(m.id)}${voiceTag}</div>
+          <div class="m-roles">${rolesHtml}</div>
+        </div>
+        <div class="m-actions">
+          <button data-act="timeout" data-uid="${escapeHtmlSafe(m.id)}">⏱ Timeout</button>
+          <button data-act="kick" class="m-danger" data-uid="${escapeHtmlSafe(m.id)}">👢 Kick</button>
+          <button data-act="ban" class="m-danger" data-uid="${escapeHtmlSafe(m.id)}">⊘ Ban</button>
+        </div>`;
+      list.appendChild(row);
+    });
+    // Quick action handlers — defer to the Moderation page workflows by
+    // prefilling and hopping over.
+    list.querySelectorAll('button[data-act]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const userId = btn.dataset.uid;
+        const act = btn.dataset.act;
+        const member = membersState.members.find((m) => m.id === userId);
+        const reason = prompt(`Reason for ${act} of ${member?.tag || userId}?`, 'No reason provided');
+        if (reason == null) return;
+        if (act === 'kick') {
+          if (!confirm(`Kick ${member?.tag || userId}?\nReason: ${reason}`)) return;
+          await fetch('/api/mod/kick', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ guildId: gId, userId, reason }) })
+            .then((r) => r.json()).then((d) => {
+              if (d.error) toast('▲ Kick failed', d.error, 'error', 3500);
+              else toast('👢 Kicked', userId, 'success', 2500);
+            });
+        } else if (act === 'ban') {
+          if (!confirm(`Ban ${member?.tag || userId}?\nReason: ${reason}`)) return;
+          await fetch('/api/mod/ban', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ guildId: gId, userId, reason }) })
+            .then((r) => r.json()).then((d) => {
+              if (d.error) toast('▲ Ban failed', d.error, 'error', 3500);
+              else toast('⊘ Banned', userId, 'success', 2500);
+            });
+        } else if (act === 'timeout') {
+          const minutes = Number(prompt('Timeout duration (minutes)?', '60'));
+          if (!minutes || minutes < 1) return;
+          await fetch('/api/mod/timeout', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ guildId: gId, userId, durationMs: minutes * 60000, reason }) })
+            .then((r) => r.json()).then((d) => {
+              if (d.error) toast('▲ Timeout failed', d.error, 'error', 3500);
+              else toast('⏱ Timed out', `${minutes} min`, 'success', 2500);
+            });
+        }
+      });
+    });
+    // Pagination
+    renderMembersPagination();
+  }
+
+  function renderMembersPagination() {
+    const pag = $('members-pagination');
+    if (!pag) return;
+    const totalPages = Math.max(1, Math.ceil(membersState.total / membersState.perPage));
+    if (totalPages <= 1) { pag.hidden = true; pag.innerHTML = ''; return; }
+    pag.hidden = false;
+    pag.innerHTML = '';
+    const items = paginationItems(membersState.page, totalPages);
+    const mk = (label, page, opts = {}) => {
+      const b = document.createElement('button');
+      b.textContent = label;
+      if (opts.active) b.classList.add('active');
+      if (opts.disabled) b.disabled = true;
+      if (!opts.disabled && page != null) {
+        b.addEventListener('click', () => {
+          membersState.page = page;
+          renderMembersPage();
+        });
+      }
+      return b;
+    };
+    pag.appendChild(mk('‹', membersState.page - 1, { disabled: membersState.page === 1 }));
+    items.forEach((it) => {
+      if (it === '…') {
+        const s = document.createElement('span');
+        s.className = 'ellipsis';
+        s.textContent = '…';
+        pag.appendChild(s);
+      } else {
+        pag.appendChild(mk(String(it), it, { active: it === membersState.page }));
+      }
+    });
+    pag.appendChild(mk('›', membersState.page + 1, { disabled: membersState.page === totalPages }));
+  }
+
+  let membersSearchTimer = null;
+  $('members-search')?.addEventListener('input', (e) => {
+    clearTimeout(membersSearchTimer);
+    membersSearchTimer = setTimeout(() => {
+      membersState.search = e.target.value;
+      membersState.page = 1;
+      renderMembersPage();
+    }, 200);
+  });
+  $('members-perpage')?.addEventListener('change', (e) => {
+    membersState.perPage = Number(e.target.value);
+    membersState.page = 1;
+    renderMembersPage();
+  });
+  $('members-refresh')?.addEventListener('click', renderMembersPage);
+
+  // ===== Channels page =====
+  const channelsState = { groups: [], search: '' };
+
+  async function renderChannelsPage() {
+    const list = $('channels-list');
+    const gId = activeGuildId();
+    if (!gId) { if (list) list.innerHTML = '<div class="muted">Select a server first.</div>'; return; }
+    list.innerHTML = '<div class="muted">Loading…</div>';
+    try {
+      const res = await fetch(`/api/admin/channels?guildId=${encodeURIComponent(gId)}`);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      channelsState.groups = data.groups || [];
+    } catch (e) {
+      list.innerHTML = `<div class="error">▲ ${escapeHtmlSafe(e.message)}</div>`;
+      return;
+    }
+    drawChannels();
+  }
+
+  function drawChannels() {
+    const list = $('channels-list');
+    if (!list) return;
+    const q = (channelsState.search || '').toLowerCase();
+    list.innerHTML = '';
+    const channelSym = (type) => {
+      // 0=text, 2=voice, 5=announcement, 13=stage, 15=forum
+      if (type === 2 || type === 13) return '🔊';
+      if (type === 15) return '🗂';
+      if (type === 5) return '📢';
+      return '#';
+    };
+    channelsState.groups.forEach((group) => {
+      const filteredCh = q
+        ? group.channels.filter((c) => c.name.toLowerCase().includes(q) || (c.topic || '').toLowerCase().includes(q))
+        : group.channels;
+      if (!filteredCh.length) return;
+      const cat = document.createElement('div');
+      cat.className = 'channel-cat';
+      cat.innerHTML = `<div class="channel-cat-head">${escapeHtmlSafe(group.name)}</div>`;
+      filteredCh.forEach((c) => {
+        const row = document.createElement('div');
+        row.className = 'channel-row';
+        const nsfwBadge = c.nsfw ? '<span class="ch-flag">NSFW</span>' : '';
+        const slowBadge = c.slowmode > 0 ? `<span class="ch-slow">${c.slowmode}s</span>` : '';
+        const topic = c.topic ? `<div class="ch-topic">${escapeHtmlSafe(c.topic)}</div>` : '';
+        row.innerHTML = `
+          <span class="ch-sym">${channelSym(c.type)}</span>
+          <div>
+            <div class="ch-name">${escapeHtmlSafe(c.name)}</div>
+            ${topic}
+          </div>
+          ${slowBadge}
+          ${nsfwBadge}
+          <button class="ch-edit" data-cid="${escapeHtmlSafe(c.id)}">✎ Edit</button>`;
+        cat.appendChild(row);
+      });
+      list.appendChild(cat);
+    });
+    if (!list.children.length) {
+      list.innerHTML = '<div class="muted">No channels match.</div>';
+    }
+    list.querySelectorAll('button[data-cid]').forEach((btn) => {
+      btn.addEventListener('click', () => openChannelEdit(btn.dataset.cid));
+    });
+  }
+
+  async function openChannelEdit(channelId) {
+    const gId = activeGuildId();
+    let ch = null;
+    for (const g of channelsState.groups) {
+      const found = g.channels.find((c) => c.id === channelId);
+      if (found) { ch = found; break; }
+    }
+    if (!ch) return;
+    const name = prompt('Channel name:', ch.name);
+    if (name == null) return;
+    const topic = prompt('Channel topic (empty to clear):', ch.topic || '');
+    if (topic == null) return;
+    const slowStr = prompt('Slowmode (seconds, 0 = off, max 21600):', String(ch.slowmode || 0));
+    if (slowStr == null) return;
+    const nsfw = confirm('NSFW? OK = yes, Cancel = no.\n\n(Current: ' + (ch.nsfw ? 'YES' : 'NO') + ')');
+    try {
+      const res = await fetch('/api/admin/channel-edit', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ guildId: gId, channelId, name, topic, slowmode: Number(slowStr), nsfw }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      toast('✎ Channel edited', name, 'success', 2500);
+      renderChannelsPage();
+    } catch (e) { toast('▲ Edit failed', e.message, 'error', 3500); }
+  }
+
+  let channelsSearchTimer = null;
+  $('channels-search')?.addEventListener('input', (e) => {
+    clearTimeout(channelsSearchTimer);
+    channelsSearchTimer = setTimeout(() => { channelsState.search = e.target.value; drawChannels(); }, 150);
+  });
+  $('channels-refresh')?.addEventListener('click', renderChannelsPage);
+
+  // ===== Roles page =====
+  const rolesState = { roles: [], search: '', editing: null };
+
+  // Common Discord permissions (bitfield position → human label). Bit values
+  // are stable in the API.
+  const PERM_BITS = [
+    { bit: 1n << 0n,  label: 'Create invite' },
+    { bit: 1n << 1n,  label: 'Kick members' },
+    { bit: 1n << 2n,  label: 'Ban members' },
+    { bit: 1n << 3n,  label: 'Administrator' },
+    { bit: 1n << 4n,  label: 'Manage channels' },
+    { bit: 1n << 5n,  label: 'Manage server' },
+    { bit: 1n << 6n,  label: 'Add reactions' },
+    { bit: 1n << 7n,  label: 'View audit log' },
+    { bit: 1n << 10n, label: 'View channel' },
+    { bit: 1n << 11n, label: 'Send messages' },
+    { bit: 1n << 13n, label: 'Manage messages' },
+    { bit: 1n << 14n, label: 'Embed links' },
+    { bit: 1n << 15n, label: 'Attach files' },
+    { bit: 1n << 17n, label: 'Mention @everyone' },
+    { bit: 1n << 20n, label: 'Connect (voice)' },
+    { bit: 1n << 21n, label: 'Speak' },
+    { bit: 1n << 22n, label: 'Mute members' },
+    { bit: 1n << 23n, label: 'Deafen members' },
+    { bit: 1n << 24n, label: 'Move members' },
+    { bit: 1n << 28n, label: 'Manage roles' },
+    { bit: 1n << 36n, label: 'Moderate members' },
+  ];
+
+  async function renderRolesPage() {
+    const list = $('roles-list');
+    const gId = activeGuildId();
+    if (!gId) { if (list) list.innerHTML = '<div class="muted">Select a server first.</div>'; return; }
+    list.innerHTML = '<div class="muted">Loading…</div>';
+    try {
+      const res = await fetch(`/api/admin/roles?guildId=${encodeURIComponent(gId)}`);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      rolesState.roles = data.roles || [];
+    } catch (e) {
+      list.innerHTML = `<div class="error">▲ ${escapeHtmlSafe(e.message)}</div>`;
+      return;
+    }
+    drawRoles();
+  }
+
+  function drawRoles() {
+    const list = $('roles-list');
+    if (!list) return;
+    const q = (rolesState.search || '').toLowerCase();
+    const roles = q ? rolesState.roles.filter((r) => r.name.toLowerCase().includes(q)) : rolesState.roles;
+    if (!roles.length) {
+      list.innerHTML = '<div class="muted">No roles match.</div>';
+      return;
+    }
+    list.innerHTML = '';
+    roles.forEach((r) => {
+      const row = document.createElement('div');
+      row.className = 'role-row';
+      const swatch = `<div class="role-swatch" style="background:${r.color ? r.hexColor : 'var(--fg-dim)'}"></div>`;
+      const managed = r.managed ? '<span class="r-managed">managed</span>' : '<span></span>';
+      row.innerHTML = `
+        ${swatch}
+        <div>
+          <div class="r-name">${escapeHtmlSafe(r.name)}</div>
+          <div class="r-meta">${r.memberCount} member${r.memberCount === 1 ? '' : 's'} · pos ${r.position}</div>
+        </div>
+        ${managed}
+        <button class="r-edit" data-rid="${escapeHtmlSafe(r.id)}">✎ Edit</button>`;
+      list.appendChild(row);
+    });
+    list.querySelectorAll('button[data-rid]').forEach((btn) => {
+      btn.addEventListener('click', () => openRoleModal(btn.dataset.rid));
+    });
+  }
+
+  function openRoleModal(roleId) {
+    const role = rolesState.roles.find((r) => r.id === roleId);
+    if (!role) return;
+    rolesState.editing = role;
+    $('role-modal-title').textContent = `Edit role: ${role.name}`;
+    $('role-edit-name').value = role.name;
+    $('role-edit-color').value = role.hexColor !== '#000000' ? role.hexColor : '#99aab5';
+    $('role-edit-hoist').checked = !!role.hoist;
+    $('role-edit-mentionable').checked = !!role.mentionable;
+    const permsEl = $('role-perms');
+    permsEl.innerHTML = '';
+    const current = BigInt(role.permissions || '0');
+    PERM_BITS.forEach((p) => {
+      const label = document.createElement('label');
+      label.className = 'role-perm';
+      const has = (current & p.bit) !== 0n;
+      label.innerHTML = `<input type="checkbox" data-bit="${p.bit.toString()}" ${has ? 'checked' : ''} /> ${escapeHtmlSafe(p.label)}`;
+      permsEl.appendChild(label);
+    });
+    $('role-modal-delete').style.display = role.managed ? 'none' : '';
+    $('role-modal').classList.remove('hidden');
+  }
+
+  function closeRoleModal() {
+    $('role-modal').classList.add('hidden');
+    rolesState.editing = null;
+  }
+
+  $('role-modal-close')?.addEventListener('click', closeRoleModal);
+  $('role-modal-cancel')?.addEventListener('click', closeRoleModal);
+
+  $('role-modal-save')?.addEventListener('click', async () => {
+    const role = rolesState.editing;
+    if (!role) return;
+    const gId = activeGuildId();
+    let bitfield = 0n;
+    document.querySelectorAll('#role-perms input[type="checkbox"]').forEach((c) => {
+      if (c.checked) bitfield |= BigInt(c.dataset.bit);
+    });
+    const body = {
+      guildId: gId,
+      roleId: role.id,
+      name: $('role-edit-name').value,
+      color: parseInt($('role-edit-color').value.replace('#', ''), 16),
+      hoist: $('role-edit-hoist').checked,
+      mentionable: $('role-edit-mentionable').checked,
+      permissions: bitfield.toString(),
+    };
+    try {
+      const res = await fetch('/api/admin/role-edit', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      toast('✓ Role saved', body.name, 'success', 2500);
+      closeRoleModal();
+      renderRolesPage();
+    } catch (e) { toast('▲ Save failed', e.message, 'error', 4000); }
+  });
+
+  $('role-modal-delete')?.addEventListener('click', async () => {
+    const role = rolesState.editing;
+    if (!role) return;
+    if (!confirm(`Delete role "${role.name}"? This removes it from every member.`)) return;
+    try {
+      const res = await fetch('/api/admin/role-delete', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ guildId: activeGuildId(), roleId: role.id }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      toast('✕ Role deleted', role.name, 'info', 2500);
+      closeRoleModal();
+      renderRolesPage();
+    } catch (e) { toast('▲ Delete failed', e.message, 'error', 4000); }
+  });
+
+  $('roles-new')?.addEventListener('click', async () => {
+    const gId = activeGuildId();
+    if (!gId) return toast('▲ No server', 'Select a server.', 'error', 2000);
+    const name = prompt('New role name:');
+    if (!name) return;
+    try {
+      const res = await fetch('/api/admin/role-create', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ guildId: gId, name }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      toast('+ Role created', name, 'success', 2500);
+      renderRolesPage();
+    } catch (e) { toast('▲ Create failed', e.message, 'error', 3500); }
+  });
+
+  let rolesSearchTimer = null;
+  $('roles-search')?.addEventListener('input', (e) => {
+    clearTimeout(rolesSearchTimer);
+    rolesSearchTimer = setTimeout(() => { rolesState.search = e.target.value; drawRoles(); }, 150);
+  });
+  $('roles-refresh')?.addEventListener('click', renderRolesPage);
+
+  // Hook the page switcher so new pages render on navigation.
+  const origSwitchPage2 = switchPage;
+  switchPage = (name) => {
+    origSwitchPage2(name);
+    if (name === 'members') renderMembersPage();
+    else if (name === 'channels') renderChannelsPage();
+    else if (name === 'roles') renderRolesPage();
+  };
 
   // ===== Favorite button on Now Playing =====
   $('favorite-btn')?.addEventListener('click', () => {
@@ -3087,6 +3609,15 @@
       // When a job finishes, refresh the library list so newly-installed songs appear.
       if (msg.job.status === 'done' || msg.job.status === 'cancelled') {
         try { renderUploads(); } catch { /* renderUploads may not exist yet */ }
+      }
+    } else if (msg.type === 'speedtest') {
+      renderSpeedtestResult(msg.result);
+      if (msg.result?.error) {
+        toast('▲ Speedtest failed', msg.result.error, 'error', 5000);
+      } else if (msg.result) {
+        toast('⚡ Speedtest done',
+          `↓${msg.result.downloadMbps?.toFixed(1)} ↑${msg.result.uploadMbps?.toFixed(1)} Mbps`,
+          'success', 3500);
       }
     }
   };
