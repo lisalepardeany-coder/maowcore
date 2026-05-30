@@ -46,6 +46,24 @@
   };
   const escapeHtmlSafe = (s) => String(s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
+  // Wrap fetch+json so a 404 that returns the static-file "Not found" body
+  // (i.e. the route doesn't exist in the running backend yet — usually the bot
+  // wasn't restarted after pulling a new version) shows a clear hint instead
+  // of "Unexpected token 'N', "Not found" is not valid JSON".
+  async function fetchJson(url, opts) {
+    const res = await fetch(url, opts);
+    const text = await res.text();
+    if (!res.ok && /^Not found/i.test(text.trim())) {
+      throw new Error(
+        `Endpoint ${url.split('?')[0]} not registered. Restart the bot — the running process is older than the dashboard you have open.`,
+      );
+    }
+    try { return JSON.parse(text); }
+    catch {
+      throw new Error(`Server returned non-JSON for ${url.split('?')[0]} (HTTP ${res.status}). Restart the bot if it's running an older version.`);
+    }
+  }
+
   // ===== Animated number counter =====
   const tweenNumber = (el, to, opts = {}) => {
     const from = parseFloat(el.dataset.lastValue || '0');
@@ -1626,8 +1644,10 @@
     $('st-meta').textContent = meta.join(' · ');
   }
 
-  // Fetch cached result on dashboard load.
-  fetch('/api/admin/speedtest').then((r) => r.json()).then((d) => {
+  // Fetch cached result on dashboard load. Silently no-op if the route
+  // isn't registered (running an older backend) — the user will see the
+  // helpful error if they actively click the run button.
+  fetchJson('/api/admin/speedtest').then((d) => {
     if (d.result) renderSpeedtestResult(d.result);
   }).catch(() => { /* */ });
 
@@ -1636,8 +1656,7 @@
     btn.disabled = true;
     btn.textContent = '⏱ Running…';
     try {
-      const res = await fetch('/api/admin/speedtest', { method: 'POST' });
-      const data = await res.json();
+      const data = await fetchJson('/api/admin/speedtest', { method: 'POST' });
       if (data.error) throw new Error(data.error);
       toast('⚡ Speedtest started', 'Running in background — results in ~30s', 'info', 3000);
     } catch (e) {
@@ -2326,8 +2345,7 @@
     });
     if (membersState.search) qs.set('search', membersState.search);
     try {
-      const res = await fetch(`/api/admin/members?${qs}`);
-      const data = await res.json();
+      const data = await fetchJson(`/api/admin/members?${qs}`);
       if (data.error) throw new Error(data.error);
       membersState.members = data.members || [];
       membersState.total = data.total || 0;
@@ -2479,8 +2497,7 @@
     if (!gId) { if (list) list.innerHTML = '<div class="muted">Select a server first.</div>'; return; }
     list.innerHTML = '<div class="muted">Loading…</div>';
     try {
-      const res = await fetch(`/api/admin/channels?guildId=${encodeURIComponent(gId)}`);
-      const data = await res.json();
+      const data = await fetchJson(`/api/admin/channels?guildId=${encodeURIComponent(gId)}`);
       if (data.error) throw new Error(data.error);
       channelsState.groups = data.groups || [];
     } catch (e) {
@@ -2606,8 +2623,7 @@
     if (!gId) { if (list) list.innerHTML = '<div class="muted">Select a server first.</div>'; return; }
     list.innerHTML = '<div class="muted">Loading…</div>';
     try {
-      const res = await fetch(`/api/admin/roles?guildId=${encodeURIComponent(gId)}`);
-      const data = await res.json();
+      const data = await fetchJson(`/api/admin/roles?guildId=${encodeURIComponent(gId)}`);
       if (data.error) throw new Error(data.error);
       rolesState.roles = data.roles || [];
     } catch (e) {
