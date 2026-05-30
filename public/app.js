@@ -404,10 +404,18 @@
     const token = document.getElementById('instance-edit-token').value.trim();
     const status = document.getElementById('instance-edit-status');
     status.textContent = 'Probing…';
+    status.style.color = 'var(--fg-muted)';
     try {
-      const res = await fetch(`${url}/api/health`);
+      const res = await fetch(`${url}/api/health`, { signal: AbortSignal.timeout(5000) });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
+      const ct = res.headers.get('content-type') || '';
+      const text = await res.text();
+      if (!/json/i.test(ct) || text.trim().startsWith('<')) {
+        throw new Error('Not a MaowCore v2.0+ bot — got HTML instead of JSON. Check that the URL points at the control server (default port 8765) and that the bot is running v2.0 or newer.');
+      }
+      let data;
+      try { data = JSON.parse(text); }
+      catch { throw new Error('Server returned non-JSON. Not a MaowCore bot.'); }
       let msg = `✓ ${data.name || 'bot'} · v${data.version || '?'}`;
       if (data.botTag) msg += ` · ${data.botTag}`;
       if (data.authRequired && !token) msg += '  (▲ this bot requires a token)';
@@ -420,7 +428,10 @@
       status.textContent = msg;
       status.style.color = msg.includes('▲') ? 'var(--warning)' : 'var(--success)';
     } catch (e) {
-      status.textContent = `▲ ${e.message}`;
+      let m = e.message;
+      if (/aborted|abort/i.test(m)) m = 'No response within 5s — is the bot running on this port?';
+      else if (/failed to fetch|networkerror/i.test(m)) m = 'Connection refused — is the bot running on this port?';
+      status.textContent = `▲ ${m}`;
       status.style.color = 'var(--danger)';
     }
   });
@@ -431,7 +442,19 @@
     try {
       const res = await fetch(`${inst.url}/api/health`, { signal: AbortSignal.timeout(5000) });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
+      // Detect non-JSON responses early so the error message is human-
+      // readable instead of "Unexpected token '<', '<!doctype'..."
+      const ct = res.headers.get('content-type') || '';
+      const text = await res.text();
+      if (!/json/i.test(ct) || text.trim().startsWith('<')) {
+        // 99% of the time this means: not a MaowCore v2.0+ bot at this URL.
+        // Either an older version (pre-v2.0, no /api/health endpoint) or a
+        // completely different web service (SPA dev server, nginx, etc.).
+        throw new Error('Not a MaowCore v2.0+ bot at this URL — got HTML/non-JSON. Make sure the bot is running v2.0+ and that this URL points at the control server (default 8765).');
+      }
+      let data;
+      try { data = JSON.parse(text); }
+      catch { throw new Error('Response was not valid JSON. Check that the URL points at a MaowCore bot.'); }
       instancesState.healthByInstance[inst.id] = {
         status: 'ok',
         version: data.version,
@@ -440,9 +463,13 @@
         lastCheck: Date.now(),
       };
     } catch (e) {
+      // Common message rewrites for friendlier errors.
+      let msg = e.message;
+      if (/aborted|abort/i.test(msg)) msg = 'No response within 5s — instance unreachable.';
+      else if (/failed to fetch|networkerror/i.test(msg)) msg = 'Connection refused — is the bot running on this port?';
       instancesState.healthByInstance[inst.id] = {
         status: 'down',
-        error: e.message,
+        error: msg,
         lastCheck: Date.now(),
       };
     }
