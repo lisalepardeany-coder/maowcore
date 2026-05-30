@@ -23,9 +23,10 @@ const tryInstall = (pkg) => {
   console.log(`\n=== ${pkg.name} ===`);
   console.log(`  ${pkg.reason}`);
   console.log(`  → npm install ${pkg.name} --no-save`);
-  const r = spawnSync('npm', ['install', pkg.name, '--no-save'], {
-    stdio: 'inherit', shell: true,
-  });
+  // Pick the correct npm binary per-platform so we don't need `shell: true`
+  // (which triggers Node 22+'s DEP0190 deprecation warning).
+  const npmBin = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+  const r = spawnSync(npmBin, ['install', pkg.name, '--no-save'], { stdio: 'inherit' });
   if (r.status === 0) {
     console.log(`  ✓ installed`);
     return true;
