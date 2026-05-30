@@ -6,6 +6,32 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [2.1.0] — 2026-06-01
+
+Social features (Discord OAuth) + library cleanup wizard.
+
+### Added
+
+- **Discord OAuth** — `Sign in with Discord` button in topbar. Set
+  `DISCORD_CLIENT_ID` + `DISCORD_CLIENT_SECRET` env vars to enable.
+  Sessions persist 30 days, stored in `data/sessions.json`. Without
+  config, login UI silently hides.
+- **♥ Social page** — top listeners leaderboard (derived from
+  history), top-rated tracks, your editable profile (bio + favorite
+  song).
+- **Song rating** API (1–5 stars + optional note) backed by
+  `lib/social.js`. Stored per-guild, per-user, per-song name.
+- **🧹 Cleanup page** — scan finds: orphan files on disk not in
+  manifest, duplicates by source URL or display name, unplayed
+  >180 days, missing durations. Storage breakdown by format.
+  Show + confirm-each model: nothing gets deleted without an
+  explicit click + confirm. Re-probe button for missing durations.
+- New modules: `lib/dashboard-auth.js`, `lib/social.js`,
+  `lib/library-cleanup.js`.
+- 9 new endpoints: `/api/auth/discord/start|callback`, `/api/auth/me`,
+  `/api/auth/logout`, `/api/social/{profile,leaderboard,top-rated,
+  ratings,rate}`, `/api/library/cleanup/{scan,delete-orphans,probe-missing}`.
+
 ## [2.0.0] — 2026-06-01
 
 **Major version — multi-bot platform.** MaowCore can now drive multiple

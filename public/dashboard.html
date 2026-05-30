@@ -77,6 +77,9 @@
         <button class="icon-btn notif-bell" id="notif-bell" title="Notifications">
           🔔<span class="notif-badge" id="notif-count" hidden>0</span>
         </button>
+        <button class="topbar-login" id="topbar-login" title="Sign in / profile">
+          <span id="topbar-login-text">Sign in</span>
+        </button>
       </div>
     </header>
 
@@ -172,6 +175,14 @@
               <span class="nav-icon">◐</span>
               <span class="nav-label">Insights</span>
             </a>
+            <a class="nav-item" data-page="social">
+              <span class="nav-icon">♥</span>
+              <span class="nav-label">Social</span>
+            </a>
+            <a class="nav-item" data-page="cleanup">
+              <span class="nav-icon">🧹</span>
+              <span class="nav-label">Cleanup</span>
+            </a>
           </div>
         </div>
 
@@ -235,7 +246,7 @@
         </div>
       </nav>
       <div class="sidebar-footer">
-        <div class="muted small">v2.0.0</div>
+        <div class="muted small">v2.1.0</div>
       </div>
     </aside>
 
@@ -245,6 +256,51 @@
       <!-- =================================================== -->
       <!-- HOME — Now Playing + queue + activity log           -->
       <!-- =================================================== -->
+      <!-- =================================================== -->
+      <!-- SOCIAL — profiles, leaderboards, top-rated          -->
+      <!-- =================================================== -->
+      <section class="page hidden" id="page-social">
+        <div class="page-head">
+          <h2>♥ Social</h2>
+          <div class="muted small">Leaderboards, top-rated tracks, and member profiles for the active server.</div>
+        </div>
+        <div class="social-grid">
+          <div class="card">
+            <div class="card-head"><h3>🏆 Top listeners</h3><button id="social-refresh" class="primary">⟳</button></div>
+            <div class="muted small" id="lb-summary">—</div>
+            <div id="lb-list"><div class="muted">Select a server.</div></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h3>⭐ Top rated tracks</h3></div>
+            <div id="top-rated-list"><div class="muted">Rate some songs first.</div></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h3>You</h3></div>
+            <div id="my-profile-form">
+              <div class="muted small" id="my-profile-status">Not logged in.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- =================================================== -->
+      <!-- CLEANUP — library health + storage analyzer         -->
+      <!-- =================================================== -->
+      <section class="page hidden" id="page-cleanup">
+        <div class="page-head">
+          <h2>🧹 Library cleanup</h2>
+          <div class="muted small">Find orphans, duplicates, unplayed tracks, and re-probe missing durations.</div>
+        </div>
+        <div class="card">
+          <div class="card-head">
+            <h3>Scan report</h3>
+            <button id="cleanup-scan" class="primary">⟳ Scan</button>
+          </div>
+          <div class="muted small" id="cleanup-summary">Click Scan to start.</div>
+          <div id="cleanup-report"></div>
+        </div>
+      </section>
+
       <!-- =================================================== -->
       <!-- FLEET — multi-bot overview                          -->
       <!-- =================================================== -->

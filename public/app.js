@@ -497,9 +497,216 @@
   switchPage = (name) => {
     origSwitchPageMulti(name);
     if (name === 'fleet') renderFleet();
+    if (name === 'social') renderSocialPage();
+    if (name === 'cleanup') renderCleanupPage();
   };
   // Initial picker render
   setTimeout(renderInstancePicker, 50);
+
+  // ===== v2.1.0 — Dashboard auth (Discord OAuth) =====
+  // Bootstrap: read #maow_session=... from URL hash and store it.
+  (function bootstrapSession() {
+    const m = location.hash.match(/maow_session=([^&]+)/);
+    if (m) {
+      localStorage.setItem('maow.session', decodeURIComponent(m[1]));
+      history.replaceState(null, '', location.pathname);
+    }
+  })();
+  const maowSession = () => localStorage.getItem('maow.session') || '';
+
+  // Augment fetchJson to include the session header.
+  const origFetchJsonForAuth = fetchJson;
+  fetchJson = (url, opts = {}) => {
+    const headers = { ...(opts.headers || {}) };
+    const sess = maowSession();
+    if (sess) headers['X-Maow-Session'] = sess;
+    return origFetchJsonForAuth(url, { ...opts, headers });
+  };
+
+  const authState = { configured: false, user: null };
+  async function refreshAuthState() {
+    try {
+      const data = await fetchJson('/api/auth/me');
+      authState.configured = !!data.configured;
+      authState.user = data.user || null;
+    } catch { /* */ }
+    renderLoginButton();
+  }
+  function renderLoginButton() {
+    const btn = $('topbar-login');
+    const txt = $('topbar-login-text');
+    if (!btn || !txt) return;
+    if (!authState.configured) { btn.style.display = 'none'; return; }
+    btn.style.display = '';
+    if (authState.user) {
+      btn.classList.add('logged-in');
+      btn.innerHTML = `${authState.user.avatar ? `<img src="${escapeHtmlSafe(authState.user.avatar)}" />` : ''}<span>${escapeHtmlSafe(authState.user.tag)}</span>`;
+    } else {
+      btn.classList.remove('logged-in');
+      btn.innerHTML = '<span id="topbar-login-text">Sign in with Discord</span>';
+    }
+  }
+  $('topbar-login')?.addEventListener('click', async () => {
+    if (authState.user) {
+      if (!confirm(`Sign out (${authState.user.tag})?`)) return;
+      try {
+        await fetchJson('/api/auth/logout', { method: 'POST' });
+        localStorage.removeItem('maow.session');
+        authState.user = null;
+        renderLoginButton();
+        toast('✓ Signed out', '', 'info', 1500);
+      } catch (e) { toast('▲ Sign-out failed', e.message, 'error', 3000); }
+      return;
+    }
+    try {
+      const callback = `${activeInstance().url}/api/auth/discord/callback`;
+      const data = await fetchJson('/api/auth/discord/start', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ redirect: callback }),
+      });
+      if (data.error) throw new Error(data.error);
+      window.location.href = data.authUrl;
+    } catch (e) { toast('▲ Sign-in failed', e.message, 'error', 4000); }
+  });
+  setTimeout(refreshAuthState, 200);
+
+  // ===== Social page =====
+  async function renderSocialPage() {
+    const gId = activeGuildId();
+    if (!gId) {
+      $('lb-list').innerHTML = '<div class="muted">Select a server first.</div>';
+      return;
+    }
+    try {
+      const lb = await fetchJson(`/api/social/leaderboard?guildId=${encodeURIComponent(gId)}&limit=20`);
+      const lbList = $('lb-list');
+      const lbSummary = $('lb-summary');
+      const entries = lb.leaderboard || [];
+      lbSummary.textContent = `${entries.length} top listener${entries.length === 1 ? '' : 's'} (last 500 plays)`;
+      lbList.innerHTML = entries.map((u, i) =>
+        `<div class="lb-row"><div class="lb-rank">${i + 1}.</div><div><div class="lb-name">${escapeHtmlSafe(u.user)}</div><div class="lb-stats">${u.plays} plays · ${Math.round(u.totalSec / 60)} min</div></div></div>`,
+      ).join('') || '<div class="muted">No plays recorded yet.</div>';
+    } catch (e) {
+      $('lb-list').innerHTML = `<div class="error">▲ ${escapeHtmlSafe(e.message)}</div>`;
+    }
+    try {
+      const tr = await fetchJson(`/api/social/top-rated?guildId=${encodeURIComponent(gId)}&limit=20`);
+      const list = $('top-rated-list');
+      const entries = tr.topRated || [];
+      list.innerHTML = entries.map((t, i) => {
+        const stars = '★'.repeat(Math.round(t.average)) + '☆'.repeat(5 - Math.round(t.average));
+        return `<div class="tr-row"><div class="tr-rank">${i + 1}.</div><div><div class="tr-name">${escapeHtmlSafe(t.name)}</div><div class="lb-stats">${t.count} rating${t.count === 1 ? '' : 's'}</div></div><div class="tr-stars">${stars}</div></div>`;
+      }).join('') || '<div class="muted">No rated tracks yet — rate some songs from the queue or history.</div>';
+    } catch { /* */ }
+    // Profile form
+    const profileWrap = $('my-profile-form');
+    if (authState.user) {
+      const p = (await fetchJson(`/api/social/profile?guildId=${encodeURIComponent(gId)}&userId=${encodeURIComponent(authState.user.userId)}`)).profile || {};
+      profileWrap.innerHTML = `
+        <div class="profile-form">
+          ${authState.user.avatar ? `<img src="${escapeHtmlSafe(authState.user.avatar)}" style="width:48px;height:48px;border-radius:50%;margin-bottom:8px" />` : ''}
+          <div style="margin-bottom:8px"><strong>${escapeHtmlSafe(authState.user.tag)}</strong></div>
+          <input id="profile-bio" placeholder="Bio (280 chars)" value="${escapeHtmlSafe(p.bio || '')}" />
+          <input id="profile-favorite" placeholder="Favorite song" value="${escapeHtmlSafe(p.favoriteSong || '')}" />
+          <button id="profile-save">Save</button>
+        </div>`;
+      $('profile-save').addEventListener('click', async () => {
+        try {
+          await fetchJson('/api/social/profile', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ guildId: gId, bio: $('profile-bio').value, favoriteSong: $('profile-favorite').value }),
+          });
+          toast('✓ Profile saved', '', 'success', 2000);
+        } catch (e) { toast('▲ Save failed', e.message, 'error', 3000); }
+      });
+    } else {
+      profileWrap.innerHTML = '<div class="muted small">Sign in with Discord (top-right) to set up your profile.</div>';
+    }
+  }
+  $('social-refresh')?.addEventListener('click', renderSocialPage);
+
+  // ===== Cleanup page =====
+  async function renderCleanupPage(report) {
+    if (!report) {
+      $('cleanup-report').innerHTML = '<div class="muted">Click <strong>⟳ Scan</strong> to look for issues.</div>';
+      return;
+    }
+    const wrap = $('cleanup-report');
+    $('cleanup-summary').textContent = `${report.totalSongs} song${report.totalSongs === 1 ? '' : 's'} · ${(report.totalBytes / 1024 / 1024 / 1024).toFixed(2)} GB · scanned ${new Date(report.scannedAt).toLocaleTimeString()}`;
+    const section = (title, count, html) => `
+      <div class="cleanup-section">
+        <h4>${escapeHtmlSafe(title)} <span class="cs-count">${count}</span></h4>
+        ${html}
+      </div>`;
+    const fmtSize = (b) => b < 1024 * 1024 ? `${(b/1024).toFixed(0)} KB` : `${(b/1024/1024).toFixed(1)} MB`;
+    wrap.innerHTML = '';
+    // Storage breakdown
+    const bd = report.breakdown || {};
+    const bdHtml = Object.entries(bd).map(([ext, v]) =>
+      `<span class="cs-format">.${ext}: ${v.count} (${fmtSize(v.bytes)})</span>`).join('');
+    wrap.insertAdjacentHTML('beforeend', section('Storage breakdown', Object.keys(bd).length + ' formats', bdHtml || '<div class="muted">—</div>'));
+    // Orphans
+    const orphansHtml = report.orphans.map((o) =>
+      `<div class="cleanup-item"><input type="checkbox" data-file="${escapeHtmlSafe(o.file)}" checked /><span>${escapeHtmlSafe(o.file)}</span><span class="ci-size">${fmtSize(o.size)}</span></div>`).join('');
+    const orphanFooter = report.orphans.length
+      ? `<div class="cs-actions"><button id="del-orphans-btn" class="primary" style="background:var(--danger)">✕ Delete selected</button></div>`
+      : '';
+    wrap.insertAdjacentHTML('beforeend', section('Orphan files (on disk, not in manifest)', report.orphans.length,
+      orphansHtml + orphanFooter));
+    // Dupes
+    const dupesHtml = report.dupes.slice(0, 50).map((d) => {
+      const songs = d.songs.map((s) => `<div class="cleanup-item"><span>${escapeHtmlSafe(s.name)}</span><span class="ci-size">${fmtSize(s.size)}</span></div>`).join('');
+      return `<div style="margin-bottom:8px"><div class="muted small">${d.kind === 'sourceUrl' ? 'same source' : 'same name'}: ${escapeHtmlSafe(String(d.key).slice(0, 80))}</div>${songs}</div>`;
+    }).join('');
+    wrap.insertAdjacentHTML('beforeend', section('Duplicates', report.dupes.length, dupesHtml || '<div class="muted">None found.</div>'));
+    // Unplayed
+    const unplayedHtml = report.unplayed.slice(0, 50).map((u) =>
+      `<div class="cleanup-item"><span>${escapeHtmlSafe(u.name)}</span><span class="ci-size">${fmtSize(u.size)}</span></div>`).join('');
+    wrap.insertAdjacentHTML('beforeend', section(`Unplayed in last ${report.unplayedDays} days`, report.unplayed.length,
+      unplayedHtml + (report.unplayed.length > 50 ? '<div class="muted small">…and more</div>' : '')));
+    // Missing durations
+    const missingHtml = report.missingDuration.slice(0, 50).map((m) =>
+      `<div class="cleanup-item"><span>${escapeHtmlSafe(m.name)}</span></div>`).join('');
+    const missingFooter = report.missingDuration.length
+      ? `<div class="cs-actions"><button id="probe-btn" class="primary">🩺 Re-probe via ffmpeg</button></div>`
+      : '';
+    wrap.insertAdjacentHTML('beforeend', section('Missing duration', report.missingDuration.length, missingHtml + missingFooter));
+
+    // Wire actions
+    $('del-orphans-btn')?.addEventListener('click', async () => {
+      const checks = wrap.querySelectorAll('input[type="checkbox"][data-file]');
+      const files = [...checks].filter((c) => c.checked).map((c) => c.dataset.file);
+      if (!files.length) return;
+      if (!confirm(`Delete ${files.length} orphan file${files.length === 1 ? '' : 's'}? This cannot be undone.`)) return;
+      try {
+        const data = await fetchJson('/api/library/cleanup/delete-orphans', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ files }),
+        });
+        const ok = data.results.filter((r) => r.ok).length;
+        toast('🧹 Deleted', `${ok}/${data.results.length} orphans`, 'success', 2500);
+        runCleanupScan();
+      } catch (e) { toast('▲ Delete failed', e.message, 'error', 4000); }
+    });
+    $('probe-btn')?.addEventListener('click', async () => {
+      try {
+        const data = await fetchJson('/api/library/cleanup/probe-missing', { method: 'POST' });
+        toast('🩺 Probed', `${data.result.probed}/${data.result.attempted} durations recovered`, 'success', 3000);
+        runCleanupScan();
+      } catch (e) { toast('▲ Probe failed', e.message, 'error', 4000); }
+    });
+  }
+  async function runCleanupScan() {
+    $('cleanup-report').innerHTML = '<div class="muted">Scanning…</div>';
+    try {
+      const data = await fetchJson('/api/library/cleanup/scan');
+      if (data.error) throw new Error(data.error);
+      renderCleanupPage(data.report);
+    } catch (e) {
+      $('cleanup-report').innerHTML = `<div class="error">▲ ${escapeHtmlSafe(e.message)}</div>`;
+    }
+  }
+  $('cleanup-scan')?.addEventListener('click', runCleanupScan);
   function send(action, extra = {}) {
     if (!connected) return;
     // Pin commands to the currently-selected server so multi-guild bots route
