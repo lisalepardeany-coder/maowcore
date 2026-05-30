@@ -1306,6 +1306,398 @@
     if (activePage === 'activity' && el?.id === 'ov-log') {
       try { renderActivity(); } catch { /* renderActivity may not be defined yet */ }
     }
+    // Also feed the diagnostics page + mini-panel.
+    try { feedDiagnostics(entry); } catch { /* defined below */ }
+  };
+
+  // ===== Diagnostics page + mini-panel =====
+  const diagState = {
+    logs: [],                 // rolling buffer of all log entries
+    maxLogs: 2000,            // larger than the main console — the diag page is the source of truth
+    snapshot: null,           // last `diagnostics` payload from the server
+    filterCat: localStorage.getItem('maow.diagCat') || 'all',
+    filterLevel: localStorage.getItem('maow.diagLevel') || null,
+    search: '',
+    paused: false,
+    miniSeenErrorCount: Number(localStorage.getItem('maow.diagSeenErrors') || 0),
+    miniOpen: false,
+  };
+  let diagSearchTimer = null;
+
+  function feedDiagnostics(entry) {
+    diagState.logs.push(entry);
+    while (diagState.logs.length > diagState.maxLogs) diagState.logs.shift();
+    // Live-append to the dedicated console if user is on the page.
+    if (activePage === 'diagnostics') appendDiagRow(entry);
+    // Always update the mini-panel + chip (visible across pages).
+    appendMiniRow(entry);
+    updateMiniChip();
+    // Update nav badge if we're not on the page.
+    updateNavDiagBadge();
+  }
+
+  function diagRowMatches(entry) {
+    if (diagState.filterCat !== 'all' && entry.category !== diagState.filterCat) return false;
+    if (diagState.filterLevel && entry.level !== diagState.filterLevel) return false;
+    if (diagState.search) {
+      const s = diagState.search.toLowerCase();
+      const text = (entry.text || '').toLowerCase();
+      const cat = (entry.category || '').toLowerCase();
+      if (!text.includes(s) && !cat.includes(s)) return false;
+    }
+    return true;
+  }
+
+  function appendDiagRow(entry) {
+    const cons = $('diag-console');
+    if (!cons) return;
+    const row = document.createElement('div');
+    row.className = `row ${entry.level || 'info'}`;
+    if (!diagRowMatches(entry)) row.classList.add('hidden');
+    const ts = new Date(entry.ts || Date.now()).toLocaleTimeString();
+    const cat = entry.category || 'system';
+    row.innerHTML =
+      `<span class="ts">${ts}</span>` +
+      `<span class="cat ${escapeHtmlSafe(cat)}">${escapeHtmlSafe(cat)}</span>` +
+      `<span class="msg">${escapeHtmlSafe(entry.text || '')}</span>`;
+    if (entry.meta) row.title = JSON.stringify(entry.meta, null, 2);
+    cons.appendChild(row);
+    while (cons.children.length > diagState.maxLogs) cons.removeChild(cons.firstChild);
+    if (!diagState.paused) cons.scrollTop = cons.scrollHeight;
+    updateDiagMeta();
+  }
+
+  function updateDiagMeta() {
+    const meta = $('diag-meta');
+    if (!meta) return;
+    const total = diagState.logs.length;
+    const visible = Array.from($('diag-console')?.children || []).filter((r) => !r.classList.contains('hidden')).length;
+    meta.textContent = diagState.filterCat === 'all' && !diagState.filterLevel && !diagState.search
+      ? `${total} entries`
+      : `${visible} matching · ${total} total`;
+  }
+
+  function rerenderDiagConsole() {
+    const cons = $('diag-console');
+    if (!cons) return;
+    cons.innerHTML = '';
+    diagState.logs.forEach((e) => appendDiagRow(e));
+  }
+
+  function renderBootTimeline() {
+    const ol = $('boot-timeline');
+    const sum = $('boot-summary');
+    if (!ol) return;
+    const boot = diagState.snapshot?.boot;
+    if (!boot) { ol.innerHTML = '<li class="muted small">No data yet.</li>'; return; }
+    ol.innerHTML = '';
+    const iconFor = (s) => ({ ok: '✓', fail: '✕', running: '⏱', pending: '○', skip: '−' }[s] || '?');
+    boot.forEach((step) => {
+      const li = document.createElement('li');
+      li.className = 'boot-step';
+      li.setAttribute('data-status', step.status);
+      const dur = step.durationMs != null ? `${step.durationMs}ms` : (step.status === 'running' ? '…' : '');
+      const detail = step.detail ? escapeHtmlSafe(String(step.detail)) : (step.status === 'pending' ? '<span class="muted">pending</span>' : '');
+      li.innerHTML =
+        `<span class="b-icon">${iconFor(step.status)}</span>` +
+        `<span class="b-label">${escapeHtmlSafe(step.label)}</span>` +
+        `<span class="b-detail" title="${detail.replace(/"/g, '&quot;')}">${dur ? `<code>${dur}</code> · ` : ''}${detail}</span>`;
+      ol.appendChild(li);
+    });
+    if (sum) {
+      const failed = boot.filter((s) => s.status === 'fail').length;
+      const okCount = boot.filter((s) => s.status === 'ok').length;
+      const pending = boot.filter((s) => s.status === 'pending' || s.status === 'running').length;
+      sum.innerHTML = failed
+        ? `<span style="color:var(--danger)">${failed} failed</span> · ${okCount} ok · ${pending} pending`
+        : pending ? `${okCount} ok · ${pending} pending` : `${okCount} steps ok`;
+    }
+  }
+
+  function renderHealthDiagram() {
+    const health = diagState.snapshot?.health;
+    if (!health) return;
+    const subText = {
+      discord: () => state?.stats?.discordStatus ? `${state.stats.discordStatus}` : 'gateway',
+      distube: () => `${state?.queues?.length || 0} queue${state?.queues?.length === 1 ? '' : 's'}`,
+      ytdlp:   () => 'streaming',
+      ffmpeg:  () => 'transcoding',
+      voice:   () => `${state?.stats?.voiceConnections || 0} connection${(state?.stats?.voiceConnections || 0) === 1 ? '' : 's'}`,
+      http:    () => 'control server',
+      library: () => 'storage',
+    };
+    Object.entries(health).forEach(([sys, status]) => {
+      const node = document.querySelector(`.flow-node[data-sys="${sys}"]`);
+      if (!node) return;
+      node.setAttribute('data-health', status);
+      const sub = $(`flow-${sys}-sub`);
+      if (sub) sub.textContent = status === 'down' ? '✕ errors in 5m' : status === 'degraded' ? '▲ warnings' : (subText[sys]?.() || 'ok');
+    });
+  }
+
+  function renderMetrics() {
+    const c = diagState.snapshot?.counters;
+    if (!c) return;
+    const setMetric = (key, cat) => {
+      const m1 = $(`metric-${key}-m1`);
+      const m5 = $(`metric-${key}-m5`);
+      if (!m1) return;
+      const v1 = c.m1[cat] || 0;
+      const v5 = c.m5[cat] || 0;
+      m1.textContent = String(v1);
+      m5.textContent = `${v5} in 5m`;
+      const tile = m1.closest('.metric');
+      if (tile) {
+        tile.classList.remove('hot', 'warm');
+        if (cat === 'error' && v5 > 0) tile.classList.add('hot');
+        else if (cat === 'warn' && v5 > 0) tile.classList.add('warm');
+      }
+    };
+    setMetric('error',   'error');
+    setMetric('warn',    'warn');
+    setMetric('cmd',     'command');
+    setMetric('play',    'play');
+    setMetric('search',  'search');
+    setMetric('voice',   'voice');
+    setMetric('install', 'install');
+    setMetric('upload',  'upload');
+  }
+
+  function renderRecentErrors() {
+    const list = $('recent-errors-list');
+    if (!list) return;
+    const errs = diagState.snapshot?.recentErrors || {};
+    const grouped = Object.entries(errs).filter(([, arr]) => arr.length > 0);
+    if (!grouped.length) {
+      list.innerHTML = '<div class="muted small">No errors recorded since startup. ✓</div>';
+      return;
+    }
+    const grid = document.createElement('div');
+    grid.className = 'recent-errors-grid';
+    grouped.forEach(([sys, arr]) => {
+      const card = document.createElement('div');
+      card.className = 'recent-errors-sys';
+      const newest = arr.slice(-5).reverse();
+      card.innerHTML =
+        `<div class="res-head"><span>${escapeHtmlSafe(sys)}</span><span class="muted small">${arr.length} recent</span></div>` +
+        newest.map((e) =>
+          `<div class="res-row"><span class="ts">${new Date(e.ts).toLocaleTimeString()}</span>${escapeHtmlSafe(e.text || '')}</div>`
+        ).join('');
+      grid.appendChild(card);
+    });
+    list.innerHTML = '';
+    list.appendChild(grid);
+  }
+
+  function renderDiagnosticsPage() {
+    if (activePage !== 'diagnostics') return;
+    renderHealthDiagram();
+    renderBootTimeline();
+    renderMetrics();
+    renderRecentErrors();
+  }
+
+  // Filter chip wiring
+  document.querySelectorAll('#diag-filters .filter-chip').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      if (chip.classList.contains('level-only')) {
+        // Level chips are toggleable (clicking again clears the level filter).
+        const newLevel = chip.dataset.level;
+        if (diagState.filterLevel === newLevel) {
+          diagState.filterLevel = null;
+          chip.classList.remove('active');
+        } else {
+          diagState.filterLevel = newLevel;
+          document.querySelectorAll('#diag-filters .filter-chip.level-only')
+            .forEach((c) => c.classList.toggle('active', c === chip));
+        }
+        localStorage.setItem('maow.diagLevel', diagState.filterLevel || '');
+      } else {
+        document.querySelectorAll('#diag-filters .filter-chip:not(.level-only)')
+          .forEach((c) => c.classList.toggle('active', c === chip));
+        diagState.filterCat = chip.dataset.cat;
+        localStorage.setItem('maow.diagCat', diagState.filterCat);
+      }
+      rerenderDiagConsole();
+    });
+  });
+
+  // Initialize filter chip active state from localStorage.
+  (function initDiagFilters() {
+    const catChip = document.querySelector(`#diag-filters .filter-chip[data-cat="${diagState.filterCat}"]`);
+    if (catChip) {
+      document.querySelectorAll('#diag-filters .filter-chip:not(.level-only)').forEach((c) => c.classList.remove('active'));
+      catChip.classList.add('active');
+    }
+    if (diagState.filterLevel) {
+      const lvlChip = document.querySelector(`#diag-filters .filter-chip.level-only[data-level="${diagState.filterLevel}"]`);
+      if (lvlChip) lvlChip.classList.add('active');
+    }
+  })();
+
+  $('diag-search')?.addEventListener('input', (e) => {
+    clearTimeout(diagSearchTimer);
+    diagSearchTimer = setTimeout(() => {
+      diagState.search = e.target.value;
+      rerenderDiagConsole();
+    }, 120);
+  });
+
+  $('diag-pause')?.addEventListener('click', () => {
+    diagState.paused = !diagState.paused;
+    $('diag-pause').classList.toggle('active', diagState.paused);
+    $('diag-pause').textContent = diagState.paused ? '▶ Resume' : '⏸ Pause';
+    if (!diagState.paused) {
+      const cons = $('diag-console');
+      if (cons) cons.scrollTop = cons.scrollHeight;
+    }
+  });
+
+  $('diag-clear')?.addEventListener('click', () => {
+    if (!confirm('Clear the diagnostics console? (The server-side log buffer is unaffected.)')) return;
+    diagState.logs.length = 0;
+    const cons = $('diag-console');
+    if (cons) cons.innerHTML = '';
+    const body = $('diag-mini-body');
+    if (body) body.innerHTML = '';
+    updateDiagMeta();
+  });
+
+  $('diag-export')?.addEventListener('click', () => {
+    const lines = diagState.logs.map((e) => {
+      const ts = new Date(e.ts || Date.now()).toISOString();
+      const cat = (e.category || 'system').padEnd(8);
+      const lvl = (e.level || 'info').toUpperCase().padEnd(7);
+      return `${ts}  ${lvl} ${cat}  ${e.text || ''}`;
+    });
+    const blob = new Blob([lines.join('\n') + '\n'], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `maowcore-diag-${new Date().toISOString().replace(/[:.]/g, '-')}.log`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
+
+  // ===== Mini-panel =====
+  function appendMiniRow(entry) {
+    const body = $('diag-mini-body');
+    if (!body) return;
+    const row = document.createElement('div');
+    row.className = `row ${entry.level || 'info'}`;
+    const ts = new Date(entry.ts || Date.now()).toLocaleTimeString();
+    row.innerHTML = `<span class="ts">${ts}</span><span class="msg">${escapeHtmlSafe(entry.text || '')}</span>`;
+    body.appendChild(row);
+    while (body.children.length > 100) body.removeChild(body.firstChild);
+    body.scrollTop = body.scrollHeight;
+  }
+
+  function updateMiniChip() {
+    const chip = $('diag-mini-chip');
+    const txt = $('diag-mini-text');
+    if (!chip || !txt) return;
+    const health = diagState.snapshot?.health;
+    // Roll up: down if any sub is down; degraded if any is degraded; ok otherwise.
+    let overall = 'ok';
+    if (health) {
+      const vals = Object.values(health);
+      if (vals.includes('down')) overall = 'down';
+      else if (vals.includes('degraded')) overall = 'degraded';
+    }
+    chip.setAttribute('data-health', overall);
+    // Count NEW errors since the user last looked.
+    const c5 = diagState.snapshot?.counters?.m5 || {};
+    const errCount = c5.error || 0;
+    if (overall === 'down' || errCount > 0) {
+      txt.textContent = `${errCount} error${errCount === 1 ? '' : 's'} in 5m`;
+    } else if (overall === 'degraded') {
+      const w5 = c5.warn || 0;
+      txt.textContent = `${w5} warn${w5 === 1 ? '' : 'ings'} in 5m`;
+    } else {
+      txt.textContent = 'healthy';
+    }
+  }
+
+  function updateNavDiagBadge() {
+    const badge = $('nav-diag-badge');
+    if (!badge) return;
+    if (activePage === 'diagnostics') {
+      // Reset count when on the diagnostics page.
+      diagState.miniSeenErrorCount = diagState.snapshot?.counters?.m5?.error || 0;
+      localStorage.setItem('maow.diagSeenErrors', String(diagState.miniSeenErrorCount));
+      badge.hidden = true;
+      return;
+    }
+    const curErrors = diagState.snapshot?.counters?.m5?.error || 0;
+    const unseen = Math.max(0, curErrors - diagState.miniSeenErrorCount);
+    if (unseen > 0) {
+      badge.hidden = false;
+      badge.textContent = unseen > 99 ? '99+' : String(unseen);
+    } else {
+      badge.hidden = true;
+    }
+  }
+
+  $('diag-mini-chip')?.addEventListener('click', () => {
+    diagState.miniOpen = !diagState.miniOpen;
+    $('diag-mini-panel').hidden = !diagState.miniOpen;
+  });
+  $('diag-mini-close')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    diagState.miniOpen = false;
+    $('diag-mini-panel').hidden = true;
+  });
+  $('diag-mini-open')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    diagState.miniOpen = false;
+    $('diag-mini-panel').hidden = true;
+    switchPage('diagnostics');
+  });
+
+  // Hook the existing log handler to also receive entries (already happens via
+  // appendLog wrap above). But also handle `diagnostics` snapshot messages.
+  const origHandle = handle;
+  handle = (msg) => {
+    origHandle(msg);
+    if (msg.type === 'diagnostics') {
+      diagState.snapshot = msg.payload;
+      renderDiagnosticsPage();
+      updateMiniChip();
+      updateNavDiagBadge();
+    } else if (msg.type === 'state' && msg.diagnostics) {
+      diagState.snapshot = msg.diagnostics;
+      renderDiagnosticsPage();
+      updateMiniChip();
+      updateNavDiagBadge();
+    } else if (msg.type === 'log_history') {
+      // Replay history into the diag buffer so the page has context on connect.
+      msg.entries.forEach((e) => {
+        diagState.logs.push(e);
+      });
+      while (diagState.logs.length > diagState.maxLogs) diagState.logs.shift();
+      if (activePage === 'diagnostics') rerenderDiagConsole();
+      // Refresh mini tail with the latest 30 entries.
+      const body = $('diag-mini-body');
+      if (body) {
+        body.innerHTML = '';
+        msg.entries.slice(-30).forEach((e) => appendMiniRow(e));
+      }
+    } else if (msg.type === 'log_clear') {
+      diagState.logs.length = 0;
+      const cons = $('diag-console'); if (cons) cons.innerHTML = '';
+      const body = $('diag-mini-body'); if (body) body.innerHTML = '';
+    }
+  };
+
+  // Render the diagnostics page whenever the user navigates to it.
+  const origSwitchPage = switchPage;
+  switchPage = (name) => {
+    origSwitchPage(name);
+    if (name === 'diagnostics') {
+      rerenderDiagConsole();
+      renderDiagnosticsPage();
+      updateNavDiagBadge();
+    }
   };
 
   // ===== Favorite button on Now Playing =====
@@ -1583,27 +1975,161 @@
     return `${(b / 1024 / 1024).toFixed(1)} MB`;
   };
 
+  // ===== Library state: search / sort / pagination =====
+  const uploadsState = {
+    songs: [],
+    meta: { dir: '', totalBytes: 0, totalSec: 0, ytDlpAvailable: true },
+    search: '',
+    sort: localStorage.getItem('maow.libSort') || 'newest',
+    perPage: Number(localStorage.getItem('maow.libPerPage') || 50),
+    page: Number(localStorage.getItem('maow.libPage') || 1),
+  };
+
+  const fmtGB = (b) => {
+    if (b < 1024 * 1024) return `${(b / 1024).toFixed(0)} KB`;
+    if (b < 1024 * 1024 * 1024) return `${(b / 1024 / 1024).toFixed(1)} MB`;
+    return `${(b / 1024 / 1024 / 1024).toFixed(2)} GB`;
+  };
+  const fmtDurTotal = (sec) => {
+    if (!sec || !Number.isFinite(sec)) return '—';
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    if (h >= 1) return `${h}h ${m}m`;
+    return `${m}m`;
+  };
+
+  const compareSongs = (a, b, mode) => {
+    const nameA = (a.name || '').toLowerCase();
+    const nameB = (b.name || '').toLowerCase();
+    switch (mode) {
+      case 'oldest': return (a.addedAt || 0) - (b.addedAt || 0);
+      case 'name-asc': return nameA.localeCompare(nameB);
+      case 'name-desc': return nameB.localeCompare(nameA);
+      case 'size-desc': return (b.size || 0) - (a.size || 0);
+      case 'size-asc': return (a.size || 0) - (b.size || 0);
+      case 'dur-desc': return (b.durationSec || 0) - (a.durationSec || 0);
+      case 'dur-asc': return (a.durationSec || 0) - (b.durationSec || 0);
+      case 'newest':
+      default: return (b.addedAt || 0) - (a.addedAt || 0);
+    }
+  };
+
+  // Build a smart pagination list with leading/trailing windows and ellipsis.
+  // E.g. for 20 pages, current 8: [1, …, 6, 7, 8, 9, 10, …, 20]
+  const paginationItems = (current, total) => {
+    if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+    const items = new Set([1, total, current - 1, current, current + 1]);
+    if (current <= 4) [2, 3, 4, 5].forEach((n) => items.add(n));
+    if (current >= total - 3) [total - 4, total - 3, total - 2, total - 1].forEach((n) => items.add(n));
+    const sorted = [...items].filter((n) => n >= 1 && n <= total).sort((a, b) => a - b);
+    const out = [];
+    for (let i = 0; i < sorted.length; i++) {
+      if (i > 0 && sorted[i] - sorted[i - 1] > 1) out.push('…');
+      out.push(sorted[i]);
+    }
+    return out;
+  };
+
   const renderUploads = async () => {
     const out = $('uploads-list');
-    const countEl = $('uploads-count');
     if (!out) return;
     try {
       const res = await fetch('/api/library');
       const data = await res.json();
-      const songs = data.songs || [];
-      if (countEl) countEl.textContent = `${songs.length} song${songs.length === 1 ? '' : 's'}`;
-      if (!songs.length) {
-        out.innerHTML = '<div class="queue-empty">— no uploads yet —</div>';
-        return;
-      }
+      uploadsState.songs = data.songs || [];
+      uploadsState.meta = {
+        dir: data.dir || '',
+        totalBytes: data.totalBytes || 0,
+        totalSec: data.totalSec || 0,
+        ytDlpAvailable: data.ytDlpAvailable !== false,
+      };
+      renderUploadsView();
+    } catch (e) {
+      out.innerHTML = `<div class="error">▲ ${escapeHtmlSafe(e.message)}</div>`;
+    }
+  };
+
+  const renderUploadsView = () => {
+    const out = $('uploads-list');
+    const countEl = $('uploads-count');
+    const statsEl = $('uploads-stats');
+    const summaryEl = $('lib-summary');
+    const pagEl = $('pagination');
+    const installBtn = $('install-btn');
+    const installNote = $('install-note');
+    if (!out) return;
+
+    const all = uploadsState.songs;
+    if (countEl) countEl.textContent = `${all.length} song${all.length === 1 ? '' : 's'}`;
+
+    // Storage stats at top.
+    if (statsEl) {
+      if (!all.length) statsEl.textContent = '— empty —';
+      else statsEl.textContent =
+        `${all.length} song${all.length === 1 ? '' : 's'} · ${fmtGB(uploadsState.meta.totalBytes)} · ${fmtDurTotal(uploadsState.meta.totalSec)}`;
+    }
+
+    // Disable install if yt-dlp isn't present on the host.
+    if (installBtn) installBtn.disabled = !uploadsState.meta.ytDlpAvailable;
+    if (installNote && !uploadsState.meta.ytDlpAvailable) {
+      installNote.innerHTML =
+        '<strong>▲ yt-dlp not found.</strong> Install can\'t run on this host. ' +
+        'On Docker this is bundled — check the runtime image.';
+    }
+
+    // Empty library.
+    if (!all.length) {
+      out.innerHTML = '<div class="queue-empty">— no songs yet — install from URL or drag &amp; drop above —</div>';
+      if (summaryEl) summaryEl.textContent = uploadsState.meta.dir ? `stored in ${uploadsState.meta.dir}` : '—';
+      if (pagEl) { pagEl.hidden = true; pagEl.innerHTML = ''; }
+      return;
+    }
+
+    // Filter (case-insensitive substring on name).
+    const q = uploadsState.search.trim().toLowerCase();
+    let filtered = q
+      ? all.filter((s) => (s.name || '').toLowerCase().includes(q))
+      : all.slice();
+
+    // Sort.
+    filtered.sort((a, b) => compareSongs(a, b, uploadsState.sort));
+
+    // Pagination.
+    const perPage = uploadsState.perPage > 0 ? uploadsState.perPage : filtered.length;
+    const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
+    if (uploadsState.page > totalPages) uploadsState.page = totalPages;
+    if (uploadsState.page < 1) uploadsState.page = 1;
+    const start = (uploadsState.page - 1) * perPage;
+    const pageSongs = filtered.slice(start, start + perPage);
+
+    // Summary line.
+    if (summaryEl) {
+      const filteredBytes = filtered.reduce((sum, s) => sum + (s.size || 0), 0);
+      const filteredSec = filtered.reduce((sum, s) => sum + (s.durationSec || 0), 0);
+      const showingFrom = filtered.length ? start + 1 : 0;
+      const showingTo = Math.min(start + perPage, filtered.length);
+      const matchLabel = q ? `${filtered.length} match${filtered.length === 1 ? '' : 'es'}` : `${filtered.length} song${filtered.length === 1 ? '' : 's'}`;
+      const dirLabel = uploadsState.meta.dir ? ` · stored in ${escapeHtmlSafe(uploadsState.meta.dir)}` : '';
+      summaryEl.innerHTML =
+        `Showing <strong>${showingFrom}–${showingTo}</strong> of ${matchLabel} · ${fmtGB(filteredBytes)} · ${fmtDurTotal(filteredSec)}${dirLabel}`;
+    }
+
+    // Render rows.
+    if (!pageSongs.length) {
+      out.innerHTML = `<div class="queue-empty">— no matches for "${escapeHtmlSafe(q)}" —</div>`;
+    } else {
       out.innerHTML = '';
-      songs.forEach((s) => {
+      pageSongs.forEach((s) => {
         const row = document.createElement('div');
         row.className = 'upload-row';
+        const warnBadge = s.losslessInLossyContainer
+          ? ' <span class="u-badge-warn" title="Lossless container wrapping a lossy source — no real fidelity gain">lossy source</span>'
+          : '';
+        const sourceTag = s.source === 'install' ? ' · installed' : '';
         row.innerHTML = `
           <div style="min-width:0">
-            <div class="u-name">${escapeHtmlSafe(s.name)}</div>
-            <div class="u-meta">${escapeHtmlSafe(s.ext || '')} · ${fmtBytes2(s.size || 0)}${s.durationSec ? ' · ' + fmtClock(s.durationSec) : ''}</div>
+            <div class="u-name">${escapeHtmlSafe(s.name)}${warnBadge}</div>
+            <div class="u-meta">${escapeHtmlSafe(s.ext || '')} · ${fmtBytes2(s.size || 0)}${s.durationSec ? ' · ' + fmtClock(s.durationSec) : ''}${sourceTag}</div>
           </div>
           <div class="u-actions">
             <button class="primary" data-act="play" data-id="${escapeHtmlSafe(s.id)}">▶ Play now</button>
@@ -1624,7 +2150,6 @@
             send('library_queue', { id });
             toast('+ Queued', 'Added to the end of the queue', 'success', 2000);
           } else if (act === 'preview') {
-            // In-browser preview via the range-supporting /library/<file> route.
             previewAudio(`/library/${encodeURIComponent(btn.dataset.file)}`);
           } else if (act === 'delete') {
             if (!confirm('Delete this uploaded song? This removes the file permanently.')) return;
@@ -1642,10 +2167,143 @@
           }
         });
       });
-    } catch (e) {
-      out.innerHTML = `<div class="error">▲ ${escapeHtmlSafe(e.message)}</div>`;
+    }
+
+    // Pagination controls.
+    if (pagEl) {
+      if (totalPages <= 1) {
+        pagEl.hidden = true;
+        pagEl.innerHTML = '';
+      } else {
+        pagEl.hidden = false;
+        pagEl.innerHTML = '';
+        const mkBtn = (label, page, opts = {}) => {
+          const b = document.createElement('button');
+          b.textContent = label;
+          if (opts.active) b.classList.add('active');
+          if (opts.disabled) b.disabled = true;
+          if (!opts.disabled && page != null) {
+            b.addEventListener('click', () => {
+              uploadsState.page = page;
+              localStorage.setItem('maow.libPage', String(page));
+              renderUploadsView();
+              const tabPanel = document.getElementById('tab-uploads');
+              if (tabPanel) tabPanel.scrollTop = 0;
+            });
+          }
+          return b;
+        };
+        pagEl.appendChild(mkBtn('‹', uploadsState.page - 1, { disabled: uploadsState.page === 1 }));
+        paginationItems(uploadsState.page, totalPages).forEach((it) => {
+          if (it === '…') {
+            const span = document.createElement('span');
+            span.className = 'ellipsis';
+            span.textContent = '…';
+            pagEl.appendChild(span);
+          } else {
+            pagEl.appendChild(mkBtn(String(it), it, { active: it === uploadsState.page }));
+          }
+        });
+        pagEl.appendChild(mkBtn('›', uploadsState.page + 1, { disabled: uploadsState.page === totalPages }));
+      }
     }
   };
+
+  // ===== Library controls: wire up search / sort / per-page =====
+  const libSearchEl = $('lib-search');
+  const libSortEl = $('lib-sort');
+  const libPerPageEl = $('lib-perpage');
+  if (libSortEl) {
+    libSortEl.value = uploadsState.sort;
+    libSortEl.addEventListener('change', () => {
+      uploadsState.sort = libSortEl.value;
+      uploadsState.page = 1;
+      localStorage.setItem('maow.libSort', uploadsState.sort);
+      localStorage.setItem('maow.libPage', '1');
+      renderUploadsView();
+    });
+  }
+  if (libPerPageEl) {
+    libPerPageEl.value = String(uploadsState.perPage);
+    libPerPageEl.addEventListener('change', () => {
+      uploadsState.perPage = Number(libPerPageEl.value);
+      uploadsState.page = 1;
+      localStorage.setItem('maow.libPerPage', String(uploadsState.perPage));
+      localStorage.setItem('maow.libPage', '1');
+      renderUploadsView();
+    });
+  }
+  if (libSearchEl) {
+    let searchTimer = null;
+    libSearchEl.addEventListener('input', () => {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => {
+        uploadsState.search = libSearchEl.value;
+        uploadsState.page = 1;
+        localStorage.setItem('maow.libPage', '1');
+        renderUploadsView();
+      }, 120);
+    });
+  }
+
+  // ===== Install from URL =====
+  const installBtn = $('install-btn');
+  const installUrl = $('install-url');
+  const installFormat = $('install-format');
+  const installProgress = $('install-progress');
+  const savedFormat = localStorage.getItem('maow.installFormat');
+  if (installFormat && savedFormat) installFormat.value = savedFormat;
+  if (installFormat) {
+    installFormat.addEventListener('change', () =>
+      localStorage.setItem('maow.installFormat', installFormat.value));
+  }
+  if (installBtn && installUrl) {
+    const runInstall = async () => {
+      const url = installUrl.value.trim();
+      if (!url) { toast('▲ No URL', 'Paste a YouTube / SoundCloud / Bandcamp / direct URL.', 'error', 2500); return; }
+      if (!/^https?:\/\//i.test(url)) { toast('▲ Bad URL', 'Must start with http:// or https://', 'error', 2500); return; }
+      const format = installFormat ? installFormat.value : 'original';
+      installBtn.disabled = true;
+      const prevText = installBtn.textContent;
+      installBtn.textContent = 'Installing…';
+      if (installProgress) {
+        installProgress.hidden = false;
+        installProgress.textContent = `↓ Fetching ${url}\n  format: ${format}\n  (this can take a moment — yt-dlp is downloading and probing)…`;
+      }
+      try {
+        const res = await fetch('/api/library/install', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url, format }),
+        });
+        const data = await res.json();
+        if (!res.ok || data.error) throw new Error(data.error || `server returned ${res.status}`);
+        const entry = data.entry || {};
+        const sizeStr = entry.size ? `${(entry.size / 1024 / 1024).toFixed(1)} MB` : '?';
+        if (data.alreadyInstalled) {
+          if (installProgress) installProgress.textContent = `↩ Already installed: ${entry.name} (${entry.ext}, ${sizeStr})`;
+          toast('↩ Already installed', entry.name || url, 'info', 3000);
+        } else {
+          const note = entry.losslessInLossyContainer
+            ? '\n  ▲ Note: lossless container wrapping a lossy source — no real fidelity gain.'
+            : '';
+          if (installProgress) installProgress.textContent = `✓ Installed ${entry.name} · ${entry.ext} · ${sizeStr}${note}`;
+          toast('✓ Installed', `${entry.name} · ${entry.ext} · ${sizeStr}`, 'success', 3500);
+          installUrl.value = '';
+        }
+        renderUploads();
+        setTimeout(() => { if (installProgress) installProgress.hidden = true; }, 6000);
+      } catch (e) {
+        if (installProgress) installProgress.textContent = `▲ Install failed: ${e.message}`;
+        toast('▲ Install failed', e.message, 'error', 5000);
+      } finally {
+        installBtn.disabled = !uploadsState.meta.ytDlpAvailable;
+        installBtn.textContent = prevText;
+      }
+    };
+    installBtn.addEventListener('click', runInstall);
+    installUrl.addEventListener('keydown', (e) => { if (e.key === 'Enter') runInstall(); });
+  }
 
   // Lightweight in-browser audio preview (shared single <audio> element).
   let previewEl2 = null;

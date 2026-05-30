@@ -91,9 +91,14 @@
           <span class="nav-icon">⚙</span>
           <span class="nav-label">Settings</span>
         </a>
+        <a class="nav-item" data-page="diagnostics">
+          <span class="nav-icon">⌗</span>
+          <span class="nav-label">Diagnostics</span>
+          <span class="nav-badge" id="nav-diag-badge" hidden></span>
+        </a>
       </nav>
       <div class="sidebar-footer">
-        <div class="muted small">v1.1.0</div>
+        <div class="muted small">v1.5.0</div>
       </div>
     </aside>
 
@@ -207,17 +212,70 @@
         <div class="tab-panel hidden" id="tab-uploads">
           <div class="card">
             <div class="card-head">
-              <h3>Your uploads</h3>
-              <div class="muted small" id="uploads-count">—</div>
+              <h3>Your library</h3>
+              <div class="muted small" id="uploads-stats">—</div>
             </div>
-            <p class="muted small" style="margin-bottom:12px">Upload audio files (mp3, wav, ogg, m4a, flac, opus) and play them instantly. The bot must be in a voice channel — start a session with <code>/play</code> first. Up to 500 MB per file.</p>
+
+            <!-- Install from URL -->
+            <div class="install-row" id="install-row">
+              <div class="install-head">
+                <div class="install-title">⬇ Install from URL</div>
+                <div class="muted small">Download a song into your library from YouTube, SoundCloud, Bandcamp, etc.</div>
+              </div>
+              <div class="install-inputs">
+                <input id="install-url" type="text" placeholder="Paste URL…" />
+                <select id="install-format" title="Output format">
+                  <option value="original" selected>Original (smartest — preserves source, smallest)</option>
+                  <option value="mp3">MP3 320 kbps (universal)</option>
+                  <option value="opus">Opus 256 kbps (smaller, modern)</option>
+                  <option value="flac">FLAC (lossless container — see note)</option>
+                  <option value="wav">WAV (uncompressed — see note)</option>
+                </select>
+                <button id="install-btn" class="primary">Install</button>
+              </div>
+              <div class="install-note muted small" id="install-note">
+                <strong>FLAC/WAV note:</strong> these only carry true lossless if the <em>source</em> is lossless.
+                YouTube etc. tops out at lossy ~160 kbps — wrapping that in FLAC makes a bigger file with the same audio.
+                Pick <strong>Original</strong> for the same quality at ~⅒ the size.
+              </div>
+              <div class="install-progress" id="install-progress" hidden></div>
+            </div>
+
+            <!-- Upload (drag-drop) -->
             <div class="upload-zone" id="upload-zone">
               <div class="upload-icon">⬆</div>
               <div class="upload-text">Drag &amp; drop audio files here, or <span class="upload-browse">browse</span></div>
               <input type="file" id="upload-input" accept=".mp3,.wav,.ogg,.m4a,.flac,.opus,.aac,.webm,audio/*" multiple hidden />
             </div>
             <div class="upload-progress" id="upload-progress" hidden></div>
+
+            <!-- Search / sort / per-page -->
+            <div class="lib-controls">
+              <input id="lib-search" type="text" placeholder="🔍  Search your library…" />
+              <select id="lib-sort" title="Sort">
+                <option value="newest" selected>Most recent</option>
+                <option value="oldest">Oldest</option>
+                <option value="name-asc">Name A → Z</option>
+                <option value="name-desc">Name Z → A</option>
+                <option value="size-desc">Largest</option>
+                <option value="size-asc">Smallest</option>
+                <option value="dur-desc">Longest</option>
+                <option value="dur-asc">Shortest</option>
+              </select>
+              <select id="lib-perpage" title="Per page">
+                <option value="25">25 / page</option>
+                <option value="50" selected>50 / page</option>
+                <option value="100">100 / page</option>
+                <option value="0">All</option>
+              </select>
+            </div>
+            <div class="lib-summary muted small" id="lib-summary">—</div>
+
             <div class="uploads-list" id="uploads-list" style="margin-top:14px"><div class="muted">Loading…</div></div>
+            <div class="pagination" id="pagination" hidden></div>
+
+            <!-- Legacy count slot (kept for any leftover JS refs) -->
+            <div class="hidden" id="uploads-count">—</div>
           </div>
         </div>
 
@@ -561,6 +619,112 @@
         </details>
 
       </section>
+
+      <!-- =================================================== -->
+      <!-- DIAGNOSTICS — boot timeline + health + full console -->
+      <!-- =================================================== -->
+      <section class="page hidden" id="page-diagnostics">
+        <div class="page-head">
+          <h2>⌗  Diagnostics</h2>
+          <div class="muted small">Live health, boot timeline, and a categorized console of everything the bot is doing.</div>
+        </div>
+
+        <!-- Event-flow diagram: visualizes the subsystems and their current health -->
+        <div class="card">
+          <div class="card-head">
+            <h3>Event flow</h3>
+            <div class="muted small">Green = healthy · Amber = warnings in last 5 min · Red = errors in last 5 min</div>
+          </div>
+          <div class="flow-diagram" id="flow-diagram">
+            <div class="flow-node" data-sys="discord"><div class="flow-dot"></div><div class="flow-name">Discord</div><div class="flow-sub" id="flow-discord-sub">—</div></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-node" data-sys="distube"><div class="flow-dot"></div><div class="flow-name">DisTube</div><div class="flow-sub" id="flow-distube-sub">—</div></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-node" data-sys="ytdlp"><div class="flow-dot"></div><div class="flow-name">yt-dlp</div><div class="flow-sub" id="flow-ytdlp-sub">—</div></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-node" data-sys="ffmpeg"><div class="flow-dot"></div><div class="flow-name">ffmpeg</div><div class="flow-sub" id="flow-ffmpeg-sub">—</div></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-node" data-sys="voice"><div class="flow-dot"></div><div class="flow-name">Voice</div><div class="flow-sub" id="flow-voice-sub">—</div></div>
+          </div>
+          <div class="flow-sidecar">
+            <div class="flow-node" data-sys="http"><div class="flow-dot"></div><div class="flow-name">HTTP / WS</div><div class="flow-sub" id="flow-http-sub">—</div></div>
+            <div class="flow-node" data-sys="library"><div class="flow-dot"></div><div class="flow-name">Library</div><div class="flow-sub" id="flow-library-sub">—</div></div>
+          </div>
+        </div>
+
+        <!-- Metrics grid + boot timeline side by side -->
+        <div class="diag-row">
+          <!-- Counters -->
+          <div class="card">
+            <div class="card-head">
+              <h3>Live metrics</h3>
+              <div class="muted small">1-min · 5-min rolling windows</div>
+            </div>
+            <div class="metric-grid">
+              <div class="metric"><div class="metric-label">Errors</div><div class="metric-val" id="metric-error-m1">0</div><div class="metric-sub" id="metric-error-m5">0 in 5m</div></div>
+              <div class="metric"><div class="metric-label">Warnings</div><div class="metric-val" id="metric-warn-m1">0</div><div class="metric-sub" id="metric-warn-m5">0 in 5m</div></div>
+              <div class="metric"><div class="metric-label">Commands</div><div class="metric-val" id="metric-cmd-m1">0</div><div class="metric-sub" id="metric-cmd-m5">0 in 5m</div></div>
+              <div class="metric"><div class="metric-label">Plays</div><div class="metric-val" id="metric-play-m1">0</div><div class="metric-sub" id="metric-play-m5">0 in 5m</div></div>
+              <div class="metric"><div class="metric-label">Searches</div><div class="metric-val" id="metric-search-m1">0</div><div class="metric-sub" id="metric-search-m5">0 in 5m</div></div>
+              <div class="metric"><div class="metric-label">Voice events</div><div class="metric-val" id="metric-voice-m1">0</div><div class="metric-sub" id="metric-voice-m5">0 in 5m</div></div>
+              <div class="metric"><div class="metric-label">Installs</div><div class="metric-val" id="metric-install-m1">0</div><div class="metric-sub" id="metric-install-m5">0 in 5m</div></div>
+              <div class="metric"><div class="metric-label">Uploads</div><div class="metric-val" id="metric-upload-m1">0</div><div class="metric-sub" id="metric-upload-m5">0 in 5m</div></div>
+            </div>
+          </div>
+
+          <!-- Boot timeline -->
+          <div class="card">
+            <div class="card-head">
+              <h3>Startup timeline</h3>
+              <div class="muted small" id="boot-summary">—</div>
+            </div>
+            <ol class="boot-timeline" id="boot-timeline">
+              <li class="muted small">Loading…</li>
+            </ol>
+          </div>
+        </div>
+
+        <!-- Recent errors per subsystem -->
+        <div class="card" id="recent-errors-card">
+          <div class="card-head">
+            <h3>Recent errors</h3>
+            <div class="muted small">Last ~10 errors per subsystem · most recent first</div>
+          </div>
+          <div id="recent-errors-list"><div class="muted small">No errors recorded.</div></div>
+        </div>
+
+        <!-- Full console with filters -->
+        <div class="card">
+          <div class="card-head">
+            <h3>›_ Full console</h3>
+            <div class="diag-tools">
+              <button id="diag-pause" class="diag-tool" title="Pause auto-scroll">⏸ Pause</button>
+              <button id="diag-clear" class="diag-tool" title="Clear the console">✕ Clear</button>
+              <button id="diag-export" class="diag-tool" title="Download the current log buffer as a text file">⤓ Export</button>
+            </div>
+          </div>
+          <div class="diag-filters" id="diag-filters">
+            <button class="filter-chip active" data-cat="all">All</button>
+            <button class="filter-chip" data-cat="startup">Startup</button>
+            <button class="filter-chip" data-cat="discord">Discord</button>
+            <button class="filter-chip" data-cat="command">Commands</button>
+            <button class="filter-chip" data-cat="search">Search</button>
+            <button class="filter-chip" data-cat="play">Play</button>
+            <button class="filter-chip" data-cat="voice">Voice</button>
+            <button class="filter-chip" data-cat="install">Install</button>
+            <button class="filter-chip" data-cat="upload">Upload</button>
+            <button class="filter-chip" data-cat="library">Library</button>
+            <button class="filter-chip" data-cat="http">HTTP</button>
+            <button class="filter-chip" data-cat="ws">WS</button>
+            <button class="filter-chip" data-cat="system">System</button>
+            <button class="filter-chip level-only" data-level="error">Errors only</button>
+            <button class="filter-chip level-only" data-level="warn">Warnings only</button>
+          </div>
+          <input id="diag-search" class="diag-search" type="text" placeholder="🔍  Search log text…" />
+          <div class="diag-console" id="diag-console"></div>
+          <div class="muted small" id="diag-meta" style="margin-top:6px">—</div>
+        </div>
+      </section>
     </main>
 
     <!-- ===== Floating mini-dock (persists across pages while audio plays) ===== -->
@@ -574,6 +738,24 @@
       <button class="dock-btn" id="dock-pause">⏸</button>
       <button class="dock-btn" id="dock-skip">⏭</button>
       <button class="dock-btn" id="dock-fs" title="Fullscreen">⛶</button>
+    </div>
+
+    <!-- ===== Floating Diagnostics mini-panel (visible across all pages) ===== -->
+    <div class="diag-mini" id="diag-mini">
+      <button class="diag-mini-chip" id="diag-mini-chip" title="Click to expand the diagnostics tail">
+        <span class="diag-mini-status" id="diag-mini-status">●</span>
+        <span class="diag-mini-text" id="diag-mini-text">healthy</span>
+      </button>
+      <div class="diag-mini-panel" id="diag-mini-panel" hidden>
+        <div class="diag-mini-head">
+          <span>Diagnostics tail</span>
+          <div class="diag-mini-actions">
+            <a class="diag-mini-link" href="#" id="diag-mini-open">Open full →</a>
+            <button class="diag-mini-close" id="diag-mini-close" title="Collapse">×</button>
+          </div>
+        </div>
+        <div class="diag-mini-body" id="diag-mini-body"></div>
+      </div>
     </div>
   </div>
 
