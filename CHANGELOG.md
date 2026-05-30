@@ -6,6 +6,73 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [2.0.0] — 2026-06-01
+
+**Major version — multi-bot platform.** MaowCore can now drive multiple
+bot instances from a single dashboard. Each instance runs the same
+code with its own `.env`; the dashboard is the hub, routing every API
+call to the active instance via Bearer-token authentication.
+
+### Breaking-ish
+
+- Control server now **honors `CONTROL_TOKEN` env var**. When set,
+  every API + WS request requires `Authorization: Bearer <token>`
+  (or `?token=…` query param for WS). Without the env var, the
+  server runs in **legacy open mode** — existing v1.x setups keep
+  working unchanged. Static dashboard files always serve un-authed
+  so the operator can load the dashboard and configure instances.
+- Static-file 404 fallback unaffected. The `fetchJson` client-side
+  helper recognizes 401 responses and shows a clear "wrong token"
+  message instead of a JSON parse error.
+
+### Added
+
+- **Instance registry** — dashboard stores configured instances in
+  `localStorage` (`maow.instances`): each entry has id / name /
+  control-server URL / Bearer token. Default on first load: one
+  "This bot" instance pointing at `location.origin` with no token
+  (= legacy single-bot behavior).
+- **Topbar instance picker** — chip showing the active instance with
+  a live health dot (green/amber/red). Clicking it opens a popover
+  list of all configured instances with per-instance health, switch
+  on click, inline ✎ Edit, "+ Add instance" footer.
+- **Instance add/edit modal** — name + URL + Bearer token form with
+  a **⚡ Test connection** button that calls the new `/api/health`
+  endpoint, verifies the token works against an auth'd endpoint,
+  and shows a friendly status (✓ ok / ▲ wrong token / ▲ unreachable).
+- **⊞ Fleet sidebar page** — grid of cards, one per configured
+  instance, each showing bot tag, version, latency, health status.
+  Click a card to switch the dashboard to that instance.
+- **`/api/health` un-authed endpoint** — returns `{ name, botTag,
+  version, startedAt, authRequired }` so the dashboard can probe
+  liveness without holding a token yet.
+- **CORS headers** on every response so cross-instance dashboard
+  requests work across origins.
+- **Per-instance health probes** — dashboard probes every configured
+  instance every 15s via `/api/health`, caches status + latency,
+  surfaces results in both the picker and the Fleet page.
+- **Visual polish pass** — page-fade transition on instance switch
+  (180ms opacity), skeleton-loader `.skel` class with shimmer
+  animation available for future loading states, animated instance-
+  picker chip dot.
+- **Reliability pass** — `fetchJson` now retries once on transient
+  network failure (400ms delay between attempts) so brief instance
+  restarts don't blow up the UI. 401 responses produce a clear
+  "Check the Bearer token on this instance" error.
+
+### Notes
+
+- 83 tests still pass — no new tests for the multi-bot UI (browser-
+  state + cross-origin behavior).
+- Sidebar gains a `⊞ Fleet` entry between Home and the Content group.
+- To wire up a second bot: set `CONTROL_TOKEN=<some-secret>` in each
+  bot's `.env`, expose its port, then on the dashboard click the
+  topbar instance chip → + Add instance → name + URL + token →
+  Test connection → Save.
+- The bot itself doesn't change behavior in single-instance mode —
+  same code, same defaults. v2.0.0 is additive: existing operators
+  can ignore the multi-bot features and everything works as before.
+
 ## [1.9.0] — 2026-06-01
 
 A server-admin polish + music-UX release — surface the welcome/farewell
