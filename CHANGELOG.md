@@ -6,6 +6,73 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [1.6.0] — 2026-05-31
+
+A speed + scale upgrade — install whole playlists in the background, cap
+bandwidth so a 500-song queue doesn't saturate your line, swap the bot icon,
+and watch live network metrics from the Diagnostics page.
+
+### Added
+
+- **Playlist install** — paste a YouTube / SoundCloud / Bandcamp playlist URL
+  into the install field and the dashboard probes it (`yt-dlp
+  --flat-playlist --dump-single-json`), shows `X songs detected — install all?`
+  with a sample of titles, and starts a **background job** when confirmed.
+  Single-song URLs keep their existing flow.
+- **Background download queue** — a floating chip bottom-right (`⬇ 12/47 ·
+  3 active`) appears whenever a job is running. Click to expand: per-job
+  progress bar, ✓/↩/✕ counts, currently-downloading titles, per-job and
+  "Cancel all" buttons. Jobs survive page navigation; finished jobs stay
+  visible for context (capped at 20 in memory).
+- **Bandwidth limiter + concurrency** — inline `⚙ Download settings`
+  collapse on the install panel:
+  - **Parallel downloads** slider (1–50, default 5)
+  - **Per-stream rate cap** select (Unlimited / 500K / 1M / 5M / 10M / 50M /
+    100M per second), wired through `yt-dlp --limit-rate`
+  - Live summary shows the aggregate cap (`5 × 10M = up to 50 MB/s`)
+  - Persisted to `<LIBRARY_DIR>/_config.json` so it travels with the library
+- **Network & bandwidth panel** on Diagnostics:
+  - Active downloads + observed combined throughput
+  - Bytes downloaded in last hour + total since boot
+  - Voice bandwidth estimate (≈256 kbps × active connections)
+  - Public IP behind a `Show` button (gated so it doesn't leak into
+    screenshots by default)
+  - Current rate cap + concurrency from the saved config
+- **Topbar cleanup** — dropped the `connected · MaowCore#9293` subtitle.
+  The diagnostics health chip (previously bottom-right floating) now lives
+  in the topbar, right side, with the same expand-to-tail-console behavior.
+- **Icon picker** — click the topbar icon to choose from 16 presets
+  (✦ ◆ ⌘ ♫ ◐ ⌬ ⚡ ⌖ ⧉ ⧗ ◉ ✧ 🎵 🎧 🐱 🌙). Persisted to localStorage.
+- **Cancellation** — `runYtDlp` now accepts an `AbortSignal`. Cancelling a
+  playlist job kills every in-flight yt-dlp subprocess via SIGTERM.
+- **8 new tests** covering `loadConfig`/`saveConfig` clamping + round-trip
+  and the rejected "undefined"/"null" playlist names. Total: **83 passing**.
+
+### Fixed
+
+- **"undefined / undefined / undefined" in chat** — the now-playing embed
+  added 3 fields from `song.features` (tempo / key / energy) unconditionally;
+  when Spotify lookup partially succeeded the fields would render the
+  literal string "undefined". Each field is now added only if its value is
+  actually present.
+- **Library autocomplete** is now defensive — manifest entries without a
+  valid `name`/`id` are filtered out before being shown in the dropdown, and
+  any thrown error responds with an empty list instead of leaking through.
+- **Playlist autocomplete** (`/load`, `/deleteplaylist`) filters falsy and
+  literal "undefined" keys defensively. `playlists.sanitize` now rejects
+  `undefined`, `null`, and the literal strings `"undefined"` / `"null"` so a
+  malformed save can no longer pollute the manifest.
+
+### API additions
+
+- `POST /api/library/probe-playlist` → `{ playlistName, count, sample }`
+- `POST /api/library/install-playlist` → `{ jobId }` (work happens async;
+  progress streamed via WebSocket `{ type: 'install_job', job }`)
+- `POST /api/library/install-jobs/:id/cancel`
+- `GET  /api/library/install-jobs` → `{ jobs: [...] }`
+- `GET  /api/library/config` → `{ concurrency, limitRate }`
+- `POST /api/library/config` → persists + returns the saved config
+
 ## [1.5.0] — 2026-05-30
 
 A debugging upgrade — full **Diagnostics** page with a live subsystem health
