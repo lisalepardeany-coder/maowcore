@@ -391,11 +391,17 @@
         d.className = 'queue-row';
         d.dataset.idx = i + 1;
         d.draggable = true;
-        d.innerHTML = `<span class="qr-pos">${String(i+1).padStart(2,' ')}.</span> <span class="qr-name">${escapeHtmlSafe(song.name)}</span> <span class="qr-dur muted">[${song.formattedDuration}]</span>`;
+        d.innerHTML =
+          `<span class="qr-drag" title="Drag to reorder">⋮⋮</span>` +
+          `<span class="qr-pos">${String(i+1).padStart(2,' ')}.</span>` +
+          ` <span class="qr-name">${escapeHtmlSafe(song.name)}</span>` +
+          ` <span class="qr-dur muted">[${song.formattedDuration}]</span>` +
+          ` <button class="qr-remove" data-idx="${i + 1}" title="Remove from queue">✕</button>`;
         // Hover preview popover
         d.addEventListener('mouseenter', (e) => showQueuePreview(e, song));
         d.addEventListener('mouseleave', hideQueuePreview);
-        // Drag-drop reordering
+        // Drag-drop reordering — send queue_move (backend accepts both
+        // queue_move and queue_reorder as aliases).
         d.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', d.dataset.idx); d.style.opacity = '0.4'; });
         d.addEventListener('dragend', () => { d.style.opacity = ''; });
         d.addEventListener('dragover', (e) => e.preventDefault());
@@ -408,8 +414,37 @@
             toast('Queue reordered', `${from} → ${to}`, 'success');
           }
         });
+        // Per-row remove
+        d.querySelector('.qr-remove').addEventListener('click', (e) => {
+          e.stopPropagation();
+          const idx = Number(e.currentTarget.dataset.idx);
+          send('queue_remove', { index: idx });
+          toast('✕ Removed', `Position ${idx}`, 'info', 1500);
+        });
         queueEl.appendChild(d);
       });
+      // Inject a queue toolbar above the queue if not already there.
+      if (!document.getElementById('queue-toolbar')) {
+        const toolbar = document.createElement('div');
+        toolbar.id = 'queue-toolbar';
+        toolbar.className = 'queue-toolbar';
+        toolbar.innerHTML = `
+          <button id="queue-save-as" class="link">💾  Save as playlist</button>
+          <span class="muted small" id="queue-toolbar-count"></span>`;
+        queueEl.parentElement?.insertBefore(toolbar, queueEl);
+        toolbar.querySelector('#queue-save-as').addEventListener('click', () => {
+          const name = prompt('Save current queue as playlist — name:');
+          if (!name) return;
+          const userId = window.localStorage.getItem('maow.userId')
+            || prompt('Your Discord user ID (for ownership of the saved playlist):');
+          if (!userId) return toast('▲ Cancelled', 'User ID required.', 'error', 2500);
+          window.localStorage.setItem('maow.userId', userId);
+          send('queue_save_as_playlist', { name, userId });
+          toast('💾 Saving', name, 'info', 2000);
+        });
+      }
+      const tbc = document.getElementById('queue-toolbar-count');
+      if (tbc) tbc.textContent = `${q.upcoming.length} song${q.upcoming.length === 1 ? '' : 's'} upcoming`;
     }
   }
 
@@ -2881,6 +2916,329 @@
     if (name === 'members') renderMembersPage();
     else if (name === 'channels') renderChannelsPage();
     else if (name === 'roles') renderRolesPage();
+    else if (name === 'welcome') renderWelcomePage();
+    else if (name === 'reactions') renderReactionsPage();
+    else if (name === 'insights') { try { renderHeatmap(); } catch { /* depends on state */ } }
+  };
+
+  // ===== Welcome / Farewell builder =====
+  const welcomeState = { cfg: null, dirty: false };
+
+  async function renderWelcomePage() {
+    const gId = activeGuildId();
+    if (!gId) return;
+    try {
+      const data = await fetchJson(`/api/admin/welcome?guildId=${encodeURIComponent(gId)}`);
+      welcomeState.cfg = data;
+      // Populate the channel picker.
+      const sel = $('welcome-channel');
+      if (sel) {
+        sel.innerHTML = '<option value="">— off —</option>';
+        (data.channels || []).forEach((c) => {
+          const opt = document.createElement('option');
+          opt.value = c.id;
+          opt.textContent = `#${c.name}${c.parentName ? ` (${c.parentName})` : ''}`;
+          if (c.id === data.welcomeChannelId) opt.selected = true;
+          sel.appendChild(opt);
+        });
+      }
+      $('welcome-message').value = data.welcomeMessage || '';
+      $('welcome-farewell').value = data.farewellMessage || '';
+      $('welcome-sound').value = data.welcomeSoundUrl || '';
+      $('welcome-leave-sound').value = data.leaveSoundUrl || '';
+      welcomeState.dirty = false;
+      refreshWelcomePreview();
+    } catch (e) {
+      toast('▲ Load failed', e.message, 'error', 3500);
+    }
+  }
+
+  function refreshWelcomePreview() {
+    const sampleUser = '@NewMember';
+    const sampleServer = currentServer()?.name || '{server}';
+    const sub = (tpl, fallback) => (tpl || fallback).replace(/\{user\}/g, sampleUser).replace(/\{server\}/g, sampleServer);
+    const joinTpl = $('welcome-message').value || '✦  Welcome to **{server}**, {user}! Glad to have you on board.';
+    const leaveTpl = $('welcome-farewell').value || '◌  {user} has departed **{server}**. Until next time.';
+    $('welcome-preview-join-text').textContent = sub(joinTpl, '');
+    $('welcome-preview-leave-text').textContent = sub(leaveTpl, '');
+  }
+
+  ['welcome-message', 'welcome-farewell'].forEach((id) => {
+    $(id)?.addEventListener('input', () => { welcomeState.dirty = true; refreshWelcomePreview(); });
+  });
+  ['welcome-channel', 'welcome-sound', 'welcome-leave-sound'].forEach((id) => {
+    $(id)?.addEventListener('input', () => { welcomeState.dirty = true; });
+    $(id)?.addEventListener('change', () => { welcomeState.dirty = true; });
+  });
+
+  $('welcome-save')?.addEventListener('click', async () => {
+    const gId = activeGuildId();
+    if (!gId) return toast('▲ No server', 'Select a server.', 'error', 2000);
+    try {
+      const body = {
+        guildId: gId,
+        welcomeChannelId: $('welcome-channel').value || null,
+        welcomeMessage: $('welcome-message').value,
+        farewellMessage: $('welcome-farewell').value,
+        welcomeSoundUrl: $('welcome-sound').value,
+        leaveSoundUrl: $('welcome-leave-sound').value,
+      };
+      const data = await fetchJson('/api/admin/welcome', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (data.error) throw new Error(data.error);
+      welcomeState.dirty = false;
+      toast('✓ Saved', 'Welcome config updated', 'success', 2500);
+    } catch (e) { toast('▲ Save failed', e.message, 'error', 3500); }
+  });
+
+  $('welcome-reset')?.addEventListener('click', renderWelcomePage);
+
+  // ===== Reaction roles editor =====
+  const rrState = { entries: [], roles: [], channels: [] };
+
+  async function renderReactionsPage() {
+    const gId = activeGuildId();
+    if (!gId) return;
+    const list = $('rr-list');
+    list.innerHTML = '<div class="muted">Loading…</div>';
+    try {
+      const data = await fetchJson(`/api/admin/reaction-roles?guildId=${encodeURIComponent(gId)}`);
+      rrState.entries = data.entries || [];
+      rrState.roles = data.roles || [];
+      rrState.channels = data.channels || [];
+    } catch (e) {
+      list.innerHTML = `<div class="error">▲ ${escapeHtmlSafe(e.message)}</div>`;
+      return;
+    }
+    // Populate create form.
+    const chSel = $('rr-channel');
+    if (chSel) {
+      chSel.innerHTML = rrState.channels.map((c) =>
+        `<option value="${escapeHtmlSafe(c.id)}">#${escapeHtmlSafe(c.name)}</option>`).join('');
+    }
+    const roleSel = $('rr-role');
+    if (roleSel) {
+      roleSel.innerHTML = rrState.roles.map((r) =>
+        `<option value="${escapeHtmlSafe(r.id)}" style="color:${r.color}">${escapeHtmlSafe(r.name)}</option>`).join('');
+    }
+    $('rr-summary').textContent = `${rrState.entries.length} active mapping${rrState.entries.length === 1 ? '' : 's'}`;
+    if (!rrState.entries.length) {
+      list.innerHTML = '<div class="muted">No reaction roles configured yet. Create one above.</div>';
+      return;
+    }
+    list.innerHTML = '';
+    rrState.entries.forEach((e) => {
+      const row = document.createElement('div');
+      row.className = 'rr-row' + (e.stale ? ' stale' : '');
+      const color = e.roleColor || '#99aab5';
+      row.innerHTML = `
+        <span class="rr-emoji">${escapeHtmlSafe(e.emoji)}</span>
+        <span>→</span>
+        <span class="rr-role-name" style="color:${color}">${escapeHtmlSafe(e.roleName || `(deleted: ${e.roleId})`)}</span>
+        <span class="rr-msg-id" title="Message ID">${escapeHtmlSafe(e.messageId)}</span>
+        <button class="rr-delete" data-mid="${escapeHtmlSafe(e.messageId)}">✕ Remove</button>`;
+      list.appendChild(row);
+    });
+    list.querySelectorAll('.rr-delete').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const messageId = btn.dataset.mid;
+        if (!confirm('Remove this reaction role mapping?')) return;
+        try {
+          const data = await fetchJson('/api/admin/reaction-roles/delete', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ guildId: gId, messageId }),
+          });
+          if (data.error) throw new Error(data.error);
+          toast('✕ Removed', 'Mapping deleted', 'info', 2000);
+          renderReactionsPage();
+        } catch (e) { toast('▲ Remove failed', e.message, 'error', 3500); }
+      });
+    });
+  }
+
+  $('rr-refresh')?.addEventListener('click', renderReactionsPage);
+  $('rr-create')?.addEventListener('click', async () => {
+    const gId = activeGuildId();
+    if (!gId) return toast('▲ No server', 'Select a server.', 'error', 2000);
+    const channelId = $('rr-channel').value;
+    const roleId = $('rr-role').value;
+    const emoji = $('rr-emoji').value.trim();
+    const title = $('rr-title').value.trim() || 'Self-assign role';
+    if (!channelId || !roleId || !emoji) {
+      return toast('▲ Missing fields', 'Channel + role + emoji required.', 'error', 2500);
+    }
+    try {
+      const data = await fetchJson('/api/admin/reaction-roles/create', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ guildId: gId, channelId, roleId, emoji, title }),
+      });
+      if (data.error) throw new Error(data.error);
+      toast('+ Embed posted', `Message ${data.messageId}`, 'success', 3000);
+      $('rr-emoji').value = '';
+      $('rr-title').value = '';
+      renderReactionsPage();
+    } catch (e) { toast('▲ Create failed', e.message, 'error', 4000); }
+  });
+
+  // ===== Auto-subscribed playlists =====
+  async function renderSubs() {
+    const list = $('subs-list');
+    if (!list) return;
+    try {
+      const data = await fetchJson('/api/admin/playlist-subs');
+      const subs = data.subs || [];
+      if (!subs.length) {
+        list.innerHTML = '<div class="muted">No subscriptions yet. Click <strong>+ Subscribe</strong> to add one.</div>';
+        return;
+      }
+      list.innerHTML = '';
+      subs.forEach((s) => {
+        const row = document.createElement('div');
+        row.className = 'sub-row';
+        const last = s.lastSyncAt ? new Date(s.lastSyncAt).toLocaleString() : 'never';
+        const next = s.nextSyncAt ? new Date(s.nextSyncAt).toLocaleString() : '—';
+        const err = s.lastError ? `<div class="sub-err">▲ ${escapeHtmlSafe(s.lastError)}</div>` : '';
+        row.innerHTML = `
+          <div>
+            <div class="sub-name">${escapeHtmlSafe(s.name)}</div>
+            <div class="sub-meta">${escapeHtmlSafe(s.url)}</div>
+            <div class="sub-stats">every ${s.intervalHours}h · ${s.format} · installed ${s.totalInstalled || 0} total · last sync ${escapeHtmlSafe(last)} · next ${escapeHtmlSafe(next)}</div>
+            ${err}
+          </div>
+          <div class="sub-actions">
+            <button data-sid="${escapeHtmlSafe(s.id)}" data-act="sync">↺ Sync now</button>
+            <button data-sid="${escapeHtmlSafe(s.id)}" data-act="remove" class="danger">✕</button>
+          </div>`;
+        list.appendChild(row);
+      });
+      list.querySelectorAll('button[data-act]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const id = btn.dataset.sid;
+          const act = btn.dataset.act;
+          if (act === 'sync') {
+            try {
+              await fetchJson('/api/admin/playlist-subs/sync', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id }),
+              });
+              toast('↺ Syncing', 'Running in background', 'info', 2500);
+            } catch (e) { toast('▲ Sync failed', e.message, 'error', 3000); }
+          } else if (act === 'remove') {
+            if (!confirm('Remove this subscription? Installed tracks are kept.')) return;
+            try {
+              await fetchJson('/api/admin/playlist-subs/remove', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id }),
+              });
+              toast('✕ Removed', '', 'info', 1500);
+              renderSubs();
+            } catch (e) { toast('▲ Remove failed', e.message, 'error', 3000); }
+          }
+        });
+      });
+    } catch (e) {
+      list.innerHTML = `<div class="error">▲ ${escapeHtmlSafe(e.message)}</div>`;
+    }
+  }
+
+  $('subs-add')?.addEventListener('click', async () => {
+    const url = prompt('Playlist URL to subscribe to (YouTube / SoundCloud / Bandcamp):');
+    if (!url) return;
+    const name = prompt('Display name:', 'Subscribed playlist');
+    if (!name) return;
+    const format = prompt('Format (original / mp3 / opus / flac / wav):', 'original');
+    if (!format) return;
+    const interval = prompt('Sync interval in hours (1–168):', '24');
+    if (!interval) return;
+    try {
+      await fetchJson('/api/admin/playlist-subs/add', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, name, format, intervalHours: Number(interval) }),
+      });
+      toast('+ Subscribed', name, 'success', 2500);
+      renderSubs();
+    } catch (e) { toast('▲ Subscribe failed', e.message, 'error', 4000); }
+  });
+
+  // Auto-load when the user opens the uploads tab (which already triggers
+  // renderUploads). Hook the tab click.
+  document.querySelector('#library-tabs .tab[data-tab="uploads"]')?.addEventListener('click', () => {
+    setTimeout(renderSubs, 100);
+  });
+
+  // ===== Listening heatmap =====
+  async function renderHeatmap() {
+    const gId = activeGuildId();
+    const container = $('heatmap-container');
+    if (!container) return;
+    if (!gId) { container.innerHTML = '<div class="muted">Select a server first.</div>'; return; }
+    try {
+      const data = await fetchJson(`/api/admin/heatmap?guildId=${encodeURIComponent(gId)}&days=365`);
+      drawHeatmap(data);
+    } catch (e) {
+      container.innerHTML = `<div class="error">▲ ${escapeHtmlSafe(e.message)}</div>`;
+    }
+  }
+
+  function drawHeatmap(data) {
+    const container = $('heatmap-container');
+    const summary = $('heatmap-summary');
+    if (!container) return;
+    const dates = Object.keys(data.byDay).sort();
+    if (summary) {
+      summary.textContent = `${data.total} plays over the last ${data.days} days · peak ${data.peak}/day`;
+    }
+    // Level scale: 0 = no plays, 4 = at or above peak.
+    const levelFor = (n) => {
+      if (n === 0) return 0;
+      const pct = n / Math.max(1, data.peak);
+      if (pct >= 0.75) return 4;
+      if (pct >= 0.5) return 3;
+      if (pct >= 0.25) return 2;
+      return 1;
+    };
+    // Build a grid: columns = weeks, rows = days of the week.
+    // Find the Sunday on or before the first date so all columns are aligned.
+    const firstDate = new Date(dates[0]);
+    const startSun = new Date(firstDate);
+    startSun.setDate(startSun.getDate() - startSun.getDay());
+    const lastDate = new Date(dates[dates.length - 1]);
+    const weeks = Math.ceil(((lastDate - startSun) / 86400000 + 1) / 7);
+    container.innerHTML = '';
+    const grid = document.createElement('div');
+    grid.className = 'heatmap-grid';
+    grid.style.gridTemplateColumns = `repeat(${weeks}, 11px)`;
+    for (let w = 0; w < weeks; w++) {
+      for (let d = 0; d < 7; d++) {
+        const cell = document.createElement('div');
+        cell.className = 'heatmap-cell';
+        const date = new Date(startSun);
+        date.setDate(date.getDate() + w * 7 + d);
+        const key = date.toISOString().slice(0, 10);
+        const plays = data.byDay[key];
+        if (plays === undefined) {
+          cell.style.visibility = 'hidden';
+        } else {
+          cell.setAttribute('data-level', levelFor(plays));
+          cell.title = `${key}: ${plays} play${plays === 1 ? '' : 's'}`;
+        }
+        cell.style.gridColumn = `${w + 1}`;
+        cell.style.gridRow = `${d + 1}`;
+        grid.appendChild(cell);
+      }
+    }
+    container.appendChild(grid);
+  }
+
+  // Hook WS broadcast for sub sync completion.
+  const origHandleForSubs = handle;
+  handle = (msg) => {
+    origHandleForSubs(msg);
+    if (msg.type === 'playlist_subs') {
+      if (activePage === 'library') renderSubs();
+    }
   };
 
   // ===== Favorite button on Now Playing =====

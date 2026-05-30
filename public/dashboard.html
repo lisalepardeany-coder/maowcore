@@ -146,6 +146,14 @@
               <span class="nav-icon">▦</span>
               <span class="nav-label">Roles</span>
             </a>
+            <a class="nav-item" data-page="welcome">
+              <span class="nav-icon">✦</span>
+              <span class="nav-label">Welcome</span>
+            </a>
+            <a class="nav-item" data-page="reactions">
+              <span class="nav-icon">❉</span>
+              <span class="nav-label">Reaction roles</span>
+            </a>
           </div>
         </div>
 
@@ -175,7 +183,7 @@
         </div>
       </nav>
       <div class="sidebar-footer">
-        <div class="muted small">v1.8.0</div>
+        <div class="muted small">v1.9.0</div>
       </div>
     </aside>
 
@@ -287,6 +295,16 @@
         </div>
 
         <div class="tab-panel hidden" id="tab-uploads">
+          <!-- Auto-subscribed playlists -->
+          <div class="card">
+            <div class="card-head">
+              <h3>↺ Auto-subscribed playlists</h3>
+              <button id="subs-add" class="primary">+ Subscribe</button>
+            </div>
+            <div class="muted small">The bot periodically polls each subscribed playlist URL and auto-installs any new tracks via the configured download settings.</div>
+            <div class="subs-list" id="subs-list" style="margin-top:10px"><div class="muted">Loading…</div></div>
+          </div>
+
           <div class="card">
             <div class="card-head">
               <h3>Your library</h3>
@@ -418,6 +436,26 @@
       <!-- =================================================== -->
       <section class="page hidden" id="page-insights">
         <header class="page-head"><h1>Insights</h1></header>
+
+        <!-- Listening heatmap -->
+        <div class="card">
+          <div class="card-head">
+            <h3>📅 Listening heatmap</h3>
+            <div class="muted small" id="heatmap-summary">—</div>
+          </div>
+          <div class="heatmap-container" id="heatmap-container">
+            <div class="muted">Select a server first.</div>
+          </div>
+          <div class="heatmap-legend">
+            <span class="muted small">Less</span>
+            <span class="heatmap-cell" data-level="0"></span>
+            <span class="heatmap-cell" data-level="1"></span>
+            <span class="heatmap-cell" data-level="2"></span>
+            <span class="heatmap-cell" data-level="3"></span>
+            <span class="heatmap-cell" data-level="4"></span>
+            <span class="muted small">More</span>
+          </div>
+        </div>
 
         <!-- Headline numbers -->
         <div class="stats-strip">
@@ -829,6 +867,99 @@
               </div>
             </div>
           </div>
+        </div>
+      </section>
+
+      <!-- =================================================== -->
+      <!-- WELCOME / FAREWELL builder                          -->
+      <!-- =================================================== -->
+      <section class="page hidden" id="page-welcome">
+        <div class="page-head">
+          <h2>✦ Welcome &amp; Farewell</h2>
+          <div class="muted small">Configure greeting messages, channel, and join/leave sounds.</div>
+        </div>
+        <div class="card welcome-grid">
+          <div class="welcome-form">
+            <label>
+              <div class="muted small">Greeting channel</div>
+              <select id="welcome-channel"><option value="">— off —</option></select>
+            </label>
+            <label>
+              <div class="muted small">Welcome message — use <code>{user}</code> and <code>{server}</code> as tokens</div>
+              <textarea id="welcome-message" rows="3" placeholder="✦  Welcome to {server}, {user}! Glad to have you on board."></textarea>
+            </label>
+            <label>
+              <div class="muted small">Farewell message</div>
+              <textarea id="welcome-farewell" rows="3" placeholder="◌  {user} has departed {server}. Until next time."></textarea>
+            </label>
+            <label>
+              <div class="muted small">Welcome sound URL (plays in voice when someone joins)</div>
+              <input id="welcome-sound" type="text" placeholder="https://…" />
+            </label>
+            <label>
+              <div class="muted small">Leave sound URL</div>
+              <input id="welcome-leave-sound" type="text" placeholder="https://…" />
+            </label>
+            <div class="welcome-toolbar">
+              <button id="welcome-save" class="primary">Save</button>
+              <button id="welcome-reset" class="ghost">Revert</button>
+            </div>
+          </div>
+          <div class="welcome-preview">
+            <div class="muted small" style="margin-bottom:6px">Live preview — how the embed will look in Discord</div>
+            <div class="discord-embed" id="welcome-preview-join">
+              <div class="d-author">◇  NEW SIGNAL DETECTED</div>
+              <div class="d-desc" id="welcome-preview-join-text">—</div>
+            </div>
+            <div class="discord-embed" id="welcome-preview-leave" style="margin-top:10px">
+              <div class="d-author">◌  TRANSMISSION LOST</div>
+              <div class="d-desc" id="welcome-preview-leave-text">—</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- =================================================== -->
+      <!-- REACTION ROLES editor                               -->
+      <!-- =================================================== -->
+      <section class="page hidden" id="page-reactions">
+        <div class="page-head">
+          <h2>❉ Reaction roles</h2>
+          <div class="muted small">Self-assign role embeds — users click an emoji to grant or revoke the role.</div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3>Create new</h3>
+            <button id="rr-create" class="primary">+ Post embed</button>
+          </div>
+          <div class="rr-create-grid">
+            <label>
+              <div class="muted small">Channel</div>
+              <select id="rr-channel"></select>
+            </label>
+            <label>
+              <div class="muted small">Role to grant</div>
+              <select id="rr-role"></select>
+            </label>
+            <label>
+              <div class="muted small">Emoji (✦, 🎵, or a custom &lt;:name:id&gt;)</div>
+              <input id="rr-emoji" type="text" placeholder="✦" />
+            </label>
+            <label>
+              <div class="muted small">Embed title</div>
+              <input id="rr-title" type="text" placeholder="Choose your color" />
+            </label>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3>Active mappings</h3>
+            <button id="rr-refresh" class="primary">⟳ Refresh</button>
+          </div>
+          <div class="muted small" id="rr-summary">—</div>
+          <div class="rr-list" id="rr-list"><div class="muted">Select a server first.</div></div>
         </div>
       </section>
 
