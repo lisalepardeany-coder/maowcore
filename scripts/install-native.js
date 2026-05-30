@@ -21,14 +21,32 @@ const PKGS = [
   { name: '@stablelib/xchacha20poly1305', reason: 'Pure-JS XChaCha20-Poly1305 fallback' },
 ];
 
+// Run a command. Tries `npm.cmd` (Windows native) without shell first;
+// falls back to `shell: true` if the binary isn't on PATH as a .cmd file
+// (e.g., npm installed via Volta/nvs/some Windows installers where it's a
+// PowerShell function). The shell-true fallback re-introduces the DEP0190
+// deprecation warning but only when there's literally no other way.
+const runNpmInstall = (pkg) => {
+  if (process.platform === 'win32') {
+    // First try the .cmd shim directly — silent + no DEP0190 warning.
+    let r = spawnSync('npm.cmd', ['install', pkg, '--no-save'], { stdio: 'inherit' });
+    if (!r.error && r.status === 0) return r;
+    if (!r.error && r.status !== null) return r;   // ran, just failed
+    // ENOENT or null status → npm.cmd wasn't directly callable. Fall back to shell.
+    return spawnSync(`npm install ${pkg} --no-save`, [], { stdio: 'inherit', shell: true });
+  }
+  return spawnSync('npm', ['install', pkg, '--no-save'], { stdio: 'inherit' });
+};
+
 const tryInstall = (pkg) => {
   console.log(`\n=== ${pkg.name} ===`);
   console.log(`  ${pkg.reason}`);
   console.log(`  → npm install ${pkg.name} --no-save`);
-  // Pick the correct npm binary per-platform so we don't need `shell: true`
-  // (which triggers Node 22+'s DEP0190 deprecation warning).
-  const npmBin = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-  const r = spawnSync(npmBin, ['install', pkg.name, '--no-save'], { stdio: 'inherit' });
+  const r = runNpmInstall(pkg.name);
+  if (r.error) {
+    console.log(`  ✕ couldn't run npm: ${r.error.message}`);
+    return false;
+  }
   if (r.status === 0) {
     console.log(`  ✓ installed`);
     return true;
