@@ -51,18 +51,38 @@ patch(
 // 3. ytsr parseItem — defensive optional chaining on YouTube's frequently-
 //    omitted internal fields. YouTube ships several response shape variants
 //    depending on the video type (regular, shorts, live, members-only, etc.)
-//    and ytsr 2.0.4 only handles the common case. Three patches:
+//    and ytsr 2.0.4 only handles the common case. Patches:
 //      (a) `.browseEndpoint.canonicalBaseUrl/browseId` → optional
-//      (b) `prepImg(...)[0].url` → optional (some videos have no thumbnails)
-//      (c) `commandMetadata.webCommandMetadata.url` → optional (some channels
-//          omit the full metadata block; author/owner can be partial)
-//    All three are idempotent: after the first run, the regex no longer
-//    matches the patched form, so re-running is a no-op.
+//      (b) `prepImg(...)[0]?.url` → harden array access too (?.[0])
+//          (`prepImg` returns undefined on items YouTube ships with no
+//          `thumbnails` array, e.g. live previews — `undefined[0]` throws
+//          "Cannot read properties of undefined (reading '0')")
+//      (c) `commandMetadata.webCommandMetadata.url` → optional
+//      (d) `.runs[0]` access on ownerText / shortBylineText / longBylineText
+//          (YouTube ships these objects without `.runs` for collaborations
+//          and re-uploaded content)
+//      (e) `prepImg(authorImg.thumbnail.thumbnails)[0]` already has `|| null`
+//          but `prepImg()` itself can return undefined first
+//      (f) `Object.keys(item)[0]` — empty wrapper objects appear on
+//          deprecated/removed videos in search results
+//    All patches are idempotent: regex no longer matches after first apply.
 patch(
   'ytsr parseItem',
   path.join(ROOT, 'node_modules', '@distube', 'ytsr', 'lib', 'parseItem.js'),
   (s) => s
     .replace(/\.browseEndpoint\.(canonicalBaseUrl|browseId)/g, '.browseEndpoint?.$1')
-    .replace(/UTIL\.prepImg\(([^)]+)\)\[0\]\.url/g, 'UTIL.prepImg($1)[0]?.url')
-    .replace(/commandMetadata\.webCommandMetadata\.url/g, 'commandMetadata?.webCommandMetadata?.url'),
+    // prepImg(x)[0].url       → prepImg(x)?.[0]?.url   (raw upstream form)
+    // prepImg(x)[0]?.url      → prepImg(x)?.[0]?.url   (half-patched form)
+    // Two separate replacements so each is idempotent in isolation.
+    .replace(/UTIL\.prepImg\(([^)]+)\)\[0\]\.url/g, 'UTIL.prepImg($1)?.[0]?.url')
+    .replace(/UTIL\.prepImg\(([^)]+)\)\[0\]\?\.url/g, 'UTIL.prepImg($1)?.[0]?.url')
+    // bare prepImg(x)[0] with no .url access (e.g. `[0] || null`)
+    .replace(/UTIL\.prepImg\(([^)]+)\)\[0\](?!\?)/g, 'UTIL.prepImg($1)?.[0]')
+    .replace(/commandMetadata\.webCommandMetadata\.url/g, 'commandMetadata?.webCommandMetadata?.url')
+    // .runs[0] reads where the parent is checked but .runs is not
+    .replace(/(ownerText|shortBylineText|longBylineText)(\s*&&\s*[^.]+)\.runs\[0\]/g, '$1$2.runs?.[0]')
+    // Empty-wrapper guard: Object.keys(item)[0] → Object.keys(item)?.[0]
+    .replace(/Object\.keys\(item\)\[0\]/g, 'Object.keys(item)?.[0]')
+    // .thumbnailOverlays.find — if the array is missing, find() crashes
+    .replace(/obj\.thumbnailOverlays\.find\(/g, '(obj.thumbnailOverlays || []).find('),
 );
