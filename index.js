@@ -149,18 +149,60 @@ const control = new ControlServer({
 });
 client.control = control;
 
+// ===== Boot timeline =====
+// Backfill the steps that already ran before the control server existed.
+// (Anything that has happened by this point in module load.)
+const diag = control.diagnostics;
+// Read DisTube's version directly from its package.json file. Cannot use
+// `require('distube/package.json')` — DisTube v5's `exports` map deliberately
+// hides internal paths, which makes that throw ERR_PACKAGE_PATH_NOT_EXPORTED
+// on modern Node.
+const readPkgVersion = (pkg) => {
+  try {
+    const p = path.join(__dirname, 'node_modules', pkg, 'package.json');
+    return JSON.parse(require('node:fs').readFileSync(p, 'utf8')).version;
+  } catch { return null; }
+};
+const distubeVer = readPkgVersion('distube');
+diag.bootOk('env', process.env.DISCORD_TOKEN ? 'token present' : 'no DISCORD_TOKEN set');
+diag.bootOk('ffmpeg', ffmpegPath);
+diag.bootOk('ytdlp', process.env.YTDLP_DIR
+  ? `${process.env.YTDLP_DIR}/${process.env.YTDLP_FILENAME || 'yt-dlp'} (env override)`
+  : 'bundled (@distube/yt-dlp)');
+diag.bootOk('distube', distubeVer ? `DisTube v${distubeVer}` : 'DisTube loaded');
+diag.bootOk('plugins', 'youtube, spotify, soundcloud, yt-dlp');
+try {
+  const libCount = require('./lib/library').list().length;
+  diag.bootOk('library', `${libCount} song${libCount === 1 ? '' : 's'}`);
+} catch (e) {
+  diag.bootFail('library', e);
+}
+diag.bootOk('control', `http://${process.env.CONTROL_HOST || '127.0.0.1'}:${Number(process.env.CONTROL_PORT) || 8765}/`);
+// Slash-command deployment runs from `npm run deploy` as a separate script
+// (Discord requires registration before login). Skip here so the timeline
+// doesn't show a phantom 'pending'.
+diag.bootSkip('deploy', 'run via `npm run deploy` separately');
+control.log('Boot: env, ffmpeg, yt-dlp, DisTube, plugins, library, control server — ready', 'success', 'startup',
+  { subsystem: 'http' });
+
 const sponsorblock = new SponsorBlockManager();
 
 client.commands = new Collection();
 const commandsPath = path.join(__dirname, 'commands');
+diag.bootStart('commands');
+let cmdCount = 0, cmdSkipped = 0;
 for (const file of fs.readdirSync(commandsPath).filter((f) => f.endsWith('.js'))) {
   const command = require(path.join(commandsPath, file));
   if ('data' in command && 'execute' in command) {
     client.commands.set(command.data.name, command);
+    cmdCount++;
   } else {
     console.warn(`[WARN] Command ${file} missing "data" or "execute".`);
+    cmdSkipped++;
   }
 }
+diag.bootOk('commands', `${cmdCount} command${cmdCount === 1 ? '' : 's'} loaded` +
+  (cmdSkipped ? ` (${cmdSkipped} skipped)` : ''));
 
 const eventsPath = path.join(__dirname, 'events');
 for (const file of fs.readdirSync(eventsPath).filter((f) => f.endsWith('.js'))) {
@@ -427,12 +469,22 @@ client.on(Events.InteractionCreate, async (interaction) => {
     const command = client.commands.get(interaction.commandName);
     if (!command) return;
     const who = interaction.user?.username || interaction.user?.tag || 'unknown';
-    control.log(`/${interaction.commandName} — ${who}`);
+    const guildName = interaction.guild?.name || 'DM';
+    const startedAt = Date.now();
+    control.log(`/${interaction.commandName} — ${who} in ${guildName}`,
+      'info', 'command',
+      { subsystem: 'discord', meta: { user: who, guild: guildName, guildId: interaction.guildId } });
     try {
       await command.execute(interaction);
+      const dur = Date.now() - startedAt;
+      control.log(`✓ /${interaction.commandName} ok (${dur}ms)`, 'success', 'command',
+        { subsystem: 'discord', meta: { user: who, guild: guildName, durationMs: dur } });
     } catch (err) {
       console.error(`Error in /${interaction.commandName}:`, err);
-      control.log(`/${interaction.commandName} failed: ${err.message || err}`, 'error');
+      const dur = Date.now() - startedAt;
+      control.log(`✕ /${interaction.commandName} failed (${dur}ms): ${err.message || err}`,
+        'error', 'command',
+        { subsystem: 'discord', meta: { user: who, guild: guildName, durationMs: dur, error: err?.message, stack: err?.stack } });
       const reply = { content: `▲ Error: ${err.message || 'Something broke.'}`, flags: MessageFlags.Ephemeral };
       if (interaction.replied || interaction.deferred) await interaction.followUp(reply).catch(() => {});
       else await interaction.reply(reply).catch(() => {});
@@ -524,6 +576,22 @@ client.on(Events.GuildMemberRemove, (member) => {
 // Auto voice rooms — joining the configured "Create Room" channel spawns a
 // personal temp voice channel that auto-deletes when empty.
 const tempVoiceChannels = new Set();
+
+// Discord ready — pin the boot timeline step + log it through diagnostics.
+client.once(Events.ClientReady, () => {
+  diag.bootOk('ready', `${client.user.tag} · ${client.guilds.cache.size} guild${client.guilds.cache.size === 1 ? '' : 's'}`);
+  control.log(`◇ Discord ready: ${client.user.tag} in ${client.guilds.cache.size} guild${client.guilds.cache.size === 1 ? '' : 's'}`,
+    'success', 'discord', { subsystem: 'discord', meta: { tag: client.user.tag, guilds: client.guilds.cache.size } });
+});
+
+// Gateway-level event hooks routed into diagnostics.
+client.on('shardError',        (err, id)  => control.log(`▲ Shard ${id} error: ${err?.message || err}`, 'error', 'discord', { subsystem: 'discord', meta: { stack: err?.stack } }));
+client.on('shardDisconnect',   (ev, id)   => control.log(`⌬ Shard ${id} disconnected (code ${ev?.code})`, 'warn', 'discord', { subsystem: 'discord', meta: { code: ev?.code, reason: ev?.reason } }));
+client.on('shardReconnecting', (id)       => control.log(`↻ Shard ${id} reconnecting…`, 'info', 'discord', { subsystem: 'discord' }));
+client.on('shardResume',       (id, evs)  => control.log(`↑ Shard ${id} resumed (${evs} events replayed)`, 'info', 'discord', { subsystem: 'discord' }));
+client.on('error',             (err)      => control.log(`▲ Discord client error: ${err?.message || err}`, 'error', 'discord', { subsystem: 'discord', meta: { stack: err?.stack } }));
+client.on('warn',              (info)     => control.log(`▲ Discord warn: ${info}`, 'warn', 'discord', { subsystem: 'discord' }));
+client.on('rateLimit',         (info)     => control.log(`⏱ Rate limited: ${info?.method} ${info?.path} (retry ${info?.timeout}ms)`, 'warn', 'discord', { subsystem: 'discord', meta: info }));
 
 // On ready: scan for orphaned temp voice channels left over from previous runs
 // (empty voice channels in the auto-voice category whose name starts with 🎙).
@@ -705,20 +773,37 @@ setInterval(async () => {
 // killing the bot. Explicit error handling everywhere else is still the rule;
 // this is just a backstop so a music bot doesn't die mid-session.
 process.on('unhandledRejection', (reason) => {
-  console.error('[unhandledRejection]', reason?.message || reason);
+  const msg = reason?.message || String(reason);
+  console.error('[unhandledRejection]', msg);
+  // Also surface in the dashboard so silent background failures aren't invisible.
+  try {
+    control.log(`▲ Unhandled promise rejection: ${msg}`, 'error', 'system',
+      { subsystem: 'system', meta: { stack: reason?.stack } });
+  } catch { /* control not yet ready */ }
 });
 process.on('uncaughtException', (err) => {
   console.error('[uncaughtException]', err?.stack || err?.message || err);
   // Intentionally not exiting — keep the bot + dashboard alive. If this fires
   // repeatedly something is genuinely wrong; check the logs.
+  try {
+    control.log(`▲ Uncaught exception: ${err?.message || err}`, 'error', 'system',
+      { subsystem: 'system', meta: { stack: err?.stack } });
+  } catch { /* control not yet ready */ }
 });
 
 // Log in. A bad/expired token throws asynchronously — catch it so we don't
 // hard-crash the whole process (which would also kill the dashboard + library
 // server). Keep those running so the operator can still reach the UI, see the
 // error, and fix DISCORD_TOKEN without flying blind.
-client.login(process.env.DISCORD_TOKEN).catch((err) => {
+diag.bootStart('login');
+control.log('↑ Attempting Discord login…', 'info', 'startup', { subsystem: 'discord' });
+client.login(process.env.DISCORD_TOKEN).then(() => {
+  diag.bootOk('login', 'authenticated');
+}).catch((err) => {
+  diag.bootFail('login', err);
   const tokenIssue = err?.code === 'TokenInvalid' || /token/i.test(err?.message || '');
+  control.log(`✕ Discord login failed: ${tokenIssue ? 'invalid/expired token' : err?.message || err}`,
+    'error', 'startup', { subsystem: 'discord', meta: { code: err?.code, tokenIssue } });
   console.error('');
   console.error('  ╭─ DISCORD LOGIN FAILED ────────────────────────────────────────');
   console.error('  │');
