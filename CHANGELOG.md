@@ -6,6 +6,66 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [1.8.0] — 2026-05-31
+
+A server-admin upgrade — three new dashboard pages for browsing members,
+channels, and roles with execute-grade actions, a restructured sidebar
+with collapsible categories, and an on-demand speedtest on the Network
+panel.
+
+### Added
+
+- **Sidebar restructure** — nav items grouped under collapsible category
+  headers (Content / Servers / System) with `Home` and `Moderation`
+  staying flat. Collapsed state is per-category and persisted to
+  localStorage so each user keeps the structure they prefer. Sub-page
+  nav items are visually nested and a tick tighter than the top-level
+  entries.
+- **Members page** (`👥 Members`) — paginated guild member browser:
+  search by tag / display name / ID, 25/50/100 per page with smart
+  pagination, role badges per row colored by role color, voice-channel
+  indicator (🔊) when the member is connected, bot tag for bots, and
+  three inline mod actions per row (⏱ Timeout / 👢 Kick / ⊘ Ban) with
+  confirm dialogs and reason prompts. Reads from the `GuildMembers`
+  intent cache; shows a banner when the cache is smaller than
+  `guild.memberCount` so you know which members aren't loaded.
+- **Channels page** (`# Channels`) — list grouped by category in
+  Discord's display order. Per-channel symbols (#, 🔊, 🗂, 📢) by type,
+  inline NSFW / slowmode badges, and an **✎ Edit** button that walks
+  through name → topic → slowmode (0–21600s clamp) → NSFW prompts
+  and patches the channel via discord.js.
+- **Roles page** (`▦ Roles`) — list ordered by position with color
+  swatches, member count, `managed` tag for bot/integration roles.
+  **+ Create role** + **✎ Edit role** modal with name + color picker
+  + hoist + mentionable toggles + a **permission editor** with the 21
+  most-used permission bits. Delete button hidden for managed roles
+  (Discord forbids it). All mutations go through new admin endpoints.
+- **Speedtest** on the Network panel — **⚡ Run speedtest** button
+  spawns `librespeed-cli` (preferred, MIT-licensed) and falls back to
+  `speedtest-cli` if available. Results stream back over WebSocket
+  and render as download / upload / ping tiles with tool + server +
+  ISP metadata. Cached between runs; a "no speedtest tool found"
+  message appears on hosts without either binary installed.
+- **9 new admin API endpoints**:
+  - `GET  /api/admin/members?guildId=…&page=…&perPage=…&search=…`
+  - `GET  /api/admin/channels?guildId=…`
+  - `POST /api/admin/channel-edit` `{ channelId, name, topic, slowmode, nsfw }`
+  - `GET  /api/admin/roles?guildId=…`
+  - `POST /api/admin/role-create` `{ name, color, hoist, mentionable, permissions }`
+  - `POST /api/admin/role-edit` `{ roleId, … }`
+  - `POST /api/admin/role-delete` `{ roleId }` (rejects managed roles)
+  - `GET  /api/admin/speedtest` (cached result)
+  - `POST /api/admin/speedtest` (run a fresh test, broadcasts result via WS)
+
+### Notes
+
+- 83 tests pass — no new tests added for the admin endpoints since they're
+  network-bound to Discord and the speedtest depends on host binaries.
+- Sidebar collapse state is independent of the existing
+  `sidebar-collapsed` icon-rail mode (which still works the same way).
+- Channel-edit slowmode is clamped to Discord's limits server-side
+  (0–21600 seconds = 0 to 6 hours).
+
 ## [1.7.0] — 2026-05-31
 
 A moderation suite — a dashboard-side replacement for typing `/ban`,
