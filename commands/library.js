@@ -18,7 +18,18 @@ module.exports = {
     .addSubcommand((sub) => sub.setName('list').setDescription('List uploaded songs'))
     .addSubcommand((sub) =>
       sub.setName('remove').setDescription('Delete an uploaded song')
-        .addStringOption((o) => o.setName('name').setDescription('Song to delete').setRequired(true).setAutocomplete(true))),
+        .addStringOption((o) => o.setName('name').setDescription('Song to delete').setRequired(true).setAutocomplete(true)))
+    .addSubcommand((sub) =>
+      sub.setName('install').setDescription('Download a song from a URL into the library')
+        .addStringOption((o) => o.setName('url').setDescription('YouTube, SoundCloud, Bandcamp, …').setRequired(true))
+        .addStringOption((o) => o.setName('format').setDescription('Output format (default: original)').setRequired(false)
+          .addChoices(
+            { name: 'Original (smallest, preserves source)', value: 'original' },
+            { name: 'MP3 320 kbps (universal)', value: 'mp3' },
+            { name: 'Opus 256 kbps (smaller, modern)', value: 'opus' },
+            { name: 'FLAC (lossless container — see note)', value: 'flac' },
+            { name: 'WAV (uncompressed — see note)', value: 'wav' },
+          ))),
 
   async autocomplete(interaction) {
     const focused = interaction.options.getFocused().toLowerCase();
@@ -57,6 +68,23 @@ module.exports = {
         content: ok ? `✕  Deleted **${entry?.name || 'song'}** from the library.` : '◌ Song not found.',
         flags: MessageFlags.Ephemeral,
       });
+    }
+
+    if (sub === 'install') {
+      const url = interaction.options.getString('url');
+      const format = interaction.options.getString('format') || 'original';
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      try {
+        const { entry, alreadyInstalled } = await library.installFromUrl(url, { format });
+        const sizeStr = `${(entry.size / 1024 / 1024).toFixed(1)} MB`;
+        if (alreadyInstalled) {
+          return interaction.editReply(`↩  Already installed: **${entry.name}** (${entry.ext}, ${sizeStr})`);
+        }
+        const flag = entry.losslessInLossyContainer ? '  *(note: lossy source in a lossless container)*' : '';
+        return interaction.editReply(`✓  Installed **${entry.name}** · ${entry.ext} · ${sizeStr}${flag}`);
+      } catch (e) {
+        return interaction.editReply(`▲ Install failed: ${e.message}`);
+      }
     }
 
     // play
