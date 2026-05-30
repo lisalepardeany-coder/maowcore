@@ -221,6 +221,33 @@
     el.scrollTop = el.scrollHeight;
   }
 
+  // ===== Brand icon picker =====
+  const savedBrandIcon = localStorage.getItem('maow.brandIcon') || '✦';
+  const brandMarkEl = $('brand-mark');
+  const iconPickerEl = $('icon-picker');
+  if (brandMarkEl) brandMarkEl.textContent = savedBrandIcon;
+  iconPickerEl?.querySelectorAll('[data-icon]').forEach((btn) => {
+    if (btn.dataset.icon === savedBrandIcon) btn.classList.add('active');
+    btn.addEventListener('click', () => {
+      const icon = btn.dataset.icon;
+      if (brandMarkEl) brandMarkEl.textContent = icon;
+      localStorage.setItem('maow.brandIcon', icon);
+      iconPickerEl.querySelectorAll('[data-icon]').forEach((b) => b.classList.toggle('active', b === btn));
+      iconPickerEl.classList.add('hidden');
+    });
+  });
+  brandMarkEl?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    iconPickerEl?.classList.toggle('hidden');
+  });
+  // Click-outside to close.
+  document.addEventListener('click', (e) => {
+    if (!iconPickerEl || iconPickerEl.classList.contains('hidden')) return;
+    if (!iconPickerEl.contains(e.target) && e.target !== brandMarkEl) {
+      iconPickerEl.classList.add('hidden');
+    }
+  });
+
   // ===== Render: state -> DOM =====
   function renderAll() {
     if (!state) return;
@@ -1495,7 +1522,85 @@
     renderBootTimeline();
     renderMetrics();
     renderRecentErrors();
+    renderNetworkPanel();
   }
+
+  // ===== Network / bandwidth panel =====
+  const fmtBytesNet = (b) => {
+    if (b == null || !Number.isFinite(b)) return '—';
+    if (b < 1024) return `${b} B`;
+    if (b < 1024 * 1024) return `${(b / 1024).toFixed(0)} KB`;
+    if (b < 1024 * 1024 * 1024) return `${(b / 1024 / 1024).toFixed(1)} MB`;
+    return `${(b / 1024 / 1024 / 1024).toFixed(2)} GB`;
+  };
+
+  function renderNetworkPanel() {
+    if (activePage !== 'diagnostics') return;
+    // Active downloads + estimated combined rate.
+    const running = [...(dlState?.jobs || new Map()).values()].filter((j) => j.status === 'running');
+    const activeEl = $('net-active-dl');
+    const activeRateEl = $('net-active-rate');
+    if (activeEl) activeEl.textContent = String(running.length);
+    if (activeRateEl) {
+      if (!running.length) {
+        activeRateEl.textContent = 'idle';
+      } else {
+        // Crude throughput estimate: sum of installed sizes / elapsed time per job.
+        // The actual rate is whatever yt-dlp + the network achieves; this is just a
+        // post-hoc view of bytes/sec since the job started.
+        const songs = uploadsState?.songs || [];
+        const now = Date.now();
+        let totalBytes = 0, totalSec = 0;
+        for (const job of running) {
+          const sinceStart = Math.max(1, (now - job.startedAt) / 1000);
+          totalSec = Math.max(totalSec, sinceStart);
+          const jobSongs = songs.filter((s) => s.playlistId && s.playlistId === (job.playlistId || '___'));
+          totalBytes += jobSongs.reduce((sum, s) => sum + (s.size || 0), 0);
+        }
+        const rate = totalSec > 0 ? totalBytes / totalSec : 0;
+        activeRateEl.textContent = rate > 0 ? `≈ ${fmtBytesNet(rate)}/s observed` : 'starting…';
+      }
+    }
+
+    // Downloaded in last hour + total (from manifest addedAt + size).
+    const songs = uploadsState?.songs || [];
+    const oneHourAgo = Date.now() - 3600 * 1000;
+    const recent = songs.filter((s) => (s.addedAt || 0) >= oneHourAgo);
+    $('net-bytes-1h') && ($('net-bytes-1h').textContent = fmtBytesNet(recent.reduce((s, x) => s + (x.size || 0), 0)));
+    $('net-files-1h') && ($('net-files-1h').textContent = `${recent.length} file${recent.length === 1 ? '' : 's'}`);
+    $('net-bytes-total') && ($('net-bytes-total').textContent = fmtBytesNet(songs.reduce((s, x) => s + (x.size || 0), 0)));
+    $('net-files-total') && ($('net-files-total').textContent = `${songs.length} file${songs.length === 1 ? '' : 's'}`);
+
+    // Voice bandwidth — Discord voice runs at ~256 kbps per connection (Opus).
+    const voiceConns = state?.stats?.voiceConnections || 0;
+    const voiceKbps = voiceConns * 256;
+    $('net-voice-bw') && ($('net-voice-bw').textContent = voiceConns ? `≈ ${voiceKbps} kbps` : 'idle');
+    $('net-voice-conns') && ($('net-voice-conns').textContent = `${voiceConns} connection${voiceConns === 1 ? '' : 's'}`);
+
+    // Rate cap / concurrency — from download config snapshot.
+    const cfg = uploadsState?.downloadConfig;
+    if (cfg) {
+      $('net-rate-cap') && ($('net-rate-cap').textContent = cfg.limitRate || 'unlimited');
+      $('net-concurrency') && ($('net-concurrency').textContent = `${cfg.concurrency} concurrent`);
+    }
+  }
+
+  // Public IP — gated so it doesn't leak into screenshots.
+  $('net-show-ip')?.addEventListener('click', async () => {
+    const val = $('net-public-ip');
+    const sub = $('net-public-ip-sub');
+    if (!val) return;
+    val.innerHTML = '<span class="muted small">Fetching…</span>';
+    try {
+      const res = await fetch('https://api.ipify.org?format=json');
+      const data = await res.json();
+      val.innerHTML = `<code>${escapeHtmlSafe(data.ip || '?')}</code>`;
+      if (sub) sub.textContent = 'Reload the page to hide again';
+    } catch (e) {
+      val.innerHTML = '<span class="muted small">Could not fetch</span>';
+      if (sub) sub.textContent = e.message;
+    }
+  });
 
   // Filter chip wiring
   document.querySelectorAll('#diag-filters .filter-chip').forEach((chip) => {
@@ -1593,29 +1698,29 @@
   }
 
   function updateMiniChip() {
-    const chip = $('diag-mini-chip');
-    const txt = $('diag-mini-text');
-    if (!chip || !txt) return;
     const health = diagState.snapshot?.health;
-    // Roll up: down if any sub is down; degraded if any is degraded; ok otherwise.
     let overall = 'ok';
     if (health) {
       const vals = Object.values(health);
       if (vals.includes('down')) overall = 'down';
       else if (vals.includes('degraded')) overall = 'degraded';
     }
-    chip.setAttribute('data-health', overall);
-    // Count NEW errors since the user last looked.
     const c5 = diagState.snapshot?.counters?.m5 || {};
     const errCount = c5.error || 0;
-    if (overall === 'down' || errCount > 0) {
-      txt.textContent = `${errCount} error${errCount === 1 ? '' : 's'} in 5m`;
-    } else if (overall === 'degraded') {
-      const w5 = c5.warn || 0;
-      txt.textContent = `${w5} warn${w5 === 1 ? '' : 'ings'} in 5m`;
-    } else {
-      txt.textContent = 'healthy';
+    const w5 = c5.warn || 0;
+    const label =
+      (overall === 'down' || errCount > 0) ? `${errCount} error${errCount === 1 ? '' : 's'} in 5m`
+      : (overall === 'degraded')           ? `${w5} warn${w5 === 1 ? '' : 'ings'} in 5m`
+      : 'healthy';
+    // Update BOTH the (legacy hidden) mini chip and the (new) topbar chip.
+    for (const id of ['diag-mini-chip', 'topbar-diag-chip']) {
+      const chip = $(id);
+      if (chip) chip.setAttribute('data-health', overall);
     }
+    const miniTxt = $('diag-mini-text');
+    if (miniTxt) miniTxt.textContent = label;
+    const topbarTxt = $('topbar-diag-text');
+    if (topbarTxt) topbarTxt.textContent = label;
   }
 
   function updateNavDiagBadge() {
@@ -1638,10 +1743,28 @@
     }
   }
 
-  $('diag-mini-chip')?.addEventListener('click', () => {
+  // Helper: toggle the diagnostics tail panel and reposition it under whichever
+  // chip was clicked (topbar chip lives top-right, hidden mini chip is at
+  // bottom-right; we want the panel to anchor near the visible trigger).
+  function toggleDiagPanel(anchor) {
     diagState.miniOpen = !diagState.miniOpen;
-    $('diag-mini-panel').hidden = !diagState.miniOpen;
-  });
+    const panel = $('diag-mini-panel');
+    if (!panel) return;
+    panel.hidden = !diagState.miniOpen;
+    if (!diagState.miniOpen) return;
+    // Position the panel under the anchor element (topbar chip, usually).
+    if (anchor) {
+      const rect = anchor.getBoundingClientRect();
+      panel.style.position = 'fixed';
+      panel.style.top = `${rect.bottom + 8}px`;
+      panel.style.right = `${Math.max(8, window.innerWidth - rect.right)}px`;
+      panel.style.bottom = 'auto';
+      panel.style.left = 'auto';
+    }
+  }
+
+  $('diag-mini-chip')?.addEventListener('click', () => toggleDiagPanel($('diag-mini-chip')));
+  $('topbar-diag-chip')?.addEventListener('click', () => toggleDiagPanel($('topbar-diag-chip')));
   $('diag-mini-close')?.addEventListener('click', (e) => {
     e.stopPropagation();
     diagState.miniOpen = false;
@@ -2257,14 +2380,105 @@
     installFormat.addEventListener('change', () =>
       localStorage.setItem('maow.installFormat', installFormat.value));
   }
+  const installHint = $('install-hint');
+
+  // Recognize playlist-style URLs so we can switch to the playlist flow.
+  const isPlaylistUrl = (url) => {
+    if (!url) return false;
+    try {
+      const u = new URL(url);
+      if (u.searchParams.has('list')) return true;
+      if (/\/playlist\//.test(u.pathname)) return true;
+      if (/\/sets\//.test(u.pathname)) return true;   // SoundCloud sets
+      if (/\/album\//.test(u.pathname)) return true;  // Bandcamp/Spotify
+      return false;
+    } catch { return false; }
+  };
+
+  // Live hint as the user types.
+  if (installUrl && installHint) {
+    installUrl.addEventListener('input', () => {
+      const u = installUrl.value.trim();
+      if (!u) { installHint.hidden = true; return; }
+      if (!/^https?:\/\//i.test(u)) {
+        installHint.hidden = false;
+        installHint.classList.add('error');
+        installHint.textContent = 'URL must start with http:// or https://';
+        return;
+      }
+      installHint.classList.remove('error');
+      if (isPlaylistUrl(u)) {
+        installHint.hidden = false;
+        installHint.innerHTML = '🎵  Detected a <strong>playlist URL</strong> — installing will queue every track in the background.';
+      } else {
+        installHint.hidden = true;
+      }
+    });
+  }
+
   if (installBtn && installUrl) {
     const runInstall = async () => {
       const url = installUrl.value.trim();
       if (!url) { toast('▲ No URL', 'Paste a YouTube / SoundCloud / Bandcamp / direct URL.', 'error', 2500); return; }
       if (!/^https?:\/\//i.test(url)) { toast('▲ Bad URL', 'Must start with http:// or https://', 'error', 2500); return; }
       const format = installFormat ? installFormat.value : 'original';
+      const playlistLike = isPlaylistUrl(url);
+
       installBtn.disabled = true;
       const prevText = installBtn.textContent;
+
+      // -------- Playlist path: probe → confirm → start background job --------
+      if (playlistLike) {
+        installBtn.textContent = 'Probing…';
+        if (installProgress) {
+          installProgress.hidden = false;
+          installProgress.textContent = `↓ Probing playlist ${url}…`;
+        }
+        try {
+          const probeRes = await fetch('/api/library/probe-playlist', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url }),
+          });
+          const probe = await probeRes.json();
+          if (!probeRes.ok || probe.error) throw new Error(probe.error || `server returned ${probeRes.status}`);
+          const sampleStr = probe.sample?.length
+            ? '\n\n  • ' + probe.sample.join('\n  • ') + (probe.count > probe.sample.length ? `\n  • …and ${probe.count - probe.sample.length} more` : '')
+            : '';
+          const cfg = uploadsState.downloadConfig || { concurrency: 5, limitRate: null };
+          const rateLabel = cfg.limitRate || 'unlimited rate';
+          if (!confirm(
+            `Install all ${probe.count} song${probe.count === 1 ? '' : 's'} from "${probe.playlistName}"?\n\n` +
+            `Format: ${format} · Concurrency: ${cfg.concurrency} · ${rateLabel}` +
+            sampleStr
+          )) {
+            installBtn.disabled = !uploadsState.meta.ytDlpAvailable;
+            installBtn.textContent = prevText;
+            if (installProgress) installProgress.hidden = true;
+            return;
+          }
+          installBtn.textContent = 'Queued';
+          const startRes = await fetch('/api/library/install-playlist', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url, format }),
+          });
+          const startData = await startRes.json();
+          if (!startRes.ok || startData.error) throw new Error(startData.error || `server returned ${startRes.status}`);
+          if (installProgress) installProgress.textContent = `↓ Background job started (${startData.jobId}) — progress in the badge bottom-right.`;
+          toast('⬇ Playlist queued', `${probe.count} songs · download in the background`, 'success', 3500);
+          installUrl.value = '';
+          if (installHint) installHint.hidden = true;
+          setTimeout(() => { if (installProgress) installProgress.hidden = true; }, 4000);
+        } catch (e) {
+          if (installProgress) installProgress.textContent = `▲ Playlist install failed: ${e.message}`;
+          toast('▲ Playlist install failed', e.message, 'error', 5000);
+        } finally {
+          installBtn.disabled = !uploadsState.meta.ytDlpAvailable;
+          installBtn.textContent = prevText;
+        }
+        return;
+      }
+
+      // -------- Single-song path (existing behavior) --------
       installBtn.textContent = 'Installing…';
       if (installProgress) {
         installProgress.hidden = false;
@@ -2290,6 +2504,7 @@
           if (installProgress) installProgress.textContent = `✓ Installed ${entry.name} · ${entry.ext} · ${sizeStr}${note}`;
           toast('✓ Installed', `${entry.name} · ${entry.ext} · ${sizeStr}`, 'success', 3500);
           installUrl.value = '';
+          if (installHint) installHint.hidden = true;
         }
         renderUploads();
         setTimeout(() => { if (installProgress) installProgress.hidden = true; }, 6000);
@@ -2304,6 +2519,164 @@
     installBtn.addEventListener('click', runInstall);
     installUrl.addEventListener('keydown', (e) => { if (e.key === 'Enter') runInstall(); });
   }
+
+  // ===== Download config (concurrency + per-stream rate cap) =====
+  const cfgConcurrency = $('cfg-concurrency');
+  const cfgLimitRate = $('cfg-limit-rate');
+  const cfgSummary = $('cfg-summary');
+  const cfgSaveBtn = $('cfg-save');
+
+  const refreshCfgSummary = () => {
+    if (!cfgSummary || !cfgConcurrency || !cfgLimitRate) return;
+    const c = Number(cfgConcurrency.value) || 0;
+    const r = cfgLimitRate.value || 'unlimited';
+    cfgSummary.innerHTML = r === 'unlimited'
+      ? `≈ <strong>${c}</strong> parallel · unlimited`
+      : `≈ <strong>${c}</strong> × <strong>${r}/s</strong> = up to ${c} × ${r}/s aggregate`;
+  };
+
+  const loadDownloadConfig = async () => {
+    try {
+      const res = await fetch('/api/library/config');
+      const cfg = await res.json();
+      uploadsState.downloadConfig = cfg;
+      if (cfgConcurrency) cfgConcurrency.value = cfg.concurrency;
+      if (cfgLimitRate) cfgLimitRate.value = cfg.limitRate || '';
+      refreshCfgSummary();
+    } catch { /* server not ready yet */ }
+  };
+  loadDownloadConfig();
+  cfgConcurrency?.addEventListener('input', refreshCfgSummary);
+  cfgLimitRate?.addEventListener('change', refreshCfgSummary);
+  cfgSaveBtn?.addEventListener('click', async () => {
+    try {
+      const body = {
+        concurrency: Number(cfgConcurrency.value) || 5,
+        limitRate: cfgLimitRate.value || null,
+      };
+      const res = await fetch('/api/library/config', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || `server returned ${res.status}`);
+      uploadsState.downloadConfig = data.config;
+      toast('✓ Settings saved', `${data.config.concurrency} concurrent · ${data.config.limitRate || 'unlimited'}/s`, 'success', 2500);
+    } catch (e) {
+      toast('▲ Save failed', e.message, 'error', 3000);
+    }
+  });
+
+  // ===== Background download-jobs UI =====
+  const dlState = {
+    jobs: new Map(),
+    panelOpen: false,
+  };
+
+  function renderDlQueue() {
+    const wrap = $('dl-queue');
+    const summary = $('dl-queue-summary');
+    const rate = $('dl-queue-rate');
+    const body = $('dl-queue-body');
+    if (!wrap || !summary || !body) return;
+
+    const running = [...dlState.jobs.values()].filter((j) => j.status === 'running' || j.status === 'cancelling');
+    const recent = [...dlState.jobs.values()].filter((j) => j.status !== 'running' && j.status !== 'cancelling');
+
+    if (!running.length && !recent.length) { wrap.hidden = true; return; }
+    wrap.hidden = false;
+
+    // Aggregate progress across running jobs.
+    const total = running.reduce((s, j) => s + (j.total || 0), 0);
+    const done = running.reduce((s, j) => s + (j.done || 0) + (j.skipped || 0), 0);
+    summary.textContent = running.length ? `${done}/${total}` : '✓ done';
+    if (rate) rate.textContent = running.length ? `· ${running.length} active` : '';
+
+    // Re-render the panel body.
+    body.innerHTML = '';
+    [...running, ...recent.slice(0, 5)].forEach((job) => body.appendChild(renderJobRow(job)));
+  }
+
+  function renderJobRow(job) {
+    const row = document.createElement('div');
+    row.className = 'dl-job';
+    row.setAttribute('data-status', job.status);
+    const total = job.total || 0;
+    const finished = (job.done || 0) + (job.skipped || 0) + (job.failed || 0);
+    const pct = total > 0 ? Math.min(100, Math.round((finished / total) * 100)) : 0;
+    const isRunning = job.status === 'running' || job.status === 'cancelling';
+    const name = job.playlistName || job.url || 'Playlist';
+    const cancelBtn = isRunning
+      ? `<button class="dl-job-cancel" data-job="${escapeHtmlSafe(job.id)}">Cancel</button>`
+      : '';
+    row.innerHTML = `
+      <div class="dl-job-head">
+        <div class="dl-job-name" title="${escapeHtmlSafe(job.url || '')}">${escapeHtmlSafe(name)}</div>
+        <div>
+          <span class="dl-job-status">${escapeHtmlSafe(job.status)}</span>
+          ${cancelBtn}
+        </div>
+      </div>
+      <div class="dl-job-bar"><div class="dl-job-bar-fill" style="width:${pct}%"></div></div>
+      <div class="dl-job-stats">
+        <span class="stat-ok">✓ ${job.done || 0} installed</span>
+        ${job.skipped ? `<span class="stat-skip">↩ ${job.skipped} skipped</span>` : ''}
+        ${job.failed ? `<span class="stat-fail">✕ ${job.failed} failed</span>` : ''}
+        ${total ? `<span>${finished}/${total}</span>` : ''}
+      </div>
+      ${isRunning && job.currentTitles?.length ? `<div class="dl-job-current">${
+        job.currentTitles.slice(0, 3).map((t) => `<div class="cur-row">↓ ${escapeHtmlSafe(t)}</div>`).join('')
+      }</div>` : ''}
+    `;
+    row.querySelector('.dl-job-cancel')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      cancelJob(job.id);
+    });
+    return row;
+  }
+
+  async function cancelJob(jobId) {
+    try {
+      await fetch(`/api/library/install-jobs/${encodeURIComponent(jobId)}/cancel`, { method: 'POST' });
+      toast('⊘ Cancelling', 'Stopping the running yt-dlp processes…', 'info', 2000);
+    } catch (e) { toast('▲ Cancel failed', e.message, 'error', 2500); }
+  }
+
+  $('dl-queue-chip')?.addEventListener('click', () => {
+    dlState.panelOpen = !dlState.panelOpen;
+    const panel = $('dl-queue-panel');
+    if (panel) panel.hidden = !dlState.panelOpen;
+  });
+  $('dl-queue-close')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    dlState.panelOpen = false;
+    $('dl-queue-panel').hidden = true;
+  });
+  $('dl-cancel-all')?.addEventListener('click', async () => {
+    const running = [...dlState.jobs.values()].filter((j) => j.status === 'running');
+    if (!running.length) return;
+    if (!confirm(`Cancel all ${running.length} running download${running.length === 1 ? '' : 's'}?`)) return;
+    for (const job of running) await cancelJob(job.id);
+  });
+
+  // Hook job updates from the existing `handle()` chain (which already covers
+  // `state`, `log`, `diagnostics`, `install_jobs`).
+  const origHandleForDl = handle;
+  handle = (msg) => {
+    origHandleForDl(msg);
+    if (msg.type === 'install_jobs') {
+      dlState.jobs.clear();
+      (msg.jobs || []).forEach((j) => dlState.jobs.set(j.id, j));
+      renderDlQueue();
+    } else if (msg.type === 'install_job') {
+      dlState.jobs.set(msg.job.id, msg.job);
+      renderDlQueue();
+      // When a job finishes, refresh the library list so newly-installed songs appear.
+      if (msg.job.status === 'done' || msg.job.status === 'cancelled') {
+        try { renderUploads(); } catch { /* renderUploads may not exist yet */ }
+      }
+    }
+  };
 
   // Lightweight in-browser audio preview (shared single <audio> element).
   let previewEl2 = null;

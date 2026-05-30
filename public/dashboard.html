@@ -52,14 +52,20 @@
     <header class="topbar">
       <button class="icon-btn topbar-toggle" id="sidebar-toggle" title="Toggle sidebar">☰</button>
       <div class="brand">
-        <div class="brand-mark">✦</div>
+        <button class="brand-mark" id="brand-mark" title="Change icon">✦</button>
         <div class="brand-text">
           <div class="brand-name">MaowCore</div>
-          <div class="brand-sub muted"><span class="status-dot" id="status-dot"></span> <span id="status-text">connecting…</span> · <span id="bot-tag">—</span></div>
         </div>
+        <!-- Hidden legacy elements kept so app.js status-update calls still work -->
+        <span class="hidden" id="status-dot"></span><span class="hidden" id="status-text"></span><span class="hidden" id="bot-tag"></span>
       </div>
       <div class="topbar-spacer"></div>
       <div class="topbar-controls">
+        <!-- Diagnostics health chip — relocated from the bottom-right floating panel -->
+        <button class="topbar-diag" id="topbar-diag-chip" title="Diagnostics — click to open">
+          <span class="topbar-diag-dot" id="topbar-diag-dot">●</span>
+          <span class="topbar-diag-text" id="topbar-diag-text">healthy</span>
+        </button>
         <select id="server-select" class="server-select" title="Active server"></select>
         <button class="icon-btn" id="palette-trigger" title="Search (Ctrl+K)"><span class="kbd">⌘K</span></button>
         <button class="icon-btn notif-bell" id="notif-bell" title="Notifications">
@@ -67,6 +73,29 @@
         </button>
       </div>
     </header>
+
+    <!-- Icon picker popover -->
+    <div class="icon-picker hidden" id="icon-picker">
+      <div class="icon-picker-head">Choose an icon</div>
+      <div class="icon-picker-grid" id="icon-picker-grid">
+        <button data-icon="✦">✦</button>
+        <button data-icon="◆">◆</button>
+        <button data-icon="⌘">⌘</button>
+        <button data-icon="♫">♫</button>
+        <button data-icon="◐">◐</button>
+        <button data-icon="⌬">⌬</button>
+        <button data-icon="⚡">⚡</button>
+        <button data-icon="⌖">⌖</button>
+        <button data-icon="⧉">⧉</button>
+        <button data-icon="⧗">⧗</button>
+        <button data-icon="◉">◉</button>
+        <button data-icon="✧">✧</button>
+        <button data-icon="🎵">🎵</button>
+        <button data-icon="🎧">🎧</button>
+        <button data-icon="🐱">🐱</button>
+        <button data-icon="🌙">🌙</button>
+      </div>
+    </div>
 
     <!-- ===== Sidebar ===== -->
     <aside class="sidebar">
@@ -98,7 +127,7 @@
         </a>
       </nav>
       <div class="sidebar-footer">
-        <div class="muted small">v1.5.0</div>
+        <div class="muted small">v1.6.0</div>
       </div>
     </aside>
 
@@ -220,10 +249,10 @@
             <div class="install-row" id="install-row">
               <div class="install-head">
                 <div class="install-title">⬇ Install from URL</div>
-                <div class="muted small">Download a song into your library from YouTube, SoundCloud, Bandcamp, etc.</div>
+                <div class="muted small">Download a song or a whole <strong>playlist</strong> into your library — YouTube, SoundCloud, Bandcamp, direct files…</div>
               </div>
               <div class="install-inputs">
-                <input id="install-url" type="text" placeholder="Paste URL…" />
+                <input id="install-url" type="text" placeholder="Paste URL or playlist link…" />
                 <select id="install-format" title="Output format">
                   <option value="original" selected>Original (smartest — preserves source, smallest)</option>
                   <option value="mp3">MP3 320 kbps (universal)</option>
@@ -233,12 +262,38 @@
                 </select>
                 <button id="install-btn" class="primary">Install</button>
               </div>
+              <div class="install-hint muted small" id="install-hint" hidden></div>
               <div class="install-note muted small" id="install-note">
                 <strong>FLAC/WAV note:</strong> these only carry true lossless if the <em>source</em> is lossless.
                 YouTube etc. tops out at lossy ~160 kbps — wrapping that in FLAC makes a bigger file with the same audio.
                 Pick <strong>Original</strong> for the same quality at ~⅒ the size.
               </div>
               <div class="install-progress" id="install-progress" hidden></div>
+
+              <!-- Download config inline (concurrency + per-stream rate cap) -->
+              <details class="install-config">
+                <summary class="muted small">⚙ Download settings (concurrency, rate limit)</summary>
+                <div class="install-config-grid">
+                  <label>
+                    <div class="muted small">Parallel downloads</div>
+                    <input id="cfg-concurrency" type="number" min="1" max="50" value="5" />
+                  </label>
+                  <label>
+                    <div class="muted small">Per-stream rate cap</div>
+                    <select id="cfg-limit-rate">
+                      <option value="">Unlimited</option>
+                      <option value="500K">500 KB/s</option>
+                      <option value="1M">1 MB/s</option>
+                      <option value="5M">5 MB/s</option>
+                      <option value="10M">10 MB/s</option>
+                      <option value="50M">50 MB/s</option>
+                      <option value="100M">100 MB/s</option>
+                    </select>
+                  </label>
+                  <div class="install-config-summary muted small" id="cfg-summary">—</div>
+                  <button id="cfg-save" class="primary">Save</button>
+                </div>
+              </details>
             </div>
 
             <!-- Upload (drag-drop) -->
@@ -684,6 +739,46 @@
           </div>
         </div>
 
+        <!-- Network / bandwidth panel -->
+        <div class="card" id="network-card">
+          <div class="card-head">
+            <h3>↕ Network & bandwidth</h3>
+            <div class="muted small">Active downloads, throughput estimate, voice bandwidth, public IP</div>
+          </div>
+          <div class="net-grid">
+            <div class="net-tile">
+              <div class="net-label">Active downloads</div>
+              <div class="net-val" id="net-active-dl">0</div>
+              <div class="net-sub" id="net-active-rate">—</div>
+            </div>
+            <div class="net-tile">
+              <div class="net-label">Downloaded (1h)</div>
+              <div class="net-val" id="net-bytes-1h">—</div>
+              <div class="net-sub" id="net-files-1h">— files</div>
+            </div>
+            <div class="net-tile">
+              <div class="net-label">Downloaded total</div>
+              <div class="net-val" id="net-bytes-total">—</div>
+              <div class="net-sub" id="net-files-total">— files</div>
+            </div>
+            <div class="net-tile">
+              <div class="net-label">Voice bandwidth</div>
+              <div class="net-val" id="net-voice-bw">—</div>
+              <div class="net-sub" id="net-voice-conns">0 connections</div>
+            </div>
+            <div class="net-tile">
+              <div class="net-label">Public IP</div>
+              <div class="net-val" id="net-public-ip"><button id="net-show-ip" class="primary" style="padding:4px 10px;font-size:11px">Show</button></div>
+              <div class="net-sub" id="net-public-ip-sub">Hidden by default — gated to avoid leaking into screenshots</div>
+            </div>
+            <div class="net-tile">
+              <div class="net-label">Rate cap (per stream)</div>
+              <div class="net-val" id="net-rate-cap">—</div>
+              <div class="net-sub" id="net-concurrency">— concurrent</div>
+            </div>
+          </div>
+        </div>
+
         <!-- Recent errors per subsystem -->
         <div class="card" id="recent-errors-card">
           <div class="card-head">
@@ -740,9 +835,30 @@
       <button class="dock-btn" id="dock-fs" title="Fullscreen">⛶</button>
     </div>
 
-    <!-- ===== Floating Diagnostics mini-panel (visible across all pages) ===== -->
+    <!-- ===== Background download queue badge (floating bottom-right) ===== -->
+    <div class="dl-queue" id="dl-queue" hidden>
+      <button class="dl-queue-chip" id="dl-queue-chip" title="Active downloads">
+        <span class="dl-queue-icon">⬇</span>
+        <span class="dl-queue-summary" id="dl-queue-summary">0/0</span>
+        <span class="dl-queue-rate" id="dl-queue-rate"></span>
+      </button>
+      <div class="dl-queue-panel" id="dl-queue-panel" hidden>
+        <div class="dl-queue-head">
+          <span>Background downloads</span>
+          <div class="dl-queue-actions">
+            <button class="dl-cancel-all" id="dl-cancel-all" title="Cancel all running jobs">Cancel all</button>
+            <button class="dl-queue-close" id="dl-queue-close" title="Close">×</button>
+          </div>
+        </div>
+        <div class="dl-queue-body" id="dl-queue-body"></div>
+      </div>
+    </div>
+
+    <!-- ===== Diagnostics tail panel (expanded from the topbar chip) ===== -->
     <div class="diag-mini" id="diag-mini">
-      <button class="diag-mini-chip" id="diag-mini-chip" title="Click to expand the diagnostics tail">
+      <!-- Hidden legacy chip — kept so app.js handler-binding doesn't fail.
+           The visible chip is now in the topbar. -->
+      <button class="diag-mini-chip hidden" id="diag-mini-chip" title="Click to expand the diagnostics tail">
         <span class="diag-mini-status" id="diag-mini-status">●</span>
         <span class="diag-mini-text" id="diag-mini-text">healthy</span>
       </button>
