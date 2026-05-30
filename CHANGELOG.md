@@ -6,6 +6,138 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [1.5.0] — 2026-05-30
+
+A debugging upgrade — full **Diagnostics** page with a live subsystem health
+diagram, boot timeline, categorized console, and a floating mini-panel that's
+visible on every page so silent failures stop being invisible.
+
+### Added
+
+- **Diagnostics page** in the sidebar (`⌗`). Renders four panels on top of a
+  new diagnostics module:
+  - **Event-flow diagram** — Discord → DisTube → yt-dlp → ffmpeg → Voice
+    plus HTTP/WS and Library off to the side. Each node is **green** (healthy),
+    **amber** (warnings in last 5 min), or **red** (errors in last 5 min,
+    with a pulsing dot). Health for each subsystem is derived from
+    categorized logs + recent errors.
+  - **Startup timeline** — every boot step (env, ffmpeg, yt-dlp, DisTube,
+    plugins, library, control server, Discord login, ready) recorded with
+    ✓ / ✕ / ⏱ / − and duration in ms. If startup hangs, the timeline shows
+    exactly which step it stuck on.
+  - **Live metrics grid** — rolling 1-min and 5-min counters for errors,
+    warnings, commands, plays, searches, voice events, installs, uploads.
+    Error / warning tiles glow red/amber when non-zero.
+  - **Recent errors per subsystem** — last ~10 errors per subsystem grouped
+    so you can see what most recently broke without scrolling through logs.
+  - **Full categorized console** — 480px tall, color-coded by category with
+    chip filters (Startup · Discord · Commands · Search · Play · Voice ·
+    Install · Upload · Library · HTTP · WS · System) plus "Errors only" /
+    "Warnings only" toggles. Live search filters by text. **Pause / Clear /
+    Export** controls — Export downloads the buffer as a timestamped `.log`
+    file for sharing or post-mortem analysis. Filter + search state persists
+    across reloads.
+- **Floating mini-panel** bottom-right, visible on every page:
+  - Collapsed: a chip showing overall health (● *healthy* / ▲ *N warnings in
+    5m* / ✕ *N errors in 5m*). The chip pulses red when something is down.
+  - Expanded: a 240px tail-style console showing the last 30 entries. A
+    "Open full →" link jumps to the Diagnostics page.
+  - **Nav badge** on the Diagnostics sidebar item shows unseen error count
+    until you visit the page.
+- **Categorized logging** — every internal `control.log()` call now carries a
+  `category`, a `subsystem`, and optional structured `meta` (hover a console
+  row to see it). All existing free-form callers keep working — categories
+  are inferred heuristically when not explicitly set.
+- **Silent failures now surface in the dashboard**:
+  - Discord client events: `error`, `warn`, `shardError`,
+    `shardDisconnect`, `shardReconnecting`, `shardResume`, `rateLimit`.
+  - DisTube `error` and `initQueue` events.
+  - `unhandledRejection` and `uncaughtException` now also route through the
+    dashboard (with stack traces in meta), instead of only printing to
+    stdout.
+- **Slash-command tracing** — each `/command` run logs start + outcome
+  (`✓ ok (12ms)` or `✕ failed (450ms): <message>`) with user, guild, and
+  duration. The command counter on the metrics grid reflects real
+  throughput.
+
+### Changed
+
+- `/api/library` and the live `state` snapshot both now include a
+  `diagnostics` payload (boot timeline, counters, health, recent errors).
+- `control.log(text, level)` extended to
+  `control.log(text, level, category, { subsystem, meta })`. Old call sites
+  are backward-compatible — a heuristic guesses the category from the text.
+- Sidebar version footer bumped to **v1.5.0**.
+
+### Notes
+
+- The diagnostics module ships with **11 new tests** (75 total, all green)
+  covering boot lifecycle, rolling counters, error capping, subsystem health
+  derivation, and boot-failure cascading.
+- No environment changes required. Existing setups inherit the new page for
+  free on first dashboard reload.
+
+## [1.4.0] — 2026-05-30
+
+A library upgrade — install songs straight from a URL, point the library at any
+disk you want, search and paginate through it, and pick from five output
+formats (with honesty about which ones are really lossless).
+
+### Added
+
+- **Install from URL** — new `/library install <url> [format]` slash command
+  and a matching panel on the **Library → Your library** dashboard tab. Paste
+  any yt-dlp-supported link (YouTube, SoundCloud, Bandcamp, direct file, …)
+  and it lands in your library. Duplicates by source URL are detected and
+  return the existing entry instead of re-downloading.
+- **Five output formats** for installs, picked per-call:
+  - `Original` *(default)* — no re-encode, smallest file, same fidelity as the
+    source. The smart pick for ~90% of cases.
+  - `MP3 320 kbps` — universally compatible.
+  - `Opus 256 kbps` — smaller than MP3 at similar quality.
+  - `FLAC` / `WAV` — lossless containers. **The UI is honest:** YouTube etc.
+    serve lossy audio, and wrapping a lossy source in FLAC just makes a bigger
+    file with the same audio. The dashboard shows a warning note up front, and
+    any song installed this way gets a `lossy source` badge in the library
+    list.
+- **`LIBRARY_DIR` environment variable** — point the library at an external
+  drive, a mounted volume, or anywhere with room to grow. Defaults to
+  `data/library` for backward compatibility. The manifest also moves into the
+  library directory (`_manifest.json`) so the whole library is portable —
+  copy the folder to a new machine and it just works. Existing setups using
+  the legacy `data/library.json` manifest are auto-migrated on first start.
+- **Library search bar** — live, case-insensitive, debounced (120 ms) match on
+  song name. Pagination resets to page 1 on a new query.
+- **Sort options** — Most recent / Oldest / Name A→Z / Name Z→A / Largest /
+  Smallest / Longest / Shortest. Choice persists across reloads.
+- **Pagination** — 25 / 50 / 100 / All per page, with a smart page strip that
+  keeps the first, last, and a window around the current page visible
+  (e.g. `‹ 1 … 6 7 [8] 9 10 … 42 ›`). Page choice persists across reloads.
+- **Storage summary line** under the controls — `Showing 1–50 of 327 songs ·
+  4.2 GB · 22h 14m · stored in /data/library` — so you can see what's
+  filtered, what it costs in disk, and where it lives.
+- **yt-dlp availability check** — the dashboard disables Install and shows a
+  clear warning if the bot can't find a `yt-dlp` binary, instead of failing
+  silently when you click.
+
+### Changed
+
+- `/api/library` response now includes `dir`, `totalBytes`, `totalSec`,
+  `formats`, and `ytDlpAvailable` so the dashboard can render an honest
+  summary without a second round-trip.
+- Manifest entries for installed songs carry `source: 'install'`, `sourceUrl`,
+  source codec/bitrate, and a `losslessInLossyContainer` flag for the UI.
+
+### Notes for upgraders
+
+- **No data migration needed.** If you have an existing `data/library.json`
+  manifest from 1.3.x, it's auto-detected and rewritten as
+  `data/library/_manifest.json` on first start. Songs themselves don't move.
+- **Docker users**: the bundled image already ships `yt-dlp` + `ffmpeg`, so
+  Install works out of the box. Mount `/data` (or wherever you point
+  `LIBRARY_DIR`) as a named volume to keep installs across container
+  rebuilds.
+
 ## [1.3.1] — 2026-05-29
 
 Reliability patch — fixes YouTube playback in Docker, an inaccurate ping
