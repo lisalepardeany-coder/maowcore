@@ -6,6 +6,79 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [2.7.0] — 2026-06-01
+
+Game night minigames + server templates.
+
+### Added
+
+- `lib/game-night.js` — in-memory game sessions: quiz (multiple-choice
+  questions with score tracking), name-that-tune (random library
+  songs + plausible distractor choices), submit/next/end controls.
+- `lib/server-templates.js` — full guild-config export/import as a
+  single portable JSON. Includes welcome / automod / reaction-roles /
+  quick-playlists / modlog channel / locale / custom commands / shop
+  items. Channel IDs are opt-in (they're server-specific by default).
+- `🎮 Game night` and `⌬ Server template` sidebar pages.
+- Endpoints: `GET /api/game/sessions`, `GET /api/templates/build`,
+  `POST /api/templates/apply`.
+
+## [2.6.0] — 2026-06-01
+
+Engagement features — server economy + no-code custom commands.
+
+### Added
+
+- `lib/economy.js` — per-server currency (coins), XP/level system
+  (quadratic curve), shop items, achievements. Award/spend/leaderboard
+  APIs.
+- `lib/custom-commands.js` — no-code command template editor. Tokens:
+  `{user}`, `{server}`, `{arg1}…{arg5}`, `{random:a,b,c}`. Stored
+  per-guild, runnable from the dashboard (Discord registration
+  reserved for v3.0).
+- `◈ Economy & levels` page — leaderboard, shop with add/remove,
+  per-user stats.
+- `⚒ Custom commands` page — list / create / delete / run-to-test.
+- Endpoints: `/api/economy/{leaderboard,me,shop,spend,shop/add,
+  shop/remove}` and `/api/custom-cmds/{list,add,remove,run}`.
+
+## [2.5.0] — 2026-06-01
+
+Power-user automation — cron + webhooks + conditional rules.
+
+### Added
+
+- `lib/automation.js` — single module covering all three primitives:
+  - **Cron actions** with 5-field expressions (`m h dom mon dow`,
+    steps `*/5`, ranges `1-5`, lists `0,15,30,45`). Tick every 20s.
+  - **Incoming webhooks** — each gets a 32-char secret. POST to
+    `/api/automation/hook/<secret>` fires the configured action.
+  - **Event-based rules** — `voice-join`, `voice-leave`, `play-end`,
+    `queue-empty`. (Wiring of rule triggers to DisTube/voice events
+    arrives as the actions surface in the codebase; module ready now.)
+- `⏰ Automation` page — three cards (crons / webhooks / rules) with
+  add / toggle / remove flows.
+- Action types: `{ type: 'console', line: '...' }` runs a dashboard
+  console command (the same flow that powers `/play`, `/skip`, etc.).
+- Endpoints: `/api/automation/{list,cron/add,cron/remove,cron/toggle,
+  webhook/add,webhook/remove,rule/add,rule/remove,hook/:secret}`.
+
+## [2.4.0] — 2026-06-01
+
+Music Wrapped — Spotify-Wrapped-style yearly summary.
+
+### Added
+
+- `lib/wrapped.js` — pure aggregation over history: total plays,
+  listening hours, unique tracks/artists, discovery percentage,
+  longest day-streak, peak hour-of-day + day-of-week, top tracks &
+  artists, per-month breakdown.
+- `★ Music Wrapped` page — six-tile summary header + Top Tracks /
+  Top Artists side-by-side. Year selector (auto-populates from
+  history) with "Last 365 days" as the default.
+- Endpoints: `GET /api/wrapped?guildId=…&year=…`,
+  `GET /api/wrapped/years?guildId=…`.
+
 ## [2.3.0] — 2026-06-01
 
 Disaster recovery + community sharing.

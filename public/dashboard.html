@@ -189,6 +189,18 @@
               <span class="nav-icon">🧹</span>
               <span class="nav-label">Cleanup</span>
             </a>
+            <a class="nav-item" data-page="wrapped">
+              <span class="nav-icon">★</span>
+              <span class="nav-label">Wrapped</span>
+            </a>
+            <a class="nav-item" data-page="economy">
+              <span class="nav-icon">◈</span>
+              <span class="nav-label">Economy</span>
+            </a>
+            <a class="nav-item" data-page="game-night">
+              <span class="nav-icon">🎮</span>
+              <span class="nav-label">Game night</span>
+            </a>
           </div>
         </div>
 
@@ -252,6 +264,18 @@
               <span class="nav-icon">⎘</span>
               <span class="nav-label">Backup &amp; Share</span>
             </a>
+            <a class="nav-item" data-page="automation">
+              <span class="nav-icon">⏰</span>
+              <span class="nav-label">Automation</span>
+            </a>
+            <a class="nav-item" data-page="custom-cmds">
+              <span class="nav-icon">⚒</span>
+              <span class="nav-label">Custom commands</span>
+            </a>
+            <a class="nav-item" data-page="templates">
+              <span class="nav-icon">⌬</span>
+              <span class="nav-label">Server template</span>
+            </a>
             <a class="nav-item" data-page="dev">
               <span class="nav-icon">⌨</span>
               <span class="nav-label">Developer</span>
@@ -260,7 +284,7 @@
         </div>
       </nav>
       <div class="sidebar-footer">
-        <div class="muted small">v2.3.0</div>
+        <div class="muted small">v2.7.0</div>
       </div>
     </aside>
 
@@ -318,6 +342,117 @@
       <!-- =================================================== -->
       <!-- FLEET — multi-bot overview                          -->
       <!-- =================================================== -->
+      <!-- =================================================== -->
+      <!-- WRAPPED — Spotify-Wrapped-style yearly summary      -->
+      <!-- =================================================== -->
+      <section class="page hidden" id="page-wrapped">
+        <div class="page-head">
+          <h2>★ Music Wrapped</h2>
+          <div class="muted small">A Spotify-Wrapped-style summary of your listening, derived from history.</div>
+        </div>
+        <div class="card">
+          <div class="card-head">
+            <h3>Year</h3>
+            <select id="wrapped-year" style="padding:6px 10px;border-radius:4px;background:var(--bg-input);border:1px solid var(--border);color:var(--fg);font-size:12px"></select>
+          </div>
+          <div id="wrapped-body"><div class="muted">Loading…</div></div>
+        </div>
+      </section>
+
+      <!-- AUTOMATION -->
+      <section class="page hidden" id="page-automation">
+        <div class="page-head">
+          <h2>⏰ Automation</h2>
+          <div class="muted small">Cron actions, webhooks, conditional rules.</div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Cron schedules</h3><button id="auto-cron-add" class="primary">+ Add cron</button></div>
+          <div class="muted small">5-field cron format: <code>m h dom mon dow</code> (e.g. <code>0 17 * * 5</code> = every Friday 5pm)</div>
+          <div id="auto-cron-list" style="margin-top:10px"><div class="muted">Loading…</div></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Webhooks</h3><button id="auto-hook-add" class="primary">+ Add webhook</button></div>
+          <div class="muted small">POST to the secret URL triggers the action. Keep secrets private.</div>
+          <div id="auto-hook-list" style="margin-top:10px"><div class="muted">Loading…</div></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Rules</h3><button id="auto-rule-add" class="primary">+ Add rule</button></div>
+          <div class="muted small">Fires on events: voice-join, voice-leave, play-end, queue-empty.</div>
+          <div id="auto-rule-list" style="margin-top:10px"><div class="muted">Loading…</div></div>
+        </div>
+      </section>
+
+      <!-- ECONOMY -->
+      <section class="page hidden" id="page-economy">
+        <div class="page-head">
+          <h2>◈ Economy &amp; levels</h2>
+          <div class="muted small">Per-server currency + leveling. Coins earned by listening (1/min in voice).</div>
+        </div>
+        <div class="social-grid">
+          <div class="card">
+            <div class="card-head"><h3>🏆 Leaderboard</h3><button id="econ-refresh" class="primary">⟳</button></div>
+            <div id="econ-lb"><div class="muted">Loading…</div></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h3>Shop</h3><button id="econ-shop-add" class="primary">+ Add item</button></div>
+            <div id="econ-shop"><div class="muted">Loading…</div></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h3>You</h3></div>
+            <div id="econ-me"><div class="muted small">Sign in to see your coins + level.</div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- CUSTOM COMMANDS -->
+      <section class="page hidden" id="page-custom-cmds">
+        <div class="page-head">
+          <h2>⚒ Custom commands</h2>
+          <div class="muted small">No-code command templates with token substitution: <code>{user}</code>, <code>{server}</code>, <code>{arg1}…{arg5}</code>, <code>{random:a,b,c}</code></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Commands</h3><button id="cc-add" class="primary">+ Create</button></div>
+          <div id="cc-list" style="margin-top:10px"><div class="muted">Loading…</div></div>
+        </div>
+      </section>
+
+      <!-- GAME NIGHT -->
+      <section class="page hidden" id="page-game-night">
+        <div class="page-head">
+          <h2>🎮 Game night</h2>
+          <div class="muted small">Quiz, trivia, name-that-tune. Active sessions live in memory until the bot restarts.</div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Active sessions</h3><button id="game-refresh" class="primary">⟳</button></div>
+          <div id="game-sessions" style="margin-top:10px"><div class="muted">No active sessions. Start one with <code>/quiz</code> or <code>/nametune</code>.</div></div>
+        </div>
+      </section>
+
+      <!-- SERVER TEMPLATES -->
+      <section class="page hidden" id="page-templates">
+        <div class="page-head">
+          <h2>⌬ Server template</h2>
+          <div class="muted small">Export the current server's full config (welcome, automod, reaction roles, custom commands, shop, etc.) as one portable JSON. Apply to a different server in one click.</div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Export current server</h3></div>
+          <div style="display:flex;gap:8px;margin:8px 0">
+            <input id="tpl-name" type="text" placeholder="Template name" style="flex:1;padding:7px 12px;border-radius:6px;background:var(--bg-input);border:1px solid var(--border);color:var(--fg)" />
+            <button id="tpl-export" class="primary">⤴ Export</button>
+          </div>
+          <pre id="tpl-preview" style="background:var(--bg-input);padding:12px;border-radius:6px;font-size:11px;max-height:300px;overflow:auto"></pre>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Apply template to current server</h3></div>
+          <div class="muted small">Paste a template JSON (from another server's export):</div>
+          <textarea id="tpl-paste" rows="6" style="width:100%;padding:8px 12px;border-radius:6px;background:var(--bg-input);border:1px solid var(--border);color:var(--fg);font-family:var(--font-mono);font-size:11px;margin-top:8px"></textarea>
+          <label style="display:block;margin-top:8px;font-size:12px">
+            <input type="checkbox" id="tpl-include-channels" /> Also restore channel IDs (only if the target server uses the SAME channels)
+          </label>
+          <button id="tpl-apply" class="primary" style="margin-top:8px">↺ Apply</button>
+        </div>
+      </section>
+
       <!-- =================================================== -->
       <!-- BACKUP & SHARE — snapshots + marketplace bundles    -->
       <!-- =================================================== -->

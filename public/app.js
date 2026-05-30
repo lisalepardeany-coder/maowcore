@@ -902,6 +902,235 @@
     } catch (e) { toast('▲ Import failed', e.message, 'error', 4000); }
   });
 
+  // ===== v2.4.0 — Music Wrapped =====
+  async function renderWrappedPage() {
+    const gId = activeGuildId();
+    const body = $('wrapped-body');
+    const yearSel = $('wrapped-year');
+    if (!gId) { body.innerHTML = '<div class="muted">Select a server first.</div>'; return; }
+    try {
+      const years = (await fetchJson(`/api/wrapped/years?guildId=${encodeURIComponent(gId)}`)).years || [];
+      yearSel.innerHTML = '<option value="">Last 365 days</option>' + years.map((y) => `<option value="${y}">${y}</option>`).join('');
+    } catch { /* */ }
+    const drawn = async () => {
+      const year = yearSel.value;
+      body.innerHTML = '<div class="muted">Computing…</div>';
+      try {
+        const w = await fetchJson(`/api/wrapped?guildId=${encodeURIComponent(gId)}${year ? `&year=${year}` : ''}`);
+        if (w.empty) { body.innerHTML = '<div class="muted">No listening data for this period.</div>'; return; }
+        const dow = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const peakMonth = months[w.byMonth.indexOf(Math.max(...w.byMonth))];
+        const topTr = (w.topTracks || []).slice(0, 5).map((t, i) => `<div class="lb-row"><div class="lb-rank">${i + 1}.</div><div><div class="lb-name">${escapeHtmlSafe(t.name)}</div><div class="lb-stats">${t.plays} plays</div></div></div>`).join('');
+        const topAr = (w.topArtists || []).slice(0, 5).map((t, i) => `<div class="lb-row"><div class="lb-rank">${i + 1}.</div><div><div class="lb-name">${escapeHtmlSafe(t.name)}</div><div class="lb-stats">${t.plays} plays</div></div></div>`).join('') || '<div class="muted small">No artist data.</div>';
+        body.innerHTML = `
+          <div class="net-grid" style="margin-bottom:14px">
+            <div class="net-tile"><div class="net-label">Total plays</div><div class="net-val">${w.total}</div><div class="net-sub">in ${escapeHtmlSafe(w.label)}</div></div>
+            <div class="net-tile"><div class="net-label">Listening time</div><div class="net-val">${w.totalHours}h</div><div class="net-sub">${w.totalMinutes} min</div></div>
+            <div class="net-tile"><div class="net-label">Unique tracks</div><div class="net-val">${w.uniqueTracks}</div><div class="net-sub">${w.uniqueArtists} artists</div></div>
+            <div class="net-tile"><div class="net-label">Discovery</div><div class="net-val">${w.discoveryPct}%</div><div class="net-sub">${w.newDiscoveries} new tracks</div></div>
+            <div class="net-tile"><div class="net-label">Best streak</div><div class="net-val">${w.bestStreak} days</div><div class="net-sub">${w.activeDays} active days</div></div>
+            <div class="net-tile"><div class="net-label">Peak time</div><div class="net-val">${w.peakHour}:00</div><div class="net-sub">${dow[w.peakDow]} · ${peakMonth}</div></div>
+          </div>
+          <div class="social-grid">
+            <div><h3 style="margin-bottom:8px">Top tracks</h3>${topTr}</div>
+            <div><h3 style="margin-bottom:8px">Top artists</h3>${topAr}</div>
+          </div>
+        `;
+      } catch (e) { body.innerHTML = `<div class="error">▲ ${escapeHtmlSafe(e.message)}</div>`; }
+    };
+    yearSel.removeEventListener('change', drawn);
+    yearSel.addEventListener('change', drawn);
+    drawn();
+  }
+
+  // ===== v2.5.0 — Automation =====
+  async function renderAutomationPage() {
+    try {
+      const data = await fetchJson('/api/automation/list');
+      const cronList = $('auto-cron-list');
+      cronList.innerHTML = (data.crons || []).length
+        ? data.crons.map((c) => `<div class="market-row"><div><div class="mr-name">${escapeHtmlSafe(c.name)}</div><div class="mr-meta"><code>${escapeHtmlSafe(c.expr)}</code> → ${escapeHtmlSafe(c.action.type)}: ${escapeHtmlSafe(c.action.line || c.action.text || '')}</div><div class="muted small">runs: ${c.runCount} · last: ${c.lastRunAt ? new Date(c.lastRunAt).toLocaleString() : 'never'}${c.lastError ? ` · <span style="color:var(--danger)">▲ ${escapeHtmlSafe(c.lastError)}</span>` : ''}</div></div><div><label style="font-size:11px;color:var(--fg-muted)"><input type="checkbox" class="cron-toggle" data-id="${c.id}" ${c.enabled ? 'checked' : ''} /> enabled</label></div><button class="cron-del" data-id="${c.id}" style="background:transparent;color:var(--danger);border:1px solid rgba(242,63,67,0.4);padding:4px 10px;border-radius:4px">✕</button></div>`).join('')
+          : '<div class="muted">No cron entries.</div>';
+        cronList.querySelectorAll('.cron-del').forEach((b) => b.addEventListener('click', async () => {
+          if (!confirm('Delete this cron?')) return;
+          await fetchJson('/api/automation/cron/remove', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: b.dataset.id }) });
+          renderAutomationPage();
+        }));
+        cronList.querySelectorAll('.cron-toggle').forEach((c) => c.addEventListener('change', async () => {
+          await fetchJson('/api/automation/cron/toggle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: c.dataset.id, enabled: c.checked }) });
+        }));
+      const hookList = $('auto-hook-list');
+      hookList.innerHTML = (data.webhooks || []).length
+        ? data.webhooks.map((w) => `<div class="market-row"><div><div class="mr-name">${escapeHtmlSafe(w.name)}</div><div class="mr-meta">action: ${escapeHtmlSafe(w.action.type)}: ${escapeHtmlSafe(w.action.line || w.action.text || '')}</div><div class="muted small">hits: ${w.hitCount} · last: ${w.lastHitAt ? new Date(w.lastHitAt).toLocaleString() : 'never'}</div></div><button class="hook-copy" data-id="${w.id}">📋 Copy URL</button><button class="hook-del" data-id="${w.id}" style="background:transparent;color:var(--danger);border:1px solid rgba(242,63,67,0.4);padding:4px 10px;border-radius:4px">✕</button></div>`).join('')
+        : '<div class="muted">No webhooks.</div>';
+      hookList.querySelectorAll('.hook-del').forEach((b) => b.addEventListener('click', async () => {
+        if (!confirm('Delete this webhook?')) return;
+        await fetchJson('/api/automation/webhook/remove', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: b.dataset.id }) });
+        renderAutomationPage();
+      }));
+      const ruleList = $('auto-rule-list');
+      ruleList.innerHTML = (data.rules || []).length
+        ? data.rules.map((r) => `<div class="market-row"><div><div class="mr-name">${escapeHtmlSafe(r.name)}</div><div class="mr-meta">on <code>${escapeHtmlSafe(r.event)}</code> → ${escapeHtmlSafe(r.action.type)}: ${escapeHtmlSafe(r.action.line || r.action.text || '')}</div></div><button class="rule-del" data-id="${r.id}" style="background:transparent;color:var(--danger);border:1px solid rgba(242,63,67,0.4);padding:4px 10px;border-radius:4px">✕</button></div>`).join('')
+        : '<div class="muted">No rules.</div>';
+      ruleList.querySelectorAll('.rule-del').forEach((b) => b.addEventListener('click', async () => {
+        if (!confirm('Delete this rule?')) return;
+        await fetchJson('/api/automation/rule/remove', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: b.dataset.id }) });
+        renderAutomationPage();
+      }));
+    } catch (e) { $('auto-cron-list').innerHTML = `<div class="error">▲ ${escapeHtmlSafe(e.message)}</div>`; }
+  }
+  $('auto-cron-add')?.addEventListener('click', async () => {
+    const name = prompt('Cron name:'); if (!name) return;
+    const expr = prompt('Cron expression (m h dom mon dow):', '0 17 * * 5'); if (!expr) return;
+    const line = prompt('Console line to run:', 'play https://www.youtube.com/watch?v=...'); if (!line) return;
+    try {
+      await fetchJson('/api/automation/cron/add', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, expr, action: { type: 'console', line }, guildId: activeGuildId() }) });
+      renderAutomationPage();
+    } catch (e) { toast('▲ Add failed', e.message, 'error', 3000); }
+  });
+  $('auto-hook-add')?.addEventListener('click', async () => {
+    const name = prompt('Webhook name:'); if (!name) return;
+    const line = prompt('Console line to run when hit:', 'play https://...'); if (!line) return;
+    try {
+      const d = await fetchJson('/api/automation/webhook/add', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, action: { type: 'console', line }, guildId: activeGuildId() }) });
+      alert(`Webhook created. POST to:\n${activeInstance().url}/api/automation/hook/${d.webhook.secret}\n(keep this URL secret)`);
+      renderAutomationPage();
+    } catch (e) { toast('▲ Add failed', e.message, 'error', 3000); }
+  });
+  $('auto-rule-add')?.addEventListener('click', async () => {
+    const name = prompt('Rule name:'); if (!name) return;
+    const event = prompt('Event (voice-join / voice-leave / play-end / queue-empty):', 'queue-empty'); if (!event) return;
+    const line = prompt('Console line to run:', 'play https://...'); if (!line) return;
+    try {
+      await fetchJson('/api/automation/rule/add', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, event, action: { type: 'console', line }, guildId: activeGuildId() }) });
+      renderAutomationPage();
+    } catch (e) { toast('▲ Add failed', e.message, 'error', 3000); }
+  });
+
+  // ===== v2.6.0 — Economy =====
+  async function renderEconomyPage() {
+    const gId = activeGuildId();
+    if (!gId) return;
+    try {
+      const lb = await fetchJson(`/api/economy/leaderboard?guildId=${encodeURIComponent(gId)}`);
+      $('econ-lb').innerHTML = (lb.leaderboard || []).map((u, i) => `<div class="lb-row"><div class="lb-rank">${i + 1}.</div><div><div class="lb-name">${escapeHtmlSafe(u.userId)}</div><div class="lb-stats">level ${u.level} · ${u.coins} coins · ${u.xp} XP</div></div></div>`).join('') || '<div class="muted">No data yet.</div>';
+    } catch { /* */ }
+    try {
+      const s = await fetchJson(`/api/economy/shop?guildId=${encodeURIComponent(gId)}`);
+      $('econ-shop').innerHTML = (s.shop || []).length ? s.shop.map((i) => `<div class="market-row"><div><div class="mr-name">${escapeHtmlSafe(i.name)}</div><div class="mr-meta">${escapeHtmlSafe(i.description || '')}</div></div><span class="mr-kind">${i.cost} coins</span><button class="shop-del" data-id="${i.id}" style="background:transparent;color:var(--danger);border:1px solid rgba(242,63,67,0.4);padding:4px 10px;border-radius:4px">✕</button></div>`).join('') : '<div class="muted">Empty shop.</div>';
+      $('econ-shop').querySelectorAll('.shop-del').forEach((b) => b.addEventListener('click', async () => {
+        if (!confirm('Remove item?')) return;
+        await fetchJson('/api/economy/shop/remove', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ guildId: gId, id: b.dataset.id }) });
+        renderEconomyPage();
+      }));
+    } catch { /* */ }
+    if (authState.user) {
+      try {
+        const me = await fetchJson(`/api/economy/me?guildId=${encodeURIComponent(gId)}`);
+        $('econ-me').innerHTML = `<div style="font-size:14px;font-weight:600">${escapeHtmlSafe(authState.user.tag)}</div><div class="muted small">Level ${me.user.level} · ${me.user.coins} coins · ${me.user.xp} XP</div>${me.user.achievements?.length ? `<div style="margin-top:6px">${me.user.achievements.map((a) => `<span class="mr-kind">${escapeHtmlSafe(a)}</span>`).join(' ')}</div>` : ''}`;
+      } catch { /* */ }
+    } else { $('econ-me').innerHTML = '<div class="muted small">Sign in to see your stats.</div>'; }
+  }
+  $('econ-refresh')?.addEventListener('click', renderEconomyPage);
+  $('econ-shop-add')?.addEventListener('click', async () => {
+    const name = prompt('Item name:'); if (!name) return;
+    const cost = Number(prompt('Cost (coins):', '100')); if (!cost) return;
+    const description = prompt('Description (optional):', '') || '';
+    await fetchJson('/api/economy/shop/add', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ guildId: activeGuildId(), name, cost, description }) });
+    renderEconomyPage();
+  });
+
+  // ===== v2.6.0 — Custom commands =====
+  async function renderCustomCmdsPage() {
+    const gId = activeGuildId();
+    if (!gId) return;
+    try {
+      const d = await fetchJson(`/api/custom-cmds/list?guildId=${encodeURIComponent(gId)}`);
+      $('cc-list').innerHTML = (d.commands || []).length
+        ? d.commands.map((c) => `<div class="market-row"><div><div class="mr-name">/${escapeHtmlSafe(c.name)}</div><div class="mr-meta">${escapeHtmlSafe(c.description || '(no description)')}</div><div class="muted small">runs: ${c.runCount} · template: ${escapeHtmlSafe(c.template.slice(0, 60))}${c.template.length > 60 ? '…' : ''}</div></div><button class="cc-run" data-name="${c.name}">▶ Test</button><button class="cc-del" data-name="${c.name}" style="background:transparent;color:var(--danger);border:1px solid rgba(242,63,67,0.4);padding:4px 10px;border-radius:4px">✕</button></div>`).join('')
+        : '<div class="muted">No custom commands. Click + Create to add one.</div>';
+      $('cc-list').querySelectorAll('.cc-del').forEach((b) => b.addEventListener('click', async () => {
+        if (!confirm(`Delete /${b.dataset.name}?`)) return;
+        await fetchJson('/api/custom-cmds/remove', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ guildId: gId, name: b.dataset.name }) });
+        renderCustomCmdsPage();
+      }));
+      $('cc-list').querySelectorAll('.cc-run').forEach((b) => b.addEventListener('click', async () => {
+        try {
+          const r = await fetchJson('/api/custom-cmds/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ guildId: gId, name: b.dataset.name, serverName: currentServer()?.name || '' }) });
+          alert(`Output:\n\n${r.text}`);
+          renderCustomCmdsPage();
+        } catch (e) { toast('▲ Run failed', e.message, 'error', 3000); }
+      }));
+    } catch (e) { $('cc-list').innerHTML = `<div class="error">▲ ${escapeHtmlSafe(e.message)}</div>`; }
+  }
+  $('cc-add')?.addEventListener('click', async () => {
+    const name = prompt('Command name (lowercase, dashes ok):'); if (!name) return;
+    const description = prompt('Short description:'); if (description == null) return;
+    const template = prompt('Template — tokens: {user} {server} {arg1}…{arg5} {random:a,b,c}\n\nExample: "Hello {user}, welcome to {server}!"'); if (!template) return;
+    try {
+      await fetchJson('/api/custom-cmds/add', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ guildId: activeGuildId(), name, description, template }) });
+      renderCustomCmdsPage();
+    } catch (e) { toast('▲ Create failed', e.message, 'error', 3000); }
+  });
+
+  // ===== v2.7.0 — Game night =====
+  async function renderGameNightPage() {
+    try {
+      const d = await fetchJson(`/api/game/sessions?guildId=${encodeURIComponent(activeGuildId() || '')}`);
+      $('game-sessions').innerHTML = (d.sessions || []).length
+        ? d.sessions.map((s) => `<div class="market-row"><div><div class="mr-name">${escapeHtmlSafe(s.kind)} — ${escapeHtmlSafe(s.id)}</div><div class="mr-meta">status: ${s.status} · Q${s.currentIndex + 1}/${s.questions?.length || 0} · started ${new Date(s.startedAt).toLocaleTimeString()}</div></div><span class="mr-kind">${Object.keys(s.scores).length} players</span></div>`).join('')
+        : '<div class="muted">No active sessions. Start one with <code>/quiz</code> or <code>/nametune</code> in Discord.</div>';
+    } catch { /* */ }
+  }
+  $('game-refresh')?.addEventListener('click', renderGameNightPage);
+
+  // ===== v2.7.0 — Server templates =====
+  async function renderTemplatesPage() {
+    // No initial render — interaction-driven.
+  }
+  $('tpl-export')?.addEventListener('click', async () => {
+    const gId = activeGuildId(); if (!gId) return toast('▲ No server', 'Select a server.', 'error', 2000);
+    const name = $('tpl-name').value.trim() || 'Untitled template';
+    try {
+      const d = await fetchJson(`/api/templates/build?guildId=${encodeURIComponent(gId)}&name=${encodeURIComponent(name)}`);
+      const json = JSON.stringify(d.template, null, 2);
+      $('tpl-preview').textContent = json;
+      // Also download.
+      const blob = new Blob([json], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `server-template-${name.replace(/[^a-zA-Z0-9._-]+/g, '_')}.json`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      toast('✓ Template exported', name, 'success', 2500);
+    } catch (e) { toast('▲ Export failed', e.message, 'error', 4000); }
+  });
+  $('tpl-apply')?.addEventListener('click', async () => {
+    const gId = activeGuildId(); if (!gId) return toast('▲ No server', 'Select a server.', 'error', 2000);
+    let tpl;
+    try { tpl = JSON.parse($('tpl-paste').value); }
+    catch { return toast('▲ Bad JSON', 'Paste a valid template JSON.', 'error', 3000); }
+    const includeChannelIds = $('tpl-include-channels').checked;
+    if (!confirm(`Apply template "${tpl.name}" to the current server? This overwrites welcome/automod/quick-playlists/etc.`)) return;
+    try {
+      const d = await fetchJson('/api/templates/apply', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ guildId: gId, template: tpl, includeChannelIds }) });
+      toast('✓ Applied', `${d.patchedKeys} keys + ${d.customCommandsAdded} commands + ${d.shopItemsAdded} shop items`, 'success', 4000);
+    } catch (e) { toast('▲ Apply failed', e.message, 'error', 4000); }
+  });
+
+  // Hook the page switcher.
+  const origSwitchPageFinale = switchPage;
+  switchPage = (name) => {
+    origSwitchPageFinale(name);
+    if (name === 'wrapped') renderWrappedPage();
+    if (name === 'automation') renderAutomationPage();
+    if (name === 'economy') renderEconomyPage();
+    if (name === 'custom-cmds') renderCustomCmdsPage();
+    if (name === 'game-night') renderGameNightPage();
+    if (name === 'templates') renderTemplatesPage();
+  };
+
   $('market-export')?.addEventListener('click', async () => {
     const gId = activeGuildId();
     if (!gId) return toast('▲ No server', 'Select a server.', 'error', 2000);
