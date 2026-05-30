@@ -453,10 +453,20 @@ client.distube
     }).catch(() => {});
   });
 
+// Per-bot command prefix — if set, deploy-commands.js renamed every slash
+// command from /foo to /<prefix>-foo. Strip the prefix here when looking up
+// the internal command name so the same handler files work in all bots.
+const COMMAND_PREFIX = (process.env.COMMAND_PREFIX || '').trim().toLowerCase();
+const stripPrefix = (name) => (
+  COMMAND_PREFIX && name.startsWith(`${COMMAND_PREFIX}-`)
+    ? name.slice(COMMAND_PREFIX.length + 1)
+    : name
+);
+
 // Interaction handler (slash commands + now-playing buttons)
 client.on(Events.InteractionCreate, async (interaction) => {
   if (interaction.isAutocomplete()) {
-    const command = client.commands.get(interaction.commandName);
+    const command = client.commands.get(stripPrefix(interaction.commandName));
     if (command?.autocomplete) {
       try { await command.autocomplete(interaction); } catch (e) { console.warn('autocomplete failed:', e.message); }
     }
@@ -466,7 +476,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
   if (interaction.isChatInputCommand()) {
     // (Aliases live on the dashboard console only — Discord requires slash commands
     // to be pre-registered, so runtime-defined names like /bops can't be invoked.)
-    const command = client.commands.get(interaction.commandName);
+    const command = client.commands.get(stripPrefix(interaction.commandName));
     if (!command) return;
     const who = interaction.user?.username || interaction.user?.tag || 'unknown';
     const guildName = interaction.guild?.name || 'DM';

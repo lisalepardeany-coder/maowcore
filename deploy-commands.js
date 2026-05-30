@@ -12,6 +12,23 @@ for (const file of fs.readdirSync(commandsPath).filter((f) => f.endsWith('.js'))
   }
 }
 
+// Per-bot command prefix. When running multiple MaowCore instances in the
+// same Discord server, set COMMAND_PREFIX in each bot's .env so its
+// commands don't collide with the others'. e.g. COMMAND_PREFIX=b2 turns
+// every command name "play" into "b2-play". Discord caps command names at
+// 32 chars total; we clamp to keep within the limit.
+const PREFIX = (process.env.COMMAND_PREFIX || '').trim().toLowerCase();
+if (PREFIX) {
+  if (!/^[a-z0-9_]+$/.test(PREFIX)) {
+    console.error(`COMMAND_PREFIX must be lowercase letters/digits/underscores only — got "${PREFIX}"`);
+    process.exit(1);
+  }
+  for (const c of commands) {
+    c.name = `${PREFIX}-${c.name}`.slice(0, 32);
+  }
+  console.log(`Applied COMMAND_PREFIX="${PREFIX}" → all commands renamed (e.g. /play → /${PREFIX}-play)`);
+}
+
 const rest = new REST().setToken(process.env.DISCORD_TOKEN);
 
 (async () => {
