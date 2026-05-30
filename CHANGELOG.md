@@ -6,6 +6,32 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [2.2.0] — 2026-06-01
+
+External integrations + i18n + dev tooling.
+
+### Added
+
+- **Last.fm scrobbling** — `lib/integrations.js`. Set `LASTFM_API_KEY` +
+  `LASTFM_API_SECRET` + `LASTFM_SESSION_KEY` to enable. Updates Now
+  Playing on every track start, scrobbles after the track is halfway.
+- **Cross-service search URLs** for any track on YouTube Music,
+  Spotify, Apple Music, SoundCloud, Bandcamp, Last.fm.
+- **Plugin loader** (`lib/plugin-loader.js`) — drops in
+  `plugins/<name>/index.js` exporting `{ id, name, version,
+  slashCommands?, wsActions?, httpRoutes?, onLoad? }`. Loaded
+  automatically at boot.
+- **⌨ Developer page** — REST API endpoint catalog with filter,
+  loaded-plugin list, integration status grid.
+- **Dashboard i18n** — EN / ES / FR / DE language picker in the
+  topbar. `t(key)` helper for translatable strings. Reloads on
+  change for simplicity.
+- **High-contrast theme** — body class `high-contrast` for an
+  accessibility-friendly black-on-white style.
+- 4 new endpoints: `/api/integrations/status`,
+  `/api/integrations/search-urls`, `/api/dev/endpoints`,
+  `/api/dev/plugins`.
+
 ## [2.1.0] — 2026-06-01
 
 Social features (Discord OAuth) + library cleanup wizard.

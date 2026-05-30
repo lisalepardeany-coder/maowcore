@@ -1363,6 +1363,25 @@ button.link:hover { background: var(--accent-soft); }
 }
 .dl-job-cancel:hover { background: rgba(242, 63, 67, 0.1); }
 
+/* ===== v2.2.0: dev page + integrations ===== */
+.dev-int-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+.dev-int { padding: 12px; background: var(--bg-input); border-radius: 8px; border-left: 3px solid var(--success); }
+.dev-int.off { border-left-color: var(--fg-dim); opacity: 0.6; }
+.dev-int .di-name { font-size: 13px; font-weight: 600; }
+.dev-int .di-status { font-size: 11px; color: var(--fg-dim); font-family: var(--font-mono); margin-top: 4px; }
+.dev-endpoint { display: grid; grid-template-columns: 60px 1fr 1fr; gap: 12px; align-items: center; padding: 6px 12px; background: var(--bg-input); border-radius: 4px; margin-bottom: 3px; font-family: var(--font-mono); font-size: 11.5px; }
+.dev-endpoint:hover { background: var(--bg-input-2); }
+.dev-endpoint .de-method { font-weight: 700; color: var(--accent); }
+.dev-endpoint .de-method[data-method="POST"] { color: var(--warning); }
+.dev-endpoint .de-path { color: var(--fg); }
+.dev-endpoint .de-desc { color: var(--fg-dim); font-family: var(--font); font-size: 12px; }
+.dev-plugin { padding: 10px 14px; background: var(--bg-input); border-radius: 6px; margin-bottom: 4px; }
+.dev-plugin .dp-name { font-size: 13px; font-weight: 600; }
+.dev-plugin .dp-meta { font-size: 11px; color: var(--fg-dim); font-family: var(--font-mono); margin-top: 4px; }
+
+/* High-contrast option for a11y */
+body.high-contrast { --bg: #000; --bg-elev: #0a0a0a; --bg-elev-2: #1a1a1a; --bg-input: #111; --fg: #fff; --fg-muted: #ddd; --border: #555; }
+
 /* ===== v2.1.0: login button + social + cleanup ===== */
 .topbar-login {
   padding: 6px 12px;

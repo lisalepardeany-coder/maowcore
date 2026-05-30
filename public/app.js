@@ -707,6 +707,73 @@
     }
   }
   $('cleanup-scan')?.addEventListener('click', runCleanupScan);
+
+  // ===== v2.2.0: Developer page =====
+  const devState = { endpoints: [], plugins: [], integrations: null, search: '' };
+
+  async function renderDevPage() {
+    try {
+      const ints = await fetchJson('/api/integrations/status');
+      devState.integrations = ints;
+      const wrap = $('dev-integrations');
+      wrap.innerHTML = '<div class="dev-int-grid">' + Object.entries(ints).map(([k, v]) =>
+        `<div class="dev-int${v ? '' : ' off'}"><div class="di-name">${escapeHtmlSafe(k)}</div><div class="di-status">${v ? '✓ configured' : '○ not configured'}</div></div>`,
+      ).join('') + '</div>';
+    } catch { /* */ }
+    try {
+      const pdata = await fetchJson('/api/dev/plugins');
+      devState.plugins = pdata.plugins || [];
+      const wrap = $('dev-plugins');
+      if (!devState.plugins.length) {
+        wrap.innerHTML = '<div class="muted">No plugins loaded. Drop one in <code>plugins/&lt;name&gt;/index.js</code> with the documented shape.</div>';
+      } else {
+        wrap.innerHTML = devState.plugins.map((p) =>
+          `<div class="dev-plugin"><div class="dp-name">${escapeHtmlSafe(p.name)} <span class="muted small">v${escapeHtmlSafe(p.version)}</span></div><div class="dp-meta">${p.slashCommandCount} commands · ${p.wsActionCount} WS actions · ${p.httpRouteCount} HTTP routes</div></div>`,
+        ).join('');
+      }
+    } catch { /* */ }
+    try {
+      const data = await fetchJson('/api/dev/endpoints');
+      devState.endpoints = data.endpoints || [];
+      drawDevEndpoints();
+    } catch (e) {
+      $('dev-endpoints').innerHTML = `<div class="error">▲ ${escapeHtmlSafe(e.message)}</div>`;
+    }
+  }
+  function drawDevEndpoints() {
+    const wrap = $('dev-endpoints');
+    const q = (devState.search || '').toLowerCase();
+    const filtered = q
+      ? devState.endpoints.filter((e) => e.path.toLowerCase().includes(q) || e.desc.toLowerCase().includes(q))
+      : devState.endpoints;
+    wrap.innerHTML = filtered.map((e) =>
+      `<div class="dev-endpoint"><span class="de-method" data-method="${escapeHtmlSafe(e.method)}">${escapeHtmlSafe(e.method)}</span><span class="de-path">${escapeHtmlSafe(e.path)}</span><span class="de-desc">${escapeHtmlSafe(e.desc)}</span></div>`,
+    ).join('') || '<div class="muted">No matching endpoints.</div>';
+  }
+  $('dev-refresh-int')?.addEventListener('click', renderDevPage);
+  $('dev-search')?.addEventListener('input', (e) => { devState.search = e.target.value; drawDevEndpoints(); });
+
+  // ===== v2.2.0: Dashboard language picker (lightweight i18n) =====
+  const DASH_STRINGS = {
+    en: { signIn: 'Sign in with Discord', healthy: 'healthy', noServer: 'Select a server first.' },
+    es: { signIn: 'Iniciar sesión con Discord', healthy: 'saludable', noServer: 'Selecciona un servidor primero.' },
+    fr: { signIn: 'Se connecter avec Discord', healthy: 'sain', noServer: 'Sélectionnez un serveur d\'abord.' },
+    de: { signIn: 'Mit Discord anmelden', healthy: 'gesund', noServer: 'Bitte zuerst einen Server auswählen.' },
+  };
+  const dashLang = () => localStorage.getItem('maow.dashLang') || 'en';
+  const t = (key) => DASH_STRINGS[dashLang()]?.[key] || DASH_STRINGS.en[key] || key;
+  $('dash-lang') && ($('dash-lang').value = dashLang());
+  $('dash-lang')?.addEventListener('change', (e) => {
+    localStorage.setItem('maow.dashLang', e.target.value);
+    location.reload();   // simplest: reload to re-render all i18n'd strings
+  });
+
+  // Hook into page switcher.
+  const origSwitchPageDev = switchPage;
+  switchPage = (name) => {
+    origSwitchPageDev(name);
+    if (name === 'dev') renderDevPage();
+  };
   function send(action, extra = {}) {
     if (!connected) return;
     // Pin commands to the currently-selected server so multi-guild bots route
