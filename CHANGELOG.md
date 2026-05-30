@@ -6,6 +6,66 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [1.7.0] — 2026-05-31
+
+A moderation suite — a dashboard-side replacement for typing `/ban`,
+`/kick`, `/timeout`, `/warn` repeatedly. Every action confirms before
+firing, hits the Discord API, and posts to the configured modlog
+channel + the diagnostics console.
+
+### Added
+
+- **New `⚖ Moderation` sidebar page** with six tabs:
+  - **Bans** — live guild ban list (`guild.bans.fetch()`), search by tag /
+    ID / reason, inline `↺ Unban` (confirmed), `+ Ban a user` modal (user
+    ID + reason + days of recent messages to delete).
+  - **Kicks / Timeouts** — quick-action form: user ID, action picker
+    (kick or timeout), preset durations (1m / 5m / 1h / 1d / 7d), reason.
+    Timeout duration is hidden when "Kick" is selected.
+  - **Warns** — fetches all members with warnings from
+    `lib/warnings.js`, shows last 10 reasons each, with an inline Clear
+    button per user.
+  - **Automod** — toggle UI for the six rules backed by the existing
+    `lib/automod.js`: enabled, anti-spam, anti-links, anti-invites,
+    anti-caps, anti-mass-mention. Save button persists to per-guild config.
+  - **Modlog stream** — live view of mod actions from the diagnostics
+    log, filtered to the active server, with a type filter (all / ban /
+    kick / timeout / warn / purge) and TSV export.
+  - **Audit Log** — wraps `guild.fetchAuditLogs()` with a type filter
+    covering bans, kicks, timeouts, role updates, channel CRUD, message
+    deletes, etc.
+- **New mod API surface** in `lib/control-server.js`:
+  - `GET  /api/mod/bans?guildId=…`
+  - `POST /api/mod/ban` `{ guildId, userId, reason, deleteMessageSeconds }`
+  - `POST /api/mod/unban` `{ guildId, userId }`
+  - `POST /api/mod/kick` `{ guildId, userId, reason }`
+  - `POST /api/mod/timeout` `{ guildId, userId, durationMs, reason }`
+  - `GET  /api/mod/warns?guildId=…` `→ { users: [...] }`
+  - `POST /api/mod/warn-clear` `{ guildId, userId }`
+  - `GET  /api/mod/automod?guildId=…`
+  - `POST /api/mod/automod` `{ guildId, enabled, antiSpam, … }`
+  - `GET  /api/mod/modlog-config?guildId=…`
+  - `GET  /api/mod/audit?guildId=…&type=…&limit=…`
+  Every mutation logs through `control.log(text, level, 'command', { ... })`
+  with `meta.action` so it shows up in the Modlog stream and the
+  Diagnostics console with proper categorization.
+- **Modlog mirroring** — `/api/mod/ban` and friends post to the
+  configured modlog channel via the existing `lib/modlog.js` helper
+  (whatever channel `/setup modlog` pointed at).
+- **Topbar sidebar entry** for Moderation (`⚖`) added between Settings
+  and Diagnostics.
+
+### Notes
+
+- All mod actions require a guild to be selected via the existing
+  server-picker dropdown. The dashboard rejects malformed user IDs
+  (15–25 digit numeric check) before round-tripping to Discord.
+- Discord timeouts are capped at 28 days (2,419,200,000 ms) — the
+  backend enforces this clamp.
+- 83 tests pass (no new tests for the mod API since it's network-bound
+  to Discord; manual verification recommended for ban/kick before
+  pointing at a busy server).
+
 ## [1.6.0] — 2026-05-31
 
 A speed + scale upgrade — install whole playlists in the background, cap
