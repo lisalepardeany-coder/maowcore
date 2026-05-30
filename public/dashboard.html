@@ -116,6 +116,10 @@
           <span class="nav-icon">⌬</span>
           <span class="nav-label">Server</span>
         </a>
+        <a class="nav-item" data-page="moderation">
+          <span class="nav-icon">⚖</span>
+          <span class="nav-label">Moderation</span>
+        </a>
         <a class="nav-item" data-page="settings">
           <span class="nav-icon">⚙</span>
           <span class="nav-label">Settings</span>
@@ -127,7 +131,7 @@
         </a>
       </nav>
       <div class="sidebar-footer">
-        <div class="muted small">v1.6.0</div>
+        <div class="muted small">v1.7.0</div>
       </div>
     </aside>
 
@@ -678,6 +682,150 @@
       <!-- =================================================== -->
       <!-- DIAGNOSTICS — boot timeline + health + full console -->
       <!-- =================================================== -->
+      <!-- =================================================== -->
+      <!-- MODERATION — bans, kicks, timeouts, warns, automod, modlog -->
+      <!-- =================================================== -->
+      <section class="page hidden" id="page-moderation">
+        <header class="page-head">
+          <h1>⚖ Moderation</h1>
+          <div class="tabs" id="mod-tabs">
+            <button class="tab active" data-tab="bans">Bans</button>
+            <button class="tab" data-tab="kicks">Kicks / Timeouts</button>
+            <button class="tab" data-tab="warns">Warns</button>
+            <button class="tab" data-tab="automod">Automod</button>
+            <button class="tab" data-tab="modlog">Modlog</button>
+            <button class="tab" data-tab="audit">Audit Log</button>
+          </div>
+        </header>
+
+        <!-- BANS -->
+        <div class="tab-panel" id="mod-tab-bans">
+          <div class="card">
+            <div class="card-head">
+              <h3>Banned members</h3>
+              <div class="mod-tools">
+                <input id="bans-search" type="text" placeholder="🔍 Search by name / ID / reason…" />
+                <button id="bans-refresh" class="primary">⟳ Refresh</button>
+                <button id="bans-new" class="primary">+ Ban a user</button>
+              </div>
+            </div>
+            <div class="muted small" id="bans-summary">—</div>
+            <div class="bans-list" id="bans-list"><div class="muted">Click Refresh to load.</div></div>
+          </div>
+        </div>
+
+        <!-- KICKS / TIMEOUTS -->
+        <div class="tab-panel hidden" id="mod-tab-kicks">
+          <div class="card">
+            <div class="card-head"><h3>Quick action: kick / timeout</h3></div>
+            <div class="kick-form">
+              <label>
+                <div class="muted small">User ID</div>
+                <input id="kick-user" type="text" placeholder="Discord user ID" />
+              </label>
+              <label>
+                <div class="muted small">Action</div>
+                <select id="kick-action">
+                  <option value="kick">Kick</option>
+                  <option value="timeout">Timeout</option>
+                </select>
+              </label>
+              <label id="kick-duration-wrap">
+                <div class="muted small">Duration</div>
+                <select id="kick-duration">
+                  <option value="60000">1 minute</option>
+                  <option value="300000">5 minutes</option>
+                  <option value="3600000" selected>1 hour</option>
+                  <option value="86400000">1 day</option>
+                  <option value="604800000">7 days</option>
+                </select>
+              </label>
+              <label>
+                <div class="muted small">Reason</div>
+                <input id="kick-reason" type="text" placeholder="Reason (shown in modlog + audit)" />
+              </label>
+              <button id="kick-go" class="primary">Apply</button>
+            </div>
+            <div class="muted small" style="margin-top:8px">Both actions hit the Discord API and are logged via your modlog channel if configured.</div>
+          </div>
+        </div>
+
+        <!-- WARNS -->
+        <div class="tab-panel hidden" id="mod-tab-warns">
+          <div class="card">
+            <div class="card-head">
+              <h3>Member warnings</h3>
+              <button id="warns-refresh" class="primary">⟳ Refresh</button>
+            </div>
+            <div class="muted small" id="warns-summary">—</div>
+            <div class="warns-list" id="warns-list"><div class="muted">Click Refresh to load.</div></div>
+          </div>
+        </div>
+
+        <!-- AUTOMOD -->
+        <div class="tab-panel hidden" id="mod-tab-automod">
+          <div class="card">
+            <div class="card-head">
+              <h3>Automod rules</h3>
+              <button id="automod-save" class="primary">Save</button>
+            </div>
+            <div class="muted small">Per-guild rules. Toggles take effect immediately on save.</div>
+            <div class="automod-grid" id="automod-grid"><div class="muted">Select a server above.</div></div>
+          </div>
+        </div>
+
+        <!-- MODLOG VIEWER -->
+        <div class="tab-panel hidden" id="mod-tab-modlog">
+          <div class="card">
+            <div class="card-head">
+              <h3>Modlog stream</h3>
+              <div class="mod-tools">
+                <select id="modlog-filter">
+                  <option value="all">All actions</option>
+                  <option value="ban">Bans</option>
+                  <option value="kick">Kicks</option>
+                  <option value="timeout">Timeouts</option>
+                  <option value="warn">Warns</option>
+                  <option value="purge">Purges</option>
+                </select>
+                <button id="modlog-export" class="primary">⤓ Export</button>
+              </div>
+            </div>
+            <div class="muted small" id="modlog-config">—</div>
+            <div class="modlog-list" id="modlog-list"><div class="muted">Live entries appear here as mod actions happen.</div></div>
+          </div>
+        </div>
+
+        <!-- AUDIT LOG -->
+        <div class="tab-panel hidden" id="mod-tab-audit">
+          <div class="card">
+            <div class="card-head">
+              <h3>Discord audit log</h3>
+              <div class="mod-tools">
+                <select id="audit-type">
+                  <option value="">All types</option>
+                  <option value="22">Ban</option>
+                  <option value="23">Unban</option>
+                  <option value="20">Kick</option>
+                  <option value="24">Member update (timeouts)</option>
+                  <option value="25">Member role update</option>
+                  <option value="10">Channel create</option>
+                  <option value="11">Channel update</option>
+                  <option value="12">Channel delete</option>
+                  <option value="30">Role create</option>
+                  <option value="31">Role update</option>
+                  <option value="32">Role delete</option>
+                  <option value="72">Message delete</option>
+                </select>
+                <button id="audit-refresh" class="primary">⟳ Refresh</button>
+              </div>
+            </div>
+            <div class="muted small" id="audit-summary">—</div>
+            <div class="audit-list" id="audit-list"><div class="muted">Click Refresh to load.</div></div>
+          </div>
+        </div>
+      </section>
+
       <section class="page hidden" id="page-diagnostics">
         <div class="page-head">
           <h2>⌗  Diagnostics</h2>

@@ -1821,7 +1821,420 @@
       renderDiagnosticsPage();
       updateNavDiagBadge();
     }
+    if (name === 'moderation') {
+      renderModerationPage();
+    }
   };
+
+  // ===== Moderation page =====
+  const modState = {
+    activeTab: 'bans',
+    bans: [],
+    bansSearch: '',
+    warns: [],
+    automod: null,
+    audit: [],
+    modlogStream: [],   // live mod-action events parsed from log entries
+    modlogFilter: 'all',
+  };
+
+  function activeGuildId() {
+    return currentServer()?.id || null;
+  }
+
+  function renderModerationPage() {
+    // Tab activation
+    document.querySelectorAll('#mod-tabs .tab').forEach((btn) => {
+      const isActive = btn.dataset.tab === modState.activeTab;
+      btn.classList.toggle('active', isActive);
+    });
+    document.querySelectorAll('#page-moderation .tab-panel').forEach((p) => {
+      p.classList.toggle('hidden', p.id !== `mod-tab-${modState.activeTab}`);
+    });
+    // Render the active tab.
+    switch (modState.activeTab) {
+      case 'bans':    return renderBansTab();
+      case 'kicks':   return renderKicksTab();
+      case 'warns':   return renderWarnsTab();
+      case 'automod': return renderAutomodTab();
+      case 'modlog':  return renderModlogTab();
+      case 'audit':   return renderAuditTab();
+    }
+  }
+
+  document.querySelectorAll('#mod-tabs .tab').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      modState.activeTab = btn.dataset.tab;
+      renderModerationPage();
+    });
+  });
+
+  // -------- BANS --------
+  async function renderBansTab() {
+    const list = $('bans-list');
+    const summary = $('bans-summary');
+    const gId = activeGuildId();
+    if (!gId) { if (list) list.innerHTML = '<div class="muted">Select a server first.</div>'; return; }
+    if (!modState.bans?.length || modState._bansGuildId !== gId) {
+      list.innerHTML = '<div class="muted">Loading…</div>';
+      try {
+        const res = await fetch(`/api/mod/bans?guildId=${encodeURIComponent(gId)}`);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        modState.bans = data.bans || [];
+        modState._bansGuildId = gId;
+      } catch (e) {
+        list.innerHTML = `<div class="error">▲ ${escapeHtmlSafe(e.message)}</div>`;
+        return;
+      }
+    }
+    const q = (modState.bansSearch || '').toLowerCase();
+    const filtered = q
+      ? modState.bans.filter((b) =>
+          (b.tag || '').toLowerCase().includes(q) ||
+          (b.userId || '').includes(q) ||
+          (b.reason || '').toLowerCase().includes(q))
+      : modState.bans;
+    if (summary) summary.textContent = `${filtered.length} of ${modState.bans.length} bans`;
+    if (!filtered.length) {
+      list.innerHTML = '<div class="muted">No bans matched.</div>';
+      return;
+    }
+    list.innerHTML = '';
+    filtered.forEach((ban) => {
+      const row = document.createElement('div');
+      row.className = 'ban-row';
+      row.innerHTML = `
+        <div>
+          <div class="ban-name">${escapeHtmlSafe(ban.tag || ban.username || 'unknown user')}</div>
+          <div class="ban-meta">${escapeHtmlSafe(ban.userId)}</div>
+          ${ban.reason ? `<div class="ban-reason">"${escapeHtmlSafe(ban.reason)}"</div>` : ''}
+        </div>
+        <div class="ban-actions">
+          <button class="unban-btn" data-uid="${escapeHtmlSafe(ban.userId)}">↺ Unban</button>
+        </div>`;
+      list.appendChild(row);
+    });
+    list.querySelectorAll('.unban-btn').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const userId = btn.dataset.uid;
+        const ban = modState.bans.find((b) => b.userId === userId);
+        if (!confirm(`Unban ${ban?.tag || userId}?`)) return;
+        try {
+          const res = await fetch('/api/mod/unban', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ guildId: gId, userId }),
+          });
+          const data = await res.json();
+          if (data.error) throw new Error(data.error);
+          toast('↺ Unbanned', ban?.tag || userId, 'success', 2500);
+          modState.bans = modState.bans.filter((b) => b.userId !== userId);
+          renderBansTab();
+        } catch (e) { toast('▲ Unban failed', e.message, 'error', 3500); }
+      });
+    });
+  }
+
+  $('bans-refresh')?.addEventListener('click', () => {
+    modState._bansGuildId = null;
+    renderBansTab();
+  });
+  $('bans-search')?.addEventListener('input', (e) => {
+    modState.bansSearch = e.target.value;
+    renderBansTab();
+  });
+  $('bans-new')?.addEventListener('click', async () => {
+    const gId = activeGuildId();
+    if (!gId) return toast('▲ No server', 'Select a server first.', 'error', 2000);
+    const userId = prompt('User ID to ban:');
+    if (!userId || !/^\d{15,25}$/.test(userId)) return toast('▲ Bad ID', 'Need a 15–25 digit Discord user ID.', 'error', 2500);
+    const reason = prompt('Reason:') || 'No reason provided';
+    const deleteDays = prompt('Delete recent messages (days, 0–7):', '0');
+    const deleteMessageSeconds = (Math.max(0, Math.min(7, Number(deleteDays) || 0))) * 86400;
+    if (!confirm(`Ban user ${userId}?\nReason: ${reason}\nDelete ${deleteDays} day(s) of messages.\n\nThis is permanent until you unban.`)) return;
+    try {
+      const res = await fetch('/api/mod/ban', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ guildId: gId, userId, reason, deleteMessageSeconds }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      toast('⊘ Banned', userId, 'success', 2500);
+      modState._bansGuildId = null;
+      renderBansTab();
+    } catch (e) { toast('▲ Ban failed', e.message, 'error', 4000); }
+  });
+
+  // -------- KICKS / TIMEOUTS --------
+  function renderKicksTab() {
+    const actionEl = $('kick-action');
+    const durWrap = $('kick-duration-wrap');
+    if (actionEl && durWrap) {
+      const updateDurVisibility = () => { durWrap.style.display = actionEl.value === 'timeout' ? '' : 'none'; };
+      actionEl.removeEventListener('change', actionEl._maowHandler || (() => {}));
+      actionEl._maowHandler = updateDurVisibility;
+      actionEl.addEventListener('change', updateDurVisibility);
+      updateDurVisibility();
+    }
+  }
+  $('kick-go')?.addEventListener('click', async () => {
+    const gId = activeGuildId();
+    if (!gId) return toast('▲ No server', 'Select a server first.', 'error', 2000);
+    const userId = $('kick-user')?.value.trim();
+    if (!/^\d{15,25}$/.test(userId)) return toast('▲ Bad ID', 'Need a Discord user ID.', 'error', 2500);
+    const action = $('kick-action')?.value;
+    const reason = $('kick-reason')?.value.trim() || 'No reason provided';
+    if (action === 'timeout') {
+      const ms = Number($('kick-duration')?.value);
+      if (!confirm(`Timeout ${userId} for ${Math.round(ms / 60000)} minutes?\nReason: ${reason}`)) return;
+      try {
+        const res = await fetch('/api/mod/timeout', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ guildId: gId, userId, durationMs: ms, reason }),
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        toast('⏱ Timed out', `${Math.round(ms / 60000)} min`, 'success', 2500);
+      } catch (e) { toast('▲ Timeout failed', e.message, 'error', 4000); }
+    } else {
+      if (!confirm(`Kick ${userId}?\nReason: ${reason}`)) return;
+      try {
+        const res = await fetch('/api/mod/kick', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ guildId: gId, userId, reason }),
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        toast('👢 Kicked', userId, 'success', 2500);
+      } catch (e) { toast('▲ Kick failed', e.message, 'error', 4000); }
+    }
+  });
+
+  // -------- WARNS --------
+  async function renderWarnsTab() {
+    const list = $('warns-list');
+    const summary = $('warns-summary');
+    const gId = activeGuildId();
+    if (!gId) { list.innerHTML = '<div class="muted">Select a server first.</div>'; return; }
+    list.innerHTML = '<div class="muted">Loading…</div>';
+    try {
+      const res = await fetch(`/api/mod/warns?guildId=${encodeURIComponent(gId)}`);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      modState.warns = data.users || [];
+    } catch (e) {
+      list.innerHTML = `<div class="error">▲ ${escapeHtmlSafe(e.message)}</div>`;
+      return;
+    }
+    if (summary) summary.textContent = `${modState.warns.length} member${modState.warns.length === 1 ? '' : 's'} with warnings`;
+    if (!modState.warns.length) {
+      list.innerHTML = '<div class="muted">No warnings recorded.</div>';
+      return;
+    }
+    list.innerHTML = '';
+    modState.warns.forEach((u) => {
+      const row = document.createElement('div');
+      row.className = 'warn-row';
+      const entries = u.entries.map((w) => {
+        const when = new Date(w.ts).toLocaleString();
+        return `<div class="warn-entry">${escapeHtmlSafe(when)} · ${escapeHtmlSafe(w.reason || '(no reason)')}</div>`;
+      }).join('');
+      row.innerHTML = `
+        <div class="warn-head">
+          <span class="warn-user">${escapeHtmlSafe(u.tag || u.userId)}</span>
+          <div>
+            <span class="warn-count">⚠ ${u.count} warning${u.count === 1 ? '' : 's'}</span>
+            <button class="clear-btn" data-uid="${escapeHtmlSafe(u.userId)}">Clear</button>
+          </div>
+        </div>
+        <div class="warn-entries">${entries}</div>`;
+      list.appendChild(row);
+    });
+    list.querySelectorAll('.clear-btn').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const userId = btn.dataset.uid;
+        if (!confirm(`Clear all warnings for ${userId}?`)) return;
+        try {
+          const res = await fetch('/api/mod/warn-clear', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ guildId: gId, userId }),
+          });
+          const data = await res.json();
+          if (data.error) throw new Error(data.error);
+          toast('✕ Cleared', userId, 'info', 2000);
+          renderWarnsTab();
+        } catch (e) { toast('▲ Clear failed', e.message, 'error', 3000); }
+      });
+    });
+  }
+  $('warns-refresh')?.addEventListener('click', renderWarnsTab);
+
+  // -------- AUTOMOD --------
+  async function renderAutomodTab() {
+    const grid = $('automod-grid');
+    const gId = activeGuildId();
+    if (!gId) { grid.innerHTML = '<div class="muted">Select a server first.</div>'; return; }
+    grid.innerHTML = '<div class="muted">Loading…</div>';
+    try {
+      const res = await fetch(`/api/mod/automod?guildId=${encodeURIComponent(gId)}`);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      modState.automod = data.automod;
+    } catch (e) {
+      grid.innerHTML = `<div class="error">▲ ${escapeHtmlSafe(e.message)}</div>`;
+      return;
+    }
+    const a = modState.automod;
+    const rules = [
+      { key: 'enabled',      label: 'Automod enabled',  desc: 'Master switch. When off, no rules below apply.' },
+      { key: 'antiSpam',     label: 'Anti-spam',        desc: 'Throttle members posting messages too quickly.' },
+      { key: 'antiLinks',    label: 'Anti-links',       desc: 'Delete messages containing arbitrary URLs.' },
+      { key: 'antiInvites',  label: 'Anti-invites',     desc: 'Delete Discord invite links from other servers.' },
+      { key: 'antiCaps',     label: 'Anti-caps',        desc: 'Flag messages with excessive ALL-CAPS shouting.' },
+      { key: 'antiMentions', label: 'Anti-mass-mention', desc: 'Block messages mentioning many users at once.' },
+    ];
+    grid.innerHTML = '';
+    rules.forEach((r) => {
+      const card = document.createElement('div');
+      card.className = 'automod-rule';
+      card.innerHTML = `
+        <label>
+          <span>${escapeHtmlSafe(r.label)}</span>
+          <input type="checkbox" data-key="${r.key}" ${a[r.key] ? 'checked' : ''} />
+        </label>
+        <div class="desc">${escapeHtmlSafe(r.desc)}</div>`;
+      grid.appendChild(card);
+    });
+  }
+  $('automod-save')?.addEventListener('click', async () => {
+    const gId = activeGuildId();
+    if (!gId) return toast('▲ No server', 'Select a server.', 'error', 2000);
+    const checks = document.querySelectorAll('#automod-grid input[type="checkbox"]');
+    const body = { guildId: gId, wordBlocklist: modState.automod?.wordBlocklist || [] };
+    checks.forEach((c) => { body[c.dataset.key] = c.checked; });
+    try {
+      const res = await fetch('/api/mod/automod', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      modState.automod = data.automod;
+      toast('✓ Saved', 'Automod rules updated.', 'success', 2000);
+    } catch (e) { toast('▲ Save failed', e.message, 'error', 3500); }
+  });
+
+  // -------- MODLOG STREAM --------
+  // We tap into the live log buffer and surface entries that look like mod
+  // actions (ban / kick / timeout / warn / unban / purge) from the diagnostics
+  // feed, since they already pass through control.log() with structured meta.
+  async function renderModlogTab() {
+    const list = $('modlog-list');
+    const cfg = $('modlog-config');
+    const gId = activeGuildId();
+    if (!gId) { list.innerHTML = '<div class="muted">Select a server first.</div>'; return; }
+    // Fetch modlog channel config so the operator can see where actions are
+    // mirrored to.
+    try {
+      const res = await fetch(`/api/mod/modlog-config?guildId=${encodeURIComponent(gId)}`);
+      const data = await res.json();
+      if (cfg) cfg.textContent = data.channelId
+        ? `Mirroring to #${data.channelName || data.channelId}`
+        : 'No modlog channel configured (use /setup modlog).';
+    } catch { /* */ }
+    const filter = modState.modlogFilter;
+    const entries = (diagState?.logs || []).filter((e) => {
+      if (e.category !== 'command') return false;
+      const action = e.meta?.action;
+      if (!action) return false;
+      if (filter !== 'all' && action !== filter) return false;
+      // Only show entries for the active guild (or no-guild entries).
+      if (e.meta?.guildId && e.meta.guildId !== gId) return false;
+      return ['ban', 'unban', 'kick', 'timeout', 'warn', 'warn-clear', 'purge'].includes(action);
+    });
+    if (!entries.length) {
+      list.innerHTML = '<div class="muted">No mod actions yet for this server.</div>';
+      return;
+    }
+    list.innerHTML = '';
+    entries.slice(-100).reverse().forEach((e) => {
+      const row = document.createElement('div');
+      row.className = 'modlog-row';
+      row.setAttribute('data-action', e.meta.action);
+      const ts = new Date(e.ts).toLocaleString();
+      row.innerHTML = `
+        <span class="ts">${escapeHtmlSafe(ts)}</span>
+        <span class="act">${escapeHtmlSafe(e.meta.action)}</span>
+        <span class="msg">${escapeHtmlSafe(e.text)}</span>`;
+      list.appendChild(row);
+    });
+  }
+  $('modlog-filter')?.addEventListener('change', (e) => {
+    modState.modlogFilter = e.target.value;
+    renderModlogTab();
+  });
+  $('modlog-export')?.addEventListener('click', () => {
+    const gId = activeGuildId();
+    const entries = (diagState?.logs || []).filter((e) =>
+      e.category === 'command' && e.meta?.action && (!e.meta?.guildId || e.meta.guildId === gId));
+    if (!entries.length) return toast('▲ Nothing to export', '', 'info', 1500);
+    const lines = entries.map((e) =>
+      `${new Date(e.ts).toISOString()}\t${e.meta.action}\t${e.text}\t${JSON.stringify(e.meta)}`);
+    const blob = new Blob([lines.join('\n') + '\n'], { type: 'text/tab-separated-values' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `maowcore-modlog-${gId || 'all'}-${new Date().toISOString().replace(/[:.]/g, '-')}.tsv`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+
+  // -------- AUDIT LOG --------
+  async function renderAuditTab(force) {
+    const list = $('audit-list');
+    const summary = $('audit-summary');
+    const gId = activeGuildId();
+    if (!gId) { list.innerHTML = '<div class="muted">Select a server first.</div>'; return; }
+    if (!force && modState._auditGuildId === gId && modState.audit?.length) {
+      return drawAudit();
+    }
+    list.innerHTML = '<div class="muted">Loading audit log…</div>';
+    const type = $('audit-type')?.value || '';
+    const qs = new URLSearchParams({ guildId: gId, limit: '50' });
+    if (type) qs.set('type', type);
+    try {
+      const res = await fetch(`/api/mod/audit?${qs}`);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      modState.audit = data.entries || [];
+      modState._auditGuildId = gId;
+      drawAudit();
+    } catch (e) {
+      list.innerHTML = `<div class="error">▲ ${escapeHtmlSafe(e.message)}</div>`;
+    }
+    function drawAudit() {
+      if (summary) summary.textContent = `${modState.audit.length} entries`;
+      if (!modState.audit.length) {
+        list.innerHTML = '<div class="muted">No entries match the current filter.</div>';
+        return;
+      }
+      list.innerHTML = '';
+      modState.audit.forEach((e) => {
+        const row = document.createElement('div');
+        row.className = 'audit-row';
+        const ts = new Date(e.createdAt).toLocaleString();
+        const who = e.executor ? `${e.executor.tag}` : '(unknown)';
+        const target = e.target ? ` → ${e.target.tag || e.target.id}` : '';
+        const reason = e.reason ? ` · "${e.reason}"` : '';
+        row.innerHTML = `
+          <span class="ts">${escapeHtmlSafe(ts)}</span>
+          <span class="act">${escapeHtmlSafe(String(e.action || e.actionType))}</span>
+          <span class="msg">${escapeHtmlSafe(who + target + reason)}</span>`;
+        list.appendChild(row);
+      });
+    }
+  }
+  $('audit-refresh')?.addEventListener('click', () => renderAuditTab(true));
+  $('audit-type')?.addEventListener('change', () => renderAuditTab(true));
 
   // ===== Favorite button on Now Playing =====
   $('favorite-btn')?.addEventListener('click', () => {

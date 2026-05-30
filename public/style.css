@@ -1331,6 +1331,146 @@ button.link:hover { background: var(--accent-soft); }
 }
 .dl-job-cancel:hover { background: rgba(242, 63, 67, 0.1); }
 
+/* ===== Moderation page ===== */
+.mod-tools {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.mod-tools input[type="text"], .mod-tools select {
+  padding: 7px 10px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg);
+  font-size: 12px;
+  min-width: 180px;
+}
+.mod-tools input[type="text"]:focus, .mod-tools select:focus { outline: none; border-color: var(--accent); }
+.mod-tools button { padding: 7px 14px; font-size: 12px; border-radius: 6px; }
+
+/* Bans list */
+.bans-list { display: flex; flex-direction: column; gap: 6px; max-height: 600px; overflow-y: auto; }
+.ban-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 14px;
+  background: var(--bg-input);
+  border-radius: 8px;
+  border-left: 3px solid var(--danger);
+}
+.ban-row .ban-name { font-size: 13px; font-weight: 600; }
+.ban-row .ban-meta { font-size: 11px; color: var(--fg-dim); font-family: var(--font-mono); margin-top: 2px; }
+.ban-row .ban-reason { font-size: 12px; color: var(--fg-muted); margin-top: 4px; font-style: italic; }
+.ban-row .ban-actions { display: flex; gap: 6px; }
+.ban-row .unban-btn {
+  padding: 6px 12px; font-size: 12px; border-radius: 6px;
+  background: transparent; color: var(--success); border: 1px solid rgba(35, 165, 89, 0.4);
+}
+.ban-row .unban-btn:hover { background: rgba(35, 165, 89, 0.08); }
+
+/* Kick/timeout form */
+.kick-form {
+  display: grid;
+  grid-template-columns: 1fr 140px 140px 2fr auto;
+  gap: 10px;
+  align-items: end;
+  padding: 6px 0;
+}
+.kick-form label { display: flex; flex-direction: column; gap: 4px; }
+.kick-form input, .kick-form select {
+  padding: 8px 12px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg);
+  font-size: 12px;
+}
+.kick-form input:focus, .kick-form select:focus { outline: none; border-color: var(--accent); }
+.kick-form button { padding: 8px 18px; font-size: 13px; font-weight: 600; border-radius: 6px; background: var(--danger); color: #fff; }
+.kick-form button:hover { filter: brightness(1.1); }
+@media (max-width: 900px) { .kick-form { grid-template-columns: 1fr; } }
+
+/* Warns list */
+.warns-list { display: flex; flex-direction: column; gap: 6px; max-height: 600px; overflow-y: auto; }
+.warn-row {
+  padding: 10px 14px;
+  background: var(--bg-input);
+  border-radius: 8px;
+  border-left: 3px solid var(--warning);
+}
+.warn-row .warn-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.warn-row .warn-user { font-size: 13px; font-weight: 600; }
+.warn-row .warn-count { font-size: 11px; color: var(--warning); font-family: var(--font-mono); }
+.warn-row .warn-entries { font-size: 11px; color: var(--fg-muted); font-family: var(--font-mono); }
+.warn-row .warn-entry { padding: 2px 0; }
+.warn-row .clear-btn { padding: 4px 10px; font-size: 11px; border-radius: 4px; background: transparent; color: var(--danger); border: 1px solid rgba(242, 63, 67, 0.4); }
+.warn-row .clear-btn:hover { background: rgba(242, 63, 67, 0.08); }
+
+/* Automod */
+.automod-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+  padding: 6px 0;
+}
+.automod-rule {
+  padding: 12px 14px;
+  background: var(--bg-input);
+  border-radius: 8px;
+  border: 1px solid var(--border-soft);
+}
+.automod-rule label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+}
+.automod-rule .desc { font-size: 11px; color: var(--fg-dim); margin-top: 4px; line-height: 1.4; }
+.automod-rule input[type="checkbox"] { width: 36px; height: 20px; appearance: none; background: var(--bg-input-2); border-radius: 999px; position: relative; cursor: pointer; transition: background 120ms; }
+.automod-rule input[type="checkbox"]:checked { background: var(--accent); }
+.automod-rule input[type="checkbox"]::before {
+  content: ''; position: absolute; top: 2px; left: 2px;
+  width: 16px; height: 16px; background: #fff; border-radius: 50%;
+  transition: transform 150ms;
+}
+.automod-rule input[type="checkbox"]:checked::before { transform: translateX(16px); }
+
+/* Modlog stream */
+.modlog-list, .audit-list {
+  display: flex; flex-direction: column; gap: 4px;
+  max-height: 600px;
+  overflow-y: auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.modlog-row, .audit-row {
+  padding: 8px 12px;
+  background: var(--bg-input);
+  border-radius: 6px;
+  border-left: 3px solid var(--accent);
+  display: grid;
+  grid-template-columns: 80px 110px 1fr;
+  gap: 10px;
+  align-items: baseline;
+}
+.modlog-row[data-action="ban"], .modlog-row[data-action="kick"] { border-left-color: var(--danger); }
+.modlog-row[data-action="timeout"], .modlog-row[data-action="warn"] { border-left-color: var(--warning); }
+.modlog-row[data-action="unban"] { border-left-color: var(--success); }
+.modlog-row .ts, .audit-row .ts { color: var(--fg-dim); font-size: 10px; }
+.modlog-row .act, .audit-row .act { text-transform: uppercase; font-weight: 600; font-size: 10px; color: var(--fg-muted); }
+.modlog-row .msg, .audit-row .msg { color: var(--fg); word-break: break-word; }
+
 /* ===== Topbar diagnostics chip (relocated from bottom-right) ===== */
 .topbar-diag {
   display: inline-flex;
