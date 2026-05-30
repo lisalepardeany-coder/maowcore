@@ -1651,22 +1651,131 @@
     if (d.result) renderSpeedtestResult(d.result);
   }).catch(() => { /* */ });
 
+  // Browser-side speedtest using Cloudflare's free /__down + /__up endpoints.
+  // Works on every host without installing librespeed-cli or speedtest-cli.
+  // Measures the *browser's* connection — for dashboards opened on the bot
+  // host this is also the bot's connection; for remote dashboards it shows
+  // the operator's link instead.
+  async function runBrowserSpeedtest({ onProgress } = {}) {
+    const noop = onProgress || (() => {});
+
+    // 1. Latency — 6 small fetches, take the min so we discount any one
+    //    slow handshake. `/__down?bytes=0` is just headers.
+    noop('Measuring latency…');
+    const latencies = [];
+    for (let i = 0; i < 6; i++) {
+      const start = performance.now();
+      try {
+        await fetch('https://speed.cloudflare.com/__down?bytes=0', { cache: 'no-store' });
+        latencies.push(performance.now() - start);
+      } catch { /* one bad sample is fine */ }
+    }
+    if (!latencies.length) throw new Error('Cannot reach speed.cloudflare.com');
+    const pingMs = Math.min(...latencies);
+
+    // 2. Download — start with a smaller probe to gauge speed, then scale up
+    //    so slow connections don't sit waiting 60s+ for a giant fetch.
+    noop('Probing download…');
+    let downloadMbps;
+    {
+      const probeBytes = 5 * 1024 * 1024;  // 5 MB probe
+      const probeStart = performance.now();
+      let received = 0;
+      const probeRes = await fetch(`https://speed.cloudflare.com/__down?bytes=${probeBytes}`, { cache: 'no-store' });
+      const reader = probeRes.body.getReader();
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        received += value.length;
+      }
+      const probeSec = (performance.now() - probeStart) / 1000;
+      const probeMbps = (received * 8) / 1e6 / probeSec;
+
+      // Scale main test target to take ~5–10 seconds based on probe speed.
+      // Min 25 MB so fast lines get a reasonable sample, max 200 MB so a
+      // 1 Gbps line caps the test at ~1.6s.
+      const targetBytes = Math.max(25 * 1024 * 1024, Math.min(200 * 1024 * 1024,
+        Math.round((probeMbps / 8) * 1e6 * 8)));
+
+      noop(`Downloading ${(targetBytes / 1024 / 1024).toFixed(0)} MB…`);
+      const dlStart = performance.now();
+      let dlReceived = 0;
+      const dlRes = await fetch(`https://speed.cloudflare.com/__down?bytes=${targetBytes}`, { cache: 'no-store' });
+      const dlReader = dlRes.body.getReader();
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const { done, value } = await dlReader.read();
+        if (done) break;
+        dlReceived += value.length;
+        const elapsed = (performance.now() - dlStart) / 1000;
+        if (elapsed > 0.25) {
+          noop(`Downloading… ${((dlReceived * 8) / 1e6 / elapsed).toFixed(1)} Mbps`);
+        }
+      }
+      const dlSec = (performance.now() - dlStart) / 1000;
+      downloadMbps = (dlReceived * 8) / 1e6 / dlSec;
+    }
+
+    // 3. Upload — 10 MB POST. Cloudflare's __up endpoint accepts any body and
+    //    discards it; we measure how long the upload takes.
+    noop('Uploading 10 MB…');
+    const upBytes = 10 * 1024 * 1024;
+    const upPayload = new Uint8Array(upBytes);
+    const upStart = performance.now();
+    await fetch('https://speed.cloudflare.com/__up', {
+      method: 'POST',
+      body: upPayload,
+      headers: { 'Content-Type': 'application/octet-stream' },
+    });
+    const upSec = (performance.now() - upStart) / 1000;
+    const uploadMbps = (upBytes * 8) / 1e6 / upSec;
+
+    // 4. ISP + Cloudflare datacenter metadata.
+    let isp = null, server = null;
+    try {
+      const meta = await fetch('https://speed.cloudflare.com/meta').then((r) => r.json());
+      isp = meta.asOrganization || meta.asn || null;
+      server = meta.colo ? `Cloudflare ${meta.colo}` : null;
+    } catch { /* metadata is optional */ }
+
+    return {
+      tool: 'browser (Cloudflare)',
+      downloadMbps,
+      uploadMbps,
+      pingMs,
+      server,
+      isp,
+    };
+  }
+
   $('speedtest-run')?.addEventListener('click', async () => {
     const btn = $('speedtest-run');
     btn.disabled = true;
-    btn.textContent = '⏱ Running…';
+    btn.textContent = '⏱ Probing latency…';
     try {
-      const data = await fetchJson('/api/admin/speedtest', { method: 'POST' });
-      if (data.error) throw new Error(data.error);
-      toast('⚡ Speedtest started', 'Running in background — results in ~30s', 'info', 3000);
+      const result = await runBrowserSpeedtest({
+        onProgress: (msg) => { btn.textContent = `⏱ ${msg}`; },
+      });
+      // Render locally immediately, then POST to server to cache + broadcast
+      // to any other connected dashboards.
+      renderSpeedtestResult({ ...result, ts: Date.now() });
+      toast('⚡ Speedtest done',
+        `↓${result.downloadMbps.toFixed(1)} ↑${result.uploadMbps.toFixed(1)} Mbps · ${Math.round(result.pingMs)}ms`,
+        'success', 3500);
+      // Fire-and-forget the cache update; don't fail the user-visible result
+      // if the server rejects it for some reason.
+      fetchJson('/api/admin/speedtest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(result),
+      }).catch(() => { /* cached locally already */ });
     } catch (e) {
-      toast('▲ Speedtest failed', e.message, 'error', 4000);
+      renderSpeedtestResult({ error: e.message, ts: Date.now() });
+      toast('▲ Speedtest failed', e.message, 'error', 5000);
     } finally {
-      // The result arrives via WebSocket; re-enable after a delay.
-      setTimeout(() => {
-        btn.disabled = false;
-        btn.textContent = '⚡ Run speedtest';
-      }, 2000);
+      btn.disabled = false;
+      btn.textContent = '⚡ Run speedtest';
     }
   });
 
