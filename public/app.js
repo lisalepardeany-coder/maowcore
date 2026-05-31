@@ -1350,6 +1350,14 @@
     e.stopPropagation();
     iconPickerEl?.classList.toggle('hidden');
   });
+  // Topbar now-playing chip → jump to Home page (where the full now-playing
+  // controls live). switchPage isn't defined yet at this point in module
+  // load, so we defer the click handler attachment to after page load.
+  setTimeout(() => {
+    document.getElementById('topbar-np')?.addEventListener('click', () => {
+      try { switchPage('home'); } catch { /* */ }
+    });
+  }, 0);
   // Click-outside to close.
   document.addEventListener('click', (e) => {
     if (!iconPickerEl || iconPickerEl.classList.contains('hidden')) return;
@@ -1421,6 +1429,8 @@
       $('queue').innerHTML = '<div class="queue-empty">— cargo hold empty —</div>';
       if (dock) dock.classList.remove('visible');
       if (vis) vis.classList.add('paused');
+      // Hide the topbar now-playing chip when nothing's queued.
+      $('topbar-np')?.classList.add('hidden');
       setAmbient(null);
       return;
     }
@@ -1448,6 +1458,20 @@
       $('dock-sub').textContent = `${s.user} · ${s.formattedDuration}`;
       $('dock-bar').style.width = `${Math.min(100, Math.max(0, ((s.currentTime || 0) / (s.duration || 1)) * 100))}%`;
       $('dock-pause').textContent = q.paused ? '▶' : '⏸';
+    }
+
+    // Topbar now-playing chip (persistent across pages).
+    const tnp = $('topbar-np');
+    if (tnp) {
+      tnp.classList.remove('hidden');
+      tnp.classList.toggle('paused', !!q.paused);
+      $('topbar-np-icon').textContent = q.paused ? '⏸' : '▶';
+      $('topbar-np-title').textContent = s.name || '—';
+      $('topbar-np-sub').textContent = `${s.user || '—'}  ·  ${s.formattedDuration || ''}`;
+      const tt = $('topbar-np-thumb');
+      if (s.thumbnail) { tt.src = s.thumbnail; } else { tt.removeAttribute('src'); }
+      // Native tooltip with the full title in case it's truncated.
+      tnp.title = `${q.paused ? 'Paused' : 'Playing'}: ${s.name}\nClick to open Now Playing`;
     }
 
     if (!volTimer) {

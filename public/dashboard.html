@@ -59,6 +59,18 @@
         <!-- Hidden legacy elements kept so app.js status-update calls still work -->
         <span class="hidden" id="status-dot"></span><span class="hidden" id="status-text"></span><span class="hidden" id="bot-tag"></span>
       </div>
+
+      <!-- Persistent now-playing chip in the topbar (visible across all pages
+           when audio is playing). Hidden when nothing is in the queue. -->
+      <button class="topbar-np hidden" id="topbar-np" title="Open Now Playing">
+        <span class="topbar-np-icon" id="topbar-np-icon">▶</span>
+        <img class="topbar-np-thumb" id="topbar-np-thumb" alt="" />
+        <span class="topbar-np-text">
+          <span class="topbar-np-title" id="topbar-np-title">—</span>
+          <span class="topbar-np-sub" id="topbar-np-sub">—</span>
+        </span>
+      </button>
+
       <div class="topbar-spacer"></div>
       <div class="topbar-controls">
         <!-- Instance picker — selects which bot the dashboard talks to -->
@@ -302,7 +314,7 @@
         </div>
       </nav>
       <div class="sidebar-footer">
-        <div class="muted small">v3.1.1</div>
+        <div class="muted small">v3.1.2</div>
       </div>
     </aside>
 

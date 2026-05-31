@@ -6,6 +6,33 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.1.2] — 2026-06-01
+
+Persistent now-playing chip in the topbar — see what's playing from any
+page without having to navigate back to Home.
+
+### Added
+
+- **Topbar now-playing chip** — appears next to the MaowCore brand
+  whenever a song is playing. Shows ▶/⏸ icon, 26×26 thumbnail (when
+  available), song title (truncated with ellipsis), and requester +
+  duration sub-line. Click to jump to Home.
+- Hard width cap (320 px desktop, 220 px tablet, 160 px mobile) so the
+  chip can't shove the rest of the topbar (instance picker, diag chip,
+  server select, login button) off-screen.
+- Responsive shrinking: the sub-line hides under 1100 px viewport,
+  the thumbnail hides under 800 px. With the sidebar collapsed, the
+  chip gets a wider 360 px cap since the topbar has more room.
+- Auto-hides when nothing's in the queue (no awkward placeholder).
+- Pause state gets a subtle 70% opacity dim + ⏸ icon swap.
+
+### Notes
+
+- Reuses the existing `state.queues[].currentSong` data that already
+  flows over WebSocket — no new backend work, no extra payload.
+- The mini-dock at the bottom-right still works as before; the topbar
+  chip is an addition for at-a-glance visibility on every page.
+
 ## [3.1.1] — 2026-06-01
 
 In-dashboard DB browser + a pre-existing date-bucket bug fix exposed

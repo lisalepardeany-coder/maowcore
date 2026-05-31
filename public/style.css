@@ -1515,6 +1515,89 @@ body.high-contrast { --bg: #000; --bg-elev: #0a0a0a; --bg-elev-2: #1a1a1a; --bg-
 .cleanup-section .cs-actions button { padding: 6px 12px; font-size: 12px; border-radius: 4px; }
 .cs-format { display: inline-block; padding: 2px 8px; margin-right: 6px; font-size: 11px; background: var(--bg-input-2); border-radius: 4px; font-family: var(--font-mono); }
 
+/* ===== Topbar now-playing chip (v3.1.2) ===== */
+.topbar-np {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 12px;
+  padding: 4px 12px 4px 6px;
+  height: 36px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  color: var(--fg);
+  font-family: var(--font);
+  cursor: pointer;
+  /* Hard width cap so this chip can't shove other topbar controls off-screen
+     when the song title is super long. Truncate with ellipsis instead. */
+  max-width: 320px;
+  min-width: 0;
+  overflow: hidden;
+  transition: background 120ms, border-color 120ms;
+}
+.topbar-np:hover { background: var(--bg-hover); border-color: var(--accent); }
+.topbar-np.hidden { display: none; }
+.topbar-np.paused { opacity: 0.7; }
+.topbar-np.paused .topbar-np-icon { color: var(--fg-dim); }
+
+.topbar-np-icon {
+  flex-shrink: 0;
+  font-size: 13px;
+  color: var(--accent);
+  width: 14px;
+  text-align: center;
+}
+.topbar-np-thumb {
+  width: 26px;
+  height: 26px;
+  border-radius: 4px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--bg-input-2);
+}
+.topbar-np-thumb:not([src]) { display: none; }
+.topbar-np-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.15;
+  text-align: left;
+}
+.topbar-np-title {
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 240px;
+}
+.topbar-np-sub {
+  font-size: 10px;
+  color: var(--fg-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 240px;
+  font-family: var(--font-mono);
+}
+
+/* When the dashboard is narrow, hide the subtitle line + cap width tighter. */
+@media (max-width: 1100px) {
+  .topbar-np { max-width: 220px; }
+  .topbar-np-title { max-width: 150px; }
+  .topbar-np-sub { display: none; }
+}
+@media (max-width: 800px) {
+  .topbar-np-thumb { display: none; }
+  .topbar-np { max-width: 160px; padding: 4px 10px; }
+  .topbar-np-title { max-width: 110px; }
+}
+/* When the sidebar is collapsed (narrow icon rail) the topbar has more room
+   — let the chip use it. */
+body.sidebar-collapsed .topbar-np { max-width: 360px; }
+body.sidebar-collapsed .topbar-np-title { max-width: 280px; }
+
 /* ===== Multi-bot instance picker (v2.0.0) ===== */
 .topbar-instance {
   display: inline-flex;
