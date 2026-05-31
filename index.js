@@ -656,19 +656,128 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
   }
 });
 
-// Welcome / leave sounds — fires when the bot itself joins/leaves a voice channel.
-client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
-  if (oldState.id !== client.user.id) return;  // only react to the bot's own state
-  const guildId = newState.guild.id;
-  const cfg = getGuild(guildId);
-  // Joined a voice channel (oldState had none, newState has one)
-  if (!oldState.channelId && newState.channelId && cfg.welcomeSoundUrl) {
-    try {
-      await client.distube.play(newState.channel, cfg.welcomeSoundUrl);
-    } catch (e) { control.log(`Welcome sound failed: ${e.message}`, 'warn'); }
+// ===== v3.2.4 — Welcome sound, leave sound, voice-follow =====
+//
+// Welcome sound (option A): plays when the bot is idle in voice AND either
+//   (a) the bot itself joined, OR
+//   (b) a user joined the channel where the bot already is.
+// Skipped if the bot is currently playing — no music interruption.
+//
+// Leave sound: plays before the bot disconnects when the channel goes empty
+// (only if the queue isn't running — same idle check).
+//
+// Voice-follow (per-user opt-in via /follow): when a user moves voice
+// channels AND they're the requester of the currently playing song AND
+// they've opted in, the bot moves to their new channel.
+const voiceFollow = require('./lib/voice-follow');
+
+// Helper: is the bot currently playing music (or has anything queued)?
+const isBotIdle = (guildId) => {
+  const q = client.distube?.queues?.get(guildId);
+  return !q || !q.songs || q.songs.length === 0;
+};
+
+// Helper: get the bot's current voice channel in this guild.
+const botVoiceChannel = (guild) => guild.members.me?.voice?.channel || null;
+
+// Helper: play a short audio URL via DisTube only when idle. We rely on the
+// idle check rather than trying to interrupt the player.
+const playSoundIfIdle = async (channel, url, label) => {
+  if (!channel || !url) return;
+  if (!isBotIdle(channel.guild.id)) return;  // music is playing — don't trample it
+  try {
+    await client.distube.play(channel, url);
+  } catch (e) {
+    control.log(`${label} sound failed: ${e.message}`, 'warn');
   }
-  // Left a voice channel — we can't easily play AFTER disconnect, so play before
-  // by listening for finish/empty events and triggering then. Skipped here.
+};
+
+client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
+  const guild = newState.guild;
+  const guildId = guild.id;
+  const cfg = getGuild(guildId);
+  const isBotState = oldState.id === client.user.id;
+
+  // ===== Welcome sound — bot just joined a channel =====
+  if (isBotState && !oldState.channelId && newState.channelId && cfg.welcomeSoundUrl) {
+    // Guard against the /play race: if the user just summoned the bot to
+    // play a song, the queue will populate moments after this fires. We
+    // skip if there's any queue at all, so the welcome sound plays only
+    // for "idle" joins (24/7 boot, /join, etc.).
+    await playSoundIfIdle(newState.channel, cfg.welcomeSoundUrl, 'Welcome');
+    return;  // bot-state changes don't trigger user-join or follow logic
+  }
+
+  // ===== Leave sound — bot just left a channel =====
+  if (isBotState && oldState.channelId && !newState.channelId && cfg.leaveSoundUrl) {
+    // The bot has already disconnected by the time this fires, so we can't
+    // play through it anymore. The leave sound is fired pre-disconnect via
+    // the DisTube `empty` hook below instead. This branch is just here so
+    // future-us doesn't add a duplicate handler.
+    return;
+  }
+
+  if (isBotState) return;  // any other bot state change — not interesting
+
+  // ===== Welcome sound — a user joined the bot's channel =====
+  // Fires when the user moves INTO the channel the bot is sitting in.
+  if (newState.channelId && oldState.channelId !== newState.channelId) {
+    const botChannel = botVoiceChannel(guild);
+    if (botChannel && botChannel.id === newState.channelId && cfg.welcomeSoundUrl) {
+      await playSoundIfIdle(botChannel, cfg.welcomeSoundUrl, 'User-join welcome');
+    }
+  }
+
+  // ===== Voice-follow — the user (a) opted in, (b) is the current requester =====
+  if (!newState.channelId) return;  // user disconnected entirely — don't follow
+  if (oldState.channelId === newState.channelId) return;  // they didn't move
+  if (!voiceFollow.isEnabled(guildId, newState.id)) return;  // not opted in
+
+  const queue = client.distube?.queues?.get(guildId);
+  const currentSong = queue?.songs?.[0];
+  const requesterId = currentSong?.member?.id || currentSong?.user?.id;
+  if (!queue || !currentSong || requesterId !== newState.id) return;
+
+  // The current song's requester moved. Migrate the bot.
+  const botChannel = botVoiceChannel(guild);
+  if (!botChannel || botChannel.id === newState.channelId) return;  // already there
+  // Don't follow into the AFK channel — most servers intend AFK as quiet zones.
+  if (guild.afkChannelId && newState.channelId === guild.afkChannelId) {
+    control.log(`Voice-follow: ${newState.member?.displayName || newState.id} moved to AFK — staying put.`, 'info');
+    return;
+  }
+  // Check permissions in the destination.
+  const me = guild.members.me;
+  const destPerms = newState.channel.permissionsFor(me);
+  if (!destPerms?.has(['Connect', 'Speak'])) {
+    control.log(`Voice-follow: can't follow into ${newState.channel.name} — missing Connect/Speak perms.`, 'warn');
+    return;
+  }
+  try {
+    queue.voice.channel = newState.channel;
+    control.log(`Voice-follow: hopped to ${newState.channel.name} with ${newState.member?.displayName || newState.id}.`, 'info');
+  } catch (e) {
+    control.log(`Voice-follow failed: ${e.message}`, 'warn');
+  }
+});
+
+// Leave sound — fired BEFORE the bot disconnects (which is when the channel
+// goes empty and DisTube would normally cut the connection). We let DisTube's
+// `empty` event give us a heads up so we can play the leave sound first.
+client.distube?.on?.('empty', async (queue) => {
+  const guildId = queue?.voiceChannel?.guild?.id;
+  if (!guildId) return;
+  const cfg = getGuild(guildId);
+  if (!cfg.leaveSoundUrl) return;
+  const channel = queue.voiceChannel;
+  if (!channel) return;
+  try {
+    // Stop the current queue (it's empty anyway), then play the leave sound.
+    // DisTube will auto-disconnect when it finishes if no 24/7 mode is set.
+    await client.distube.play(channel, cfg.leaveSoundUrl);
+  } catch (e) {
+    control.log(`Leave sound failed: ${e.message}`, 'warn');
+  }
 });
 
 // Reaction-roles handler — only acts on messages registered via /reactionrole

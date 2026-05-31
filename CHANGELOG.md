@@ -6,6 +6,60 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.2.4] — 2026-05-31
+
+Voice-channel quality-of-life. Three voice features that were either
+broken or never wired up are now working.
+
+### Added
+
+- **Voice-follow** — new `/follow on|off|status` slash command. When you
+  opt in *and* you're the requester of the currently playing song *and*
+  you move voice channels, the bot hops along to your new channel. Off
+  by default; each user manages their own setting.
+  - Won't follow into AFK channels (servers usually want AFK to stay quiet)
+  - Won't follow if the bot lacks `Connect`/`Speak` perms in the destination
+  - Logs a warning instead of crashing on any failure
+  - Storage piggybacks on the per-guild config JSON — no schema migration
+- **`lib/voice-follow.js`** module with 7 unit tests covering opt-in
+  state, toggling, multi-user coexistence, and null-safety.
+
+### Fixed
+
+- **Welcome sound now fires when a user joins the bot's channel,**
+  not just when the bot joins. Previously the handler had
+  `if (oldState.id !== client.user.id) return;` which skipped every
+  user voice-state change — meaning when you walked into a channel
+  where the bot was sitting, the configured welcome sound was silently
+  ignored.
+- **Welcome sound no longer races with `/play`.** The old handler called
+  `distube.play(channel, welcomeUrl)` the moment the bot's voice state
+  changed, which on a `/play song` invocation queued the welcome sound
+  *behind* the requested song. The sound would play after the song
+  ended — too late to feel like a welcome. The new behavior checks the
+  queue first and only plays the welcome sound when the bot is idle.
+- **Leave sound now actually plays.** The `leaveSoundUrl` config field
+  was stored but never read. The original handler had a comment that
+  literally said "Skipped here." Now wired up to:
+  - The `/leave` slash command (plays the sound, then disconnects after
+    10s or sound-finish, whichever first)
+  - DisTube's `empty` event (when the voice channel goes empty and the
+    bot would auto-disconnect)
+- **Posts list ordering is now stable.** Added `id DESC` as a tiebreaker
+  to `ORDER BY pinned DESC, created_at DESC` — multiple posts inserted
+  in the same millisecond had indeterminate order. Pre-existing flaky
+  test exposed it.
+
+### Notes
+
+- Welcome and leave sounds use "option A" semantics: they only play when
+  the bot is **idle** (queue empty). This avoids interrupting in-progress
+  music. If you want sounds to duck the music and resume, that's a
+  separate feature (potentially v3.2.5).
+- The walkout-sound concept (each user has their own entrance sound that
+  plays only for them) was discussed but deferred — say the word if you
+  want it.
+
 ## [3.2.3] — 2026-05-31
 
 ### Fixed

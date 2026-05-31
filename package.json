@@ -1,6 +1,6 @@
 {
   "name": "discord-music-bot",
-  "version": "3.2.3",
+  "version": "3.2.4",
   "description": "Discord music bot with Spotify support",
   "main": "index.js",
   "scripts": {
