@@ -6,6 +6,21 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.2.2] — 2026-05-31
+
+### Fixed
+
+- **Sidebar collapse button (`«` / `»`) didn't actually collapse the sidebar.**
+  Two click handlers were attached to `#sidebar-toggle` — one near the top
+  of `app.js` (added in an older release) and one later (added when the
+  arrow-glyph swap was introduced). Both fired on every click, toggling
+  the `sidebar-collapsed` class twice in a row, leaving the sidebar
+  unchanged. The icon would flip but nothing else moved. Removed the
+  duplicate handler so the working one runs by itself.
+- **Initial sidebar-toggle icon was `☰` for the first render.** The HTML
+  default never matched what the click handler swaps to. Now the icon
+  is initialized to `«` (or `»` if already collapsed) at boot.
+
 ## [3.2.1] — 2026-05-31
 
 ### Removed

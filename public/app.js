@@ -1941,10 +1941,10 @@
   });
 
   // ===== Sidebar collapse toggle =====
-  $('sidebar-toggle')?.addEventListener('click', () => {
-    document.body.classList.toggle('sidebar-collapsed');
-    localStorage.setItem('maow.sidebarCollapsed', document.body.classList.contains('sidebar-collapsed') ? '1' : '0');
-  });
+  // (removed in v3.2.2: this was a duplicate of the handler at the bottom
+  // of the file. Both fired on the same click, toggling the class twice
+  // and cancelling each other out — the icon flipped but the sidebar
+  // didn't move. The other handler keeps the icon in sync too.)
 
   // ===== Notification bell toggle =====
   $('notif-bell')?.addEventListener('click', () => {
@@ -2550,8 +2550,12 @@
     localStorage.setItem('maow.sidebarCollapsed', collapsed ? '1' : '0');
     $('sidebar-toggle').textContent = collapsed ? '»' : '«';
   });
-  if (document.body.classList.contains('sidebar-collapsed')) {
-    $('sidebar-toggle').textContent = '»';
+  // Initialize the icon to match the current collapse state on every load —
+  // the HTML default of `☰` was only ever visible briefly before the user
+  // clicked.
+  if ($('sidebar-toggle')) {
+    $('sidebar-toggle').textContent =
+      document.body.classList.contains('sidebar-collapsed') ? '»' : '«';
   }
 
   // ===== Notification center =====
