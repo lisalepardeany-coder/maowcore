@@ -1460,7 +1460,8 @@
       $('dock-pause').textContent = q.paused ? '▶' : '⏸';
     }
 
-    // Topbar now-playing chip (persistent across pages).
+    // Topbar now-playing chip (persistent across pages — replaces the old
+    // bottom-right mini-dock).
     const tnp = $('topbar-np');
     if (tnp) {
       tnp.classList.remove('hidden');
@@ -1470,6 +1471,12 @@
       $('topbar-np-sub').textContent = `${s.user || '—'}  ·  ${s.formattedDuration || ''}`;
       const tt = $('topbar-np-thumb');
       if (s.thumbnail) { tt.src = s.thumbnail; } else { tt.removeAttribute('src'); }
+      // Hairline progress bar across the bottom edge.
+      const fill = $('topbar-np-progress-fill');
+      if (fill) {
+        const pct = Math.min(100, Math.max(0, ((s.currentTime || 0) / (s.duration || 1)) * 100));
+        fill.style.width = `${pct}%`;
+      }
       // Native tooltip with the full title in case it's truncated.
       tnp.title = `${q.paused ? 'Paused' : 'Playing'}: ${s.name}\nClick to open Now Playing`;
     }

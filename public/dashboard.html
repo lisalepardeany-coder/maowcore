@@ -61,7 +61,8 @@
       </div>
 
       <!-- Persistent now-playing chip in the topbar (visible across all pages
-           when audio is playing). Hidden when nothing is in the queue. -->
+           when audio is playing). Hidden when nothing is in the queue.
+           Replaces the old bottom-right mini-dock. -->
       <button class="topbar-np hidden" id="topbar-np" title="Open Now Playing">
         <span class="topbar-np-icon" id="topbar-np-icon">▶</span>
         <img class="topbar-np-thumb" id="topbar-np-thumb" alt="" />
@@ -69,6 +70,7 @@
           <span class="topbar-np-title" id="topbar-np-title">—</span>
           <span class="topbar-np-sub" id="topbar-np-sub">—</span>
         </span>
+        <span class="topbar-np-progress"><span class="topbar-np-progress-fill" id="topbar-np-progress-fill"></span></span>
       </button>
 
       <div class="topbar-spacer"></div>
@@ -314,7 +316,7 @@
         </div>
       </nav>
       <div class="sidebar-footer">
-        <div class="muted small">v3.1.2</div>
+        <div class="muted small">v3.1.3</div>
       </div>
     </aside>
 

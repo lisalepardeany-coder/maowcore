@@ -6,6 +6,25 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.1.3] — 2026-06-01
+
+The bottom mini-dock is gone — replaced entirely by the topbar chip.
+
+### Changed
+
+- **Removed the bottom-right floating mini-dock.** The topbar now-playing
+  chip from v3.1.2 covers the same need without the duplication. Old
+  dock DOM stays (force-hidden via `.mini-dock { display: none !important }`)
+  so any legacy JS that pokes `dock-title` / `dock-thumb` / `dock-bar`
+  still no-ops cleanly.
+- **Topbar chip is bigger.** Was 36 px tall and 320 px max; now 42 px
+  and 380 px max (440 px when sidebar collapsed). Title font bumped
+  from 12 → 13 px, thumb from 26 → 32 px. Reads at a glance instead
+  of looking like a footnote.
+- **Hairline progress bar** across the bottom edge of the chip — same
+  info as the old dock's bar but unobtrusive. 600 ms `transition: width`
+  so it animates smoothly between state ticks.
+
 ## [3.1.2] — 2026-06-01
 
 Persistent now-playing chip in the topbar — see what's playing from any
