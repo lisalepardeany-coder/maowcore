@@ -6,6 +6,121 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.2.0] — 2026-05-31
+
+Identity comes to MaowCore: a proper login page, role-based access control,
+and an admin Posts feed for shipping updates to your community.
+
+### Added
+
+- **Dedicated login page.** New `Login` entry in the sidebar (under
+  System) opens a friendly landing that wraps the existing Discord OAuth
+  flow. Big Discord-blue sign-in button, requested-permissions disclosure
+  (`identify` only — no email, no servers list), and live session status.
+  Useful for first-time visitors who haven't noticed the topbar button.
+- **Role-based access control** (`lib/roles.js`). Five-rank ladder:
+  `owner > admin > moderator > member > banned`. Stored in SQLite
+  (`user_roles` table — schema v2 migration).
+  - **Bootstrap:** if `OWNER_USER_ID` is set in `.env`, that Discord user
+    becomes owner on first login. Otherwise the **first user to log in**
+    is auto-owner.
+  - Subsequent first-time logins are recorded as `member`.
+  - Banned users are rejected at the auth layer (positive rank checks
+    always fail).
+  - Promotion is gated: caller must outrank both the target's current
+    rank AND the new rank.
+- **Posts / announcements page** (`lib/posts.js`). Admin+ can publish
+  updates, announcements, changelog entries, and news to a server-wide
+  feed. Categories carry colored badges; owner can pin posts to the
+  top of the list. Tiny markdown shim renders `**bold**`, `*italic*`,
+  `` `code` ``, `[links](url)`, and `-` lists in post bodies (server
+  stores raw markdown; client renders).
+- **Ranks management page.** Owner/admin view of every registered
+  dashboard user grouped by rank, with avatar + Discord tag + user ID
+  + granted-by/granted-at metadata. Grant form accepts a raw Discord
+  user ID so you can pre-promote someone before they've even logged in.
+- **`/api/auth/me` now returns `rank`** so the client can show/hide
+  admin controls without an extra round-trip.
+- **New REST endpoints** (all require `X-Maow-Session` header):
+  - `GET  /api/roles/list` — every user's rank record (admin+ only)
+  - `POST /api/roles/grant` — `{ targetId, rank, notes? }`
+  - `GET  /api/posts/list?category=...` — paginated post list
+  - `GET  /api/posts/:id` — single post
+  - `POST /api/posts/create` — `{ title, body, category, pinned }`
+  - `POST /api/posts/update` — `{ id, ...patch }`
+  - `POST /api/posts/delete` — `{ id }`
+
+### Schema
+
+- **SQLite migration v2** adds `user_roles` and `posts` tables with
+  indexes (`idx_user_roles_rank`, `idx_posts_pinned_created`).
+  Migrations run automatically on first boot — no manual step.
+
+### Fixed (post-audit pass)
+
+- **Auth gates on the new GET endpoints.** `/api/roles/list` is now
+  admin+ only; `/api/posts/list` and `/api/posts/:id` require a signed-in
+  session. Previously they returned data to any unauth'd caller — privacy
+  leak on hosts without `CONTROL_TOKEN` set.
+- **Pre-v3.2 sessions get backfilled.** Users with a still-valid session
+  from before the v2 schema migration would have shown up as `member`
+  (no role row, no bootstrap). `_handleAuthMe` now calls `roles.noteLogin`
+  the first time it sees a session without a matching row.
+- **Admin can edit pinned posts.** Was throwing "Only owner can pin/unpin"
+  on every admin edit of a pinned post. `posts.update` now only enforces
+  the owner-only pin check when the value actually changes, and the
+  dashboard only sends `pinned` when the editor is owner.
+- **Banned users are rejected at the OAuth callback.** Previously they
+  could complete sign-in and get a session token; only the role-gated
+  modules denied them. Callback now drops the freshly-issued session
+  and returns 403. `/api/auth/me` also force-logs-out a session whose
+  user got banned mid-session.
+- **`renderLoginButton` no longer early-returns after first login.** Dead
+  `$('topbar-login-text')` check was breaking in-page logout — the topbar
+  kept showing the old user's name until reload.
+- **Markdown code spans no longer get corrupted by italic regex.** Code
+  spans are extracted to placeholders before bold/italic rules run, then
+  restored.
+- **`noteLogin` is wrapped in a SQLite transaction** — closes the race
+  where two simultaneous first-time logins could both become owner.
+- **Login page is reachable from the sidebar.** System group now has a
+  `🔐 Login` nav item. Ctrl+K palette also knows about Posts, Ranks, and
+  Login pages.
+
+### Other polish
+
+- `granted_by` for first-login members is now `'self'` (previously
+  `'bootstrap'`, which made every casual sign-in look like a system
+  promotion). Owner bootstraps keep `'bootstrap'` so they're distinguishable.
+- Posts `updated_at` no longer bumps on no-op saves.
+- Grant form accepts notes (200-char optional field), shown on the user's
+  rank row.
+- Ranks page highlights *you* with an accent border + small "you" tag,
+  and dims banned users to 60% opacity.
+- Posts list shows a count chip (`23 posts`) in the card head.
+- Rank dropdown resets to "member" after a successful grant.
+- Posts edit form warns before discarding unsaved work.
+- Post titles use `text-overflow: ellipsis` so 200-char titles don't break
+  layout.
+- Bad avatar URLs hide cleanly instead of showing broken-image fallbacks.
+- **22 new tests** covering the roles ladder, grant validation, post CRUD,
+  rank-gating, no-op edits, and the pinned-post-admin-edit regression.
+- `/api/dev/endpoints` documentation lists all 7 new v3.2.0 endpoints.
+
+### Notes
+
+- Roles require SQLite. Without it, `roles.check()` only passes the
+  `'member'` requirement — admin gating fails closed, dashboard stays
+  functional in degraded mode.
+- The `.env` for new installs should set `OWNER_USER_ID` to your
+  Discord user ID *before* anyone else logs in. If you forget, the
+  first stranger to sign in becomes owner — recover by manually editing
+  `data/maow.db` (`UPDATE user_roles SET rank='owner' WHERE user_id=...`).
+- **The dashboard rank ladder is completely independent of Discord server
+  permissions.** A dashboard "owner" is not necessarily a Discord server
+  admin, and the bot's per-server permission gating (`lib/guards.js`) is
+  unaffected.
+
 ## [3.1.3] — 2026-06-01
 
 The bottom mini-dock is gone — replaced entirely by the topbar chip.

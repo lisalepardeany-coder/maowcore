@@ -199,6 +199,10 @@
               <span class="nav-icon">★</span>
               <span class="nav-label">Wrapped</span>
             </a>
+            <a class="nav-item" data-page="posts">
+              <span class="nav-icon">📰</span>
+              <span class="nav-label">Posts</span>
+            </a>
             <a class="nav-item" data-page="cleanup">
               <span class="nav-icon">🧹</span>
               <span class="nav-label">Cleanup</span>
@@ -307,6 +311,14 @@
               <span class="nav-icon">⌗</span>
               <span class="nav-label">Diagnostics</span>
               <span class="nav-badge" id="nav-diag-badge" hidden></span>
+            </a>
+            <a class="nav-item" data-page="ranks">
+              <span class="nav-icon">⚜</span>
+              <span class="nav-label">Ranks</span>
+            </a>
+            <a class="nav-item" data-page="login">
+              <span class="nav-icon">🔐</span>
+              <span class="nav-label">Login</span>
             </a>
             <a class="nav-item" data-page="dev">
               <span class="nav-icon">⌨</span>
@@ -523,6 +535,131 @@
       <!-- =================================================== -->
       <!-- DEVELOPER — API explorer + plugins + integrations   -->
       <!-- =================================================== -->
+      <!-- =================================================== -->
+      <!-- LOGIN — full-page sign-in landing                   -->
+      <!-- =================================================== -->
+      <section class="page hidden" id="page-login">
+        <div class="login-hero">
+          <div class="login-card">
+            <div class="login-mark">✦</div>
+            <h1>Welcome to MaowCore</h1>
+            <p class="muted">Sign in with your Discord account so the bot knows who you are. The first user to sign in becomes the <strong>owner</strong> of this instance.</p>
+            <button id="login-btn" class="primary login-cta">
+              <span style="font-size:18px">🔓</span>
+              <span>Sign in with Discord</span>
+            </button>
+            <div class="muted small" id="login-status">—</div>
+            <div class="login-setup" id="login-setup" hidden style="margin-top:18px;padding:16px;border:1px solid var(--border);border-radius:8px;background:var(--bg-input);text-align:left"></div>
+            <div class="login-perms muted small">
+              <strong>Requested permissions:</strong>
+              <ul>
+                <li><code>identify</code> — read your username + avatar (no email, no servers)</li>
+              </ul>
+              <div>Your Discord token is exchanged for a 30-day session cookie stored only in your browser. Sign out any time from the topbar.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- =================================================== -->
+      <!-- POSTS — updates / announcements / changelog        -->
+      <!-- =================================================== -->
+      <section class="page hidden" id="page-posts">
+        <div class="page-head">
+          <h2>📰 Posts</h2>
+          <div class="muted small">Updates, announcements, changelog entries. Admin+ can publish.</div>
+        </div>
+        <div class="card" id="posts-create-card" hidden>
+          <div class="card-head">
+            <h3 id="posts-form-title">New post</h3>
+            <button id="posts-form-cancel" style="background:transparent;color:var(--fg-muted);border:1px solid var(--border);padding:6px 12px;border-radius:6px">Cancel</button>
+          </div>
+          <input type="hidden" id="posts-form-id" />
+          <label style="display:block;margin-bottom:8px">
+            <div class="muted small">Title</div>
+            <input id="posts-form-title-input" type="text" maxlength="200" style="width:100%;padding:8px 12px;border-radius:6px;background:var(--bg-input);border:1px solid var(--border);color:var(--fg)" />
+          </label>
+          <div style="display:flex;align-items:flex-end;gap:14px;margin-bottom:8px;flex-wrap:wrap">
+            <label style="display:block">
+              <div class="muted small">Category</div>
+              <select id="posts-form-category" style="padding:8px 12px;border-radius:6px;background:var(--bg-input);border:1px solid var(--border);color:var(--fg)">
+                <option value="update">📌 Update</option>
+                <option value="announcement">📣 Announcement</option>
+                <option value="changelog">📋 Changelog</option>
+                <option value="news">📰 News</option>
+              </select>
+            </label>
+            <label style="font-size:12px;cursor:pointer;padding-bottom:10px" id="posts-form-pin-wrap" hidden>
+              <input type="checkbox" id="posts-form-pin" /> Pin to top (owner only)
+            </label>
+          </div>
+          <label style="display:block;margin-bottom:8px">
+            <div class="muted small">Body (markdown — supports <code>**bold**</code>, <code>*italic*</code>, <code>`code`</code>, <code>[links](url)</code>, lists)</div>
+            <textarea id="posts-form-body" rows="10" maxlength="50000" style="width:100%;padding:8px 12px;border-radius:6px;background:var(--bg-input);border:1px solid var(--border);color:var(--fg);font-family:var(--font-mono);font-size:12px"></textarea>
+          </label>
+          <button id="posts-form-save" class="primary">💾 Publish</button>
+        </div>
+        <div class="card">
+          <div class="card-head">
+            <h3>All posts <span id="posts-count" class="posts-count-chip" hidden>—</span></h3>
+            <div>
+              <select id="posts-filter" style="padding:6px 10px;border-radius:4px;background:var(--bg-input);border:1px solid var(--border);color:var(--fg);font-size:12px">
+                <option value="">All categories</option>
+                <option value="update">📌 Updates</option>
+                <option value="announcement">📣 Announcements</option>
+                <option value="changelog">📋 Changelog</option>
+                <option value="news">📰 News</option>
+              </select>
+              <button id="posts-new-btn" class="primary" hidden>+ New post</button>
+              <button id="posts-refresh" class="primary">⟳</button>
+            </div>
+          </div>
+          <div id="posts-list" style="margin-top:10px"><div class="muted">Loading…</div></div>
+        </div>
+      </section>
+
+      <!-- =================================================== -->
+      <!-- RANKS — manage dashboard user ranks (owner only)   -->
+      <!-- =================================================== -->
+      <section class="page hidden" id="page-ranks">
+        <div class="page-head">
+          <h2>⚜ Ranks</h2>
+          <div class="muted small">Manage who can do what on this dashboard. Ladder: owner &gt; admin &gt; moderator &gt; member &gt; banned.</div>
+        </div>
+        <div class="card">
+          <div class="card-head">
+            <h3>Registered users</h3>
+            <button id="ranks-refresh" class="primary">⟳</button>
+          </div>
+          <div class="muted small" id="ranks-summary">—</div>
+          <div id="ranks-list" style="margin-top:10px"><div class="muted">Loading…</div></div>
+        </div>
+        <div class="card" id="ranks-grant-card">
+          <div class="card-head"><h3>Grant rank to a user</h3></div>
+          <div style="display:grid;grid-template-columns:1fr 180px auto;gap:8px;align-items:end">
+            <label>
+              <div class="muted small">Discord user ID</div>
+              <input id="ranks-grant-uid" type="text" placeholder="e.g. 1306617159765463123" style="width:100%;padding:8px 12px;border-radius:6px;background:var(--bg-input);border:1px solid var(--border);color:var(--fg);font-family:var(--font-mono);font-size:12px" />
+            </label>
+            <label>
+              <div class="muted small">Rank</div>
+              <select id="ranks-grant-rank" style="width:100%;padding:8px 12px;border-radius:6px;background:var(--bg-input);border:1px solid var(--border);color:var(--fg)">
+                <option value="member">⊙ member</option>
+                <option value="moderator">⌖ moderator</option>
+                <option value="admin">★ admin</option>
+                <option value="banned" style="color:#ef4444">⛔ banned</option>
+              </select>
+            </label>
+            <button id="ranks-grant-btn" class="primary">Grant</button>
+          </div>
+          <label style="display:block;margin-top:10px">
+            <div class="muted small">Notes (optional, shown in the user's row)</div>
+            <input id="ranks-grant-notes" type="text" maxlength="200" placeholder="e.g. promoted to mod after onboarding" style="width:100%;padding:8px 12px;border-radius:6px;background:var(--bg-input);border:1px solid var(--border);color:var(--fg);font-size:12px" />
+          </label>
+          <div class="muted small" style="margin-top:8px">User must have signed in at least once for their tag + avatar to show. You can pre-grant a rank by their user ID even before they log in.</div>
+        </div>
+      </section>
+
       <section class="page hidden" id="page-dev">
         <div class="page-head">
           <h2>⌨ Developer</h2>

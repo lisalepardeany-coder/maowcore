@@ -532,11 +532,21 @@
 
   // ===== v2.1.0 — Dashboard auth (Discord OAuth) =====
   // Bootstrap: read #maow_session=... from URL hash and store it.
+  // Also handle #banned=1 which the OAuth callback redirects to when a
+  // banned user tries to sign in (better UX than a raw JSON 403).
   (function bootstrapSession() {
     const m = location.hash.match(/maow_session=([^&]+)/);
     if (m) {
       localStorage.setItem('maow.session', decodeURIComponent(m[1]));
       history.replaceState(null, '', location.pathname);
+    } else if (/[#&]banned=1/.test(location.hash)) {
+      history.replaceState(null, '', location.pathname);
+      // Show the banner once the toast subsystem is initialized.
+      setTimeout(() => {
+        toast('✗ Account banned',
+          'You have been banned from this dashboard. Contact the owner if this is a mistake.',
+          'error', 8000);
+      }, 250);
     }
   })();
   const maowSession = () => localStorage.getItem('maow.session') || '';
@@ -555,34 +565,145 @@
     try {
       const data = await fetchJson('/api/auth/me');
       authState.configured = !!data.configured;
-      authState.user = data.user || null;
+      // The server returns rank at the top level of the response, not nested
+      // inside user — graft it onto the user object so the rest of the app
+      // can read authState.user.rank uniformly.
+      if (data.banned) {
+        // Server auto-logged-us-out because we're banned. Clear local state.
+        localStorage.removeItem('maow.session');
+        authState.user = null;
+        toast('✗ Account banned', 'You have been banned from this dashboard.', 'error', 6000);
+      } else if (data.user) {
+        authState.user = { ...data.user, rank: data.rank || 'member' };
+      } else {
+        authState.user = null;
+      }
     } catch { /* */ }
     renderLoginButton();
   }
   function renderLoginButton() {
     const btn = $('topbar-login');
-    const txt = $('topbar-login-text');
-    if (!btn || !txt) return;
-    if (!authState.configured) { btn.style.display = 'none'; return; }
+    if (!btn) return;
+    // We used to also require $('topbar-login-text') here, but that span is
+    // removed when the user logs in (we replace innerHTML with avatar+name),
+    // which made every subsequent call early-return — meaning in-page logout
+    // couldn't update the topbar. The text-span check is no longer needed.
     btn.style.display = '';
     if (authState.user) {
       btn.classList.add('logged-in');
-      btn.innerHTML = `${authState.user.avatar ? `<img src="${escapeHtmlSafe(authState.user.avatar)}" />` : ''}<span>${escapeHtmlSafe(authState.user.tag)}</span>`;
+      btn.classList.remove('needs-setup');
+      btn.innerHTML = `
+        ${authState.user.avatar ? `<img src="${escapeHtmlSafe(authState.user.avatar)}" />` : ''}
+        <span>${escapeHtmlSafe(authState.user.tag)}</span>
+        <span class="caret">▼</span>
+      `;
+      btn.title = `${authState.user.tag} — ${authState.user.rank || 'member'}`;
+    } else if (!authState.configured) {
+      btn.classList.remove('logged-in');
+      btn.classList.add('needs-setup');
+      btn.innerHTML = '<span id="topbar-login-text">⚙ Setup login</span>';
+      btn.title = 'Discord OAuth not configured — click for setup steps';
     } else {
       btn.classList.remove('logged-in');
+      btn.classList.remove('needs-setup');
       btn.innerHTML = '<span id="topbar-login-text">Sign in with Discord</span>';
+      btn.title = 'Sign in with Discord';
     }
   }
-  $('topbar-login')?.addEventListener('click', async () => {
+
+  // Profile dropdown built lazily inside the topbar-login button.
+  function closeProfileMenu() {
+    document.querySelector('.profile-menu')?.remove();
+    document.removeEventListener('click', onDocClickCloseProfile, true);
+  }
+  function onDocClickCloseProfile(e) {
+    if (!e.target.closest('.profile-menu') && !e.target.closest('#topbar-login')) {
+      closeProfileMenu();
+    }
+  }
+  function openProfileMenu() {
+    closeProfileMenu();
+    const u = authState.user;
+    if (!u) return;
+    const btn = $('topbar-login');
+    if (!btn) return;
+    const menu = document.createElement('div');
+    menu.className = 'profile-menu';
+    const avatar = u.avatar
+      ? `<img src="${escapeHtmlSafe(u.avatar)}" />`
+      : `<div class="pm-fallback">${escapeHtmlSafe((u.tag || '?')[0])}</div>`;
+    const rank = u.rank || 'member';
+    const isAdminPlus = ['owner', 'admin'].includes(rank);
+    menu.innerHTML = `
+      <div class="profile-menu-head">
+        ${avatar}
+        <div class="pm-info">
+          <div class="pm-tag">${escapeHtmlSafe(u.tag)}</div>
+          <div class="pm-id">${escapeHtmlSafe(u.userId)}</div>
+          <span class="rank-badge ${rank}">${rank}</span>
+        </div>
+      </div>
+      <button class="profile-menu-item" data-act="login-page">
+        <span class="pm-icon">🔐</span><span>View login / session</span>
+      </button>
+      ${isAdminPlus ? `
+        <button class="profile-menu-item" data-act="ranks-page">
+          <span class="pm-icon">⚜</span><span>Manage ranks</span>
+        </button>
+        <button class="profile-menu-item" data-act="posts-page">
+          <span class="pm-icon">📰</span><span>Write a post</span>
+        </button>
+      ` : ''}
+      <button class="profile-menu-item" data-act="copy-id">
+        <span class="pm-icon">📋</span><span>Copy my Discord user ID</span>
+      </button>
+      <button class="profile-menu-item danger" data-act="signout">
+        <span class="pm-icon">⏻</span><span>Sign out</span>
+      </button>
+    `;
+    btn.appendChild(menu);
+    menu.querySelectorAll('.profile-menu-item').forEach((item) => {
+      item.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const act = item.dataset.act;
+        closeProfileMenu();
+        if (act === 'login-page') switchPage('login');
+        else if (act === 'ranks-page') switchPage('ranks');
+        else if (act === 'posts-page') switchPage('posts');
+        else if (act === 'copy-id') {
+          try {
+            await navigator.clipboard.writeText(u.userId);
+            toast('✓ Copied', u.userId, 'success', 1500);
+          } catch { toast('▲ Copy failed', '', 'error', 2000); }
+        } else if (act === 'signout') {
+          if (!confirm(`Sign out (${u.tag})?`)) return;
+          try {
+            await fetchJson('/api/auth/logout', { method: 'POST' });
+            localStorage.removeItem('maow.session');
+            authState.user = null;
+            renderLoginButton();
+            toast('✓ Signed out', '', 'info', 1500);
+          } catch (err) { toast('▲ Sign-out failed', err.message, 'error', 3000); }
+        }
+      });
+    });
+    // Close on outside click (registered next tick so the opening click
+    // doesn't immediately close it).
+    setTimeout(() => document.addEventListener('click', onDocClickCloseProfile, true), 0);
+  }
+
+  $('topbar-login')?.addEventListener('click', async (e) => {
+    e.stopPropagation();
     if (authState.user) {
-      if (!confirm(`Sign out (${authState.user.tag})?`)) return;
-      try {
-        await fetchJson('/api/auth/logout', { method: 'POST' });
-        localStorage.removeItem('maow.session');
-        authState.user = null;
-        renderLoginButton();
-        toast('✓ Signed out', '', 'info', 1500);
-      } catch (e) { toast('▲ Sign-out failed', e.message, 'error', 3000); }
+      // Toggle profile menu instead of asking confirm-sign-out.
+      if (document.querySelector('.profile-menu')) closeProfileMenu();
+      else openProfileMenu();
+      return;
+    }
+    // OAuth not configured? Send them to the Login page to see setup steps.
+    if (!authState.configured) {
+      try { switchPage('login'); }
+      catch { toast('▲ Setup required', 'Set DISCORD_CLIENT_ID + DISCORD_CLIENT_SECRET in .env.', 'error', 4000); }
       return;
     }
     try {
@@ -593,7 +714,7 @@
       });
       if (data.error) throw new Error(data.error);
       window.location.href = data.authUrl;
-    } catch (e) { toast('▲ Sign-in failed', e.message, 'error', 4000); }
+    } catch (err) { toast('▲ Sign-in failed', err.message, 'error', 4000); }
   });
   setTimeout(refreshAuthState, 200);
 
@@ -2024,6 +2145,9 @@
     { glyph: '◐', label: 'Go to Insights', meta: 'page', action: () => switchPage('insights') },
     { glyph: '⌬', label: 'Go to Server', meta: 'page', action: () => switchPage('server') },
     { glyph: '⚙', label: 'Go to Settings', meta: 'page', action: () => switchPage('settings') },
+    { glyph: '📰', label: 'Go to Posts', meta: 'page', action: () => switchPage('posts') },
+    { glyph: '⚜', label: 'Go to Ranks', meta: 'page', action: () => switchPage('ranks') },
+    { glyph: '🔐', label: 'Go to Login', meta: 'page', action: () => switchPage('login') },
     { glyph: '⏸', label: 'Pause / Resume', meta: 'control', action: () => { const q = firstQueue(); if (q) send(q.paused ? 'resume' : 'pause'); } },
     { glyph: '⏭', label: 'Skip', meta: 'control', action: () => send('skip') },
     { glyph: '⏹', label: 'Stop', meta: 'control', action: () => send('stop') },
@@ -5263,6 +5387,471 @@
       if (e.dataTransfer?.files?.length) uploadFiles(e.dataTransfer.files);
     });
   }
+
+  // =====================================================
+  // v3.2.0 — Login page, Posts page, Ranks page
+  // =====================================================
+  //
+  // The login page is a friendly landing that wraps the existing
+  // /api/auth/discord/start flow already used by the topbar button.
+  // Posts uses /api/posts/* (CRUD with role gating server-side).
+  // Ranks uses /api/roles/* — owner can grant any non-owner rank.
+  //
+  // We listen to switchPage by patching the global once more.
+
+  // Tiny markdown shim — bold/italic/code/links/lists. Escapes first so
+  // raw HTML in post bodies is neutralized. Code spans are extracted FIRST
+  // and replaced with placeholders, then bold/italic/links/lists are applied
+  // to the rest, then code spans are re-injected. This stops the italic
+  // regex from corrupting `foo*bar*` inside code spans.
+  function renderMarkdown(raw) {
+    let s = escapeHtmlSafe(String(raw || ''));
+    const codeSpans = [];
+    s = s.replace(/`([^`\n]+)`/g, (m, content) => {
+      codeSpans.push(content);
+      return ` CODE${codeSpans.length - 1} `;
+    });
+    // Bold (must run before italic so `**x**` doesn't get eaten as `*x*`).
+    s = s.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
+    // Italic — requires non-`*` (or start-of-line) before the opening `*`
+    // so we don't half-eat `**bold**`.
+    s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
+    // Links [text](url) — only http(s)
+    s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+    // Bullet lists (consecutive lines starting with - or *)
+    s = s.replace(/(?:^|\n)((?:[-*] [^\n]+\n?)+)/g, (m, block) => {
+      const items = block.trim().split(/\n/).map((l) => l.replace(/^[-*]\s+/, '')).map((it) => `<li>${it}</li>`).join('');
+      return `\n<ul>${items}</ul>`;
+    });
+    // Restore code spans last so nothing inside them was corrupted.
+    s = s.replace(/ CODE(\d+) /g, (m, i) => `<code>${codeSpans[Number(i)]}</code>`);
+    return s;
+  }
+
+  const fmtPostDate = (ts) => {
+    if (!ts) return '—';
+    const d = new Date(ts);
+    const now = Date.now();
+    const diff = now - ts;
+    if (diff < 60_000)        return 'just now';
+    if (diff < 3600_000)      return `${Math.floor(diff/60_000)}m ago`;
+    if (diff < 86400_000)     return `${Math.floor(diff/3600_000)}h ago`;
+    if (diff < 7*86400_000)   return `${Math.floor(diff/86400_000)}d ago`;
+    return d.toLocaleDateString();
+  };
+
+  // --- Login page ---
+  async function renderLoginPage() {
+    const status = $('login-status');
+    const btn = $('login-btn');
+    const setup = $('login-setup');
+    if (!status || !btn) return;
+    const callbackUrl = `${activeInstance().url}/api/auth/discord/callback`;
+    if (authState.user) {
+      btn.disabled = true;
+      btn.style.opacity = '0.5';
+      btn.style.cursor = 'default';
+      status.innerHTML = `✓ Signed in as <strong>${escapeHtmlSafe(authState.user.tag)}</strong>${authState.user.rank ? ` <span class="rank-badge ${authState.user.rank}">${authState.user.rank}</span>` : ''}. Use the top-right menu to sign out.`;
+      if (setup) setup.hidden = true;
+    } else if (!authState.configured) {
+      btn.disabled = true;
+      btn.style.opacity = '0.5';
+      btn.style.cursor = 'not-allowed';
+      status.innerHTML = '<span class="error">▲ Discord OAuth is not configured yet — follow the steps below to enable sign-in.</span>';
+      if (setup) {
+        setup.hidden = false;
+        setup.innerHTML = `
+          <h3 style="margin:0 0 12px;font-size:14px">🔧 One-time setup</h3>
+          <ol style="margin:0;padding-left:22px;line-height:1.8;font-size:13px">
+            <li>Open <a href="https://discord.com/developers/applications" target="_blank" rel="noopener noreferrer">Discord Developer Portal</a> and either pick your existing bot app or create a new application.</li>
+            <li>Go to <strong>OAuth2 → General</strong>. Copy the <strong>Client ID</strong> and click <strong>Reset Secret</strong> to get a <strong>Client Secret</strong>.</li>
+            <li>Under <strong>Redirects</strong>, add this exact URL:
+              <div style="margin:6px 0;display:flex;gap:6px;align-items:center">
+                <code id="login-callback-url" style="flex:1;padding:6px 10px;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;font-family:var(--font-mono);font-size:12px;word-break:break-all">${escapeHtmlSafe(callbackUrl)}</code>
+                <button id="login-callback-copy" style="padding:6px 10px;border:1px solid var(--border);border-radius:4px;background:var(--bg-input);color:var(--fg);cursor:pointer;font-size:12px">📋 Copy</button>
+              </div>
+            </li>
+            <li>Open your bot's <code>.env</code> file and add:
+              <pre style="margin:6px 0;padding:10px;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;font-family:var(--font-mono);font-size:12px;overflow:auto">DISCORD_CLIENT_ID=your_client_id_here
+DISCORD_CLIENT_SECRET=your_client_secret_here
+# Optional: pre-claim ownership for your own Discord ID
+OWNER_USER_ID=your_discord_user_id</pre>
+            </li>
+            <li><strong>Restart the bot</strong>, refresh this page, and the sign-in button will go live.</li>
+          </ol>
+          <div class="muted small" style="margin-top:10px">The first user to sign in becomes the <strong>owner</strong> of this instance — set <code>OWNER_USER_ID</code> first if you want to guarantee that's you.</div>
+        `;
+        $('login-callback-copy')?.addEventListener('click', async () => {
+          try {
+            await navigator.clipboard.writeText(callbackUrl);
+            toast('✓ Copied', callbackUrl, 'success', 1800);
+          } catch { toast('▲ Copy failed', 'Select and copy manually.', 'error', 2000); }
+        });
+      }
+    } else {
+      btn.disabled = false;
+      btn.style.opacity = '';
+      btn.style.cursor = 'pointer';
+      status.textContent = 'Click above to sign in. The first user becomes the owner of this instance.';
+      if (setup) setup.hidden = true;
+    }
+  }
+  $('login-btn')?.addEventListener('click', () => {
+    if (!authState.configured) {
+      toast('▲ Setup required', 'Complete the steps below first.', 'error', 2500);
+      return;
+    }
+    // Re-use the topbar sign-in flow.
+    const topBtn = $('topbar-login');
+    if (topBtn) topBtn.click();
+  });
+
+  // --- Posts page ---
+  // `loadedSnapshot` holds the title/body the form was populated with so
+  // postFormHasUnsavedChanges can compare current values to that baseline
+  // (otherwise editing an existing post would always look "dirty").
+  const postsState = { list: [], filter: '', editing: null, loadedSnapshot: null };
+
+  async function renderPostsPage() {
+    const list = $('posts-list');
+    if (!list) return;
+    // Visibility for create + pin controls based on rank.
+    const rank = authState.user?.rank || '';
+    const canCreate = ['owner', 'admin'].includes(rank);
+    const isOwner   = rank === 'owner';
+    const newBtn = $('posts-new-btn');
+    if (newBtn) newBtn.hidden = !canCreate;
+    const pinWrap = $('posts-form-pin-wrap');
+    if (pinWrap) pinWrap.hidden = !isOwner;
+
+    if (!authState.user) {
+      list.innerHTML = '<div class="muted">Sign in (top-right) to view posts.</div>';
+      return;
+    }
+    // Sync the filter dropdown's visible value to the persisted filter state,
+    // so navigating away and back doesn't show "All categories" while the
+    // list is actually filtered.
+    const filterSelect = $('posts-filter');
+    if (filterSelect && filterSelect.value !== postsState.filter) {
+      filterSelect.value = postsState.filter;
+    }
+    try {
+      const qs = postsState.filter ? `?category=${encodeURIComponent(postsState.filter)}` : '';
+      const data = await fetchJson(`/api/posts/list${qs}`);
+      postsState.list = data.posts || [];
+      // Update the post-count chip in the card head (if present).
+      const countEl = $('posts-count');
+      if (countEl) {
+        const total = data.total ?? postsState.list.length;
+        countEl.textContent = total === 1 ? '1 post' : `${total} posts`;
+        countEl.hidden = false;
+      }
+      if (!postsState.list.length) {
+        list.innerHTML = '<div class="muted">No posts yet.' + (canCreate ? ' Click <strong>+ New post</strong> to publish the first one.' : '') + '</div>';
+        return;
+      }
+      list.innerHTML = postsState.list.map((p) => {
+        const isAuthor = authState.user.userId === p.authorId;
+        const canEdit  = canCreate || isAuthor;
+        const canDelete = canCreate;
+        return `
+          <div class="post-row ${p.pinned ? 'pinned' : ''}" data-id="${p.id}">
+            <div>
+              <div class="post-head">
+                <span class="post-category ${escapeHtmlSafe(p.category || 'update')}">${escapeHtmlSafe(p.category || 'update')}</span>
+                ${p.pinned ? '<span class="post-pinned-badge">📌 pinned</span>' : ''}
+                <span class="post-title">${escapeHtmlSafe(p.title)}</span>
+              </div>
+              <div class="post-meta">
+                <span>by <strong>${escapeHtmlSafe(p.authorTag || p.authorId)}</strong></span>
+                <span>·</span>
+                <span title="${new Date(p.createdAt).toLocaleString()}">${fmtPostDate(p.createdAt)}</span>
+                ${p.updatedAt && p.updatedAt > p.createdAt ? `<span>· edited ${fmtPostDate(p.updatedAt)}</span>` : ''}
+              </div>
+              <div class="post-body">${renderMarkdown(p.body)}</div>
+            </div>
+            <div class="post-actions">
+              ${canEdit   ? `<button data-act="edit"   data-id="${p.id}">✎ Edit</button>`   : ''}
+              ${isOwner   ? `<button data-act="pin"    data-id="${p.id}">${p.pinned ? '☐ Unpin' : '📌 Pin'}</button>` : ''}
+              ${canDelete ? `<button data-act="delete" data-id="${p.id}" class="danger">🗑 Delete</button>` : ''}
+            </div>
+          </div>`;
+      }).join('');
+      list.querySelectorAll('button[data-act]').forEach((btn) => {
+        btn.addEventListener('click', () => handlePostAction(btn.dataset.act, Number(btn.dataset.id)));
+      });
+    } catch (e) {
+      list.innerHTML = `<div class="error">▲ ${escapeHtmlSafe(e.message)}</div>`;
+    }
+  }
+
+  async function handlePostAction(act, id) {
+    const post = postsState.list.find((p) => p.id === id);
+    if (!post) return;
+    if (act === 'edit') {
+      // Warn before nuking unsaved work in the form.
+      if (postFormHasUnsavedChanges() && !confirm('You have unsaved changes in the form. Discard them?')) {
+        return;
+      }
+      postsState.editing = id;
+      $('posts-form-title').textContent = `Edit post #${id}`;
+      $('posts-form-id').value = String(id);
+      $('posts-form-title-input').value = post.title || '';
+      $('posts-form-category').value = post.category || 'update';
+      $('posts-form-body').value = post.body || '';
+      $('posts-form-pin').checked = !!post.pinned;
+      postsState.loadedSnapshot = { title: post.title || '', body: post.body || '' };
+      $('posts-create-card').hidden = false;
+      $('posts-create-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else if (act === 'pin') {
+      try {
+        await fetchJson('/api/posts/update', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, pinned: !post.pinned }),
+        });
+        toast(post.pinned ? '☐ Unpinned' : '📌 Pinned', post.title, 'success', 1800);
+        renderPostsPage();
+      } catch (e) { toast('▲ Pin failed', e.message, 'error', 3000); }
+    } else if (act === 'delete') {
+      if (!confirm(`Delete "${post.title}"? This cannot be undone.`)) return;
+      try {
+        await fetchJson('/api/posts/delete', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id }),
+        });
+        toast('🗑 Deleted', post.title, 'success', 1800);
+        renderPostsPage();
+      } catch (e) { toast('▲ Delete failed', e.message, 'error', 3000); }
+    }
+  }
+
+  function resetPostForm() {
+    postsState.editing = null;
+    postsState.loadedSnapshot = null;
+    $('posts-form-title').textContent = 'New post';
+    $('posts-form-id').value = '';
+    $('posts-form-title-input').value = '';
+    $('posts-form-category').value = 'update';
+    $('posts-form-body').value = '';
+    $('posts-form-pin').checked = false;
+  }
+
+  // Returns true if the form has actual unsaved changes — compared against
+  // either an empty baseline (for new posts) or the snapshot we captured
+  // when the user clicked Edit. Without the snapshot baseline, clicking
+  // Edit then immediately Edit on a different post would falsely prompt.
+  function postFormHasUnsavedChanges() {
+    const card = $('posts-create-card');
+    if (!card || card.hidden) return false;
+    const t = $('posts-form-title-input')?.value?.trim() || '';
+    const b = $('posts-form-body')?.value?.trim() || '';
+    const snap = postsState.loadedSnapshot || { title: '', body: '' };
+    return t !== (snap.title || '').trim() || b !== (snap.body || '').trim();
+  }
+
+  $('posts-new-btn')?.addEventListener('click', () => {
+    if (postFormHasUnsavedChanges() && !confirm('You have unsaved changes. Discard them?')) {
+      return;
+    }
+    resetPostForm();
+    $('posts-create-card').hidden = false;
+    $('posts-create-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  $('posts-form-cancel')?.addEventListener('click', () => {
+    if (postFormHasUnsavedChanges() && !confirm('Discard unsaved changes?')) return;
+    resetPostForm();
+    $('posts-create-card').hidden = true;
+  });
+  $('posts-refresh')?.addEventListener('click', renderPostsPage);
+  $('posts-filter')?.addEventListener('change', (e) => {
+    postsState.filter = e.target.value;
+    renderPostsPage();
+  });
+  $('posts-form-save')?.addEventListener('click', async (e) => {
+    const saveBtn = e.currentTarget;
+    if (saveBtn.disabled) return;  // already in flight — defense against double-click
+    const id       = $('posts-form-id').value;
+    const title    = $('posts-form-title-input').value.trim();
+    const body     = $('posts-form-body').value.trim();
+    const category = $('posts-form-category').value;
+    if (!title || !body) {
+      toast('▲ Missing fields', 'Title and body are required.', 'error', 2500);
+      return;
+    }
+    // Only include `pinned` in the payload when the user is owner (the only
+    // role allowed to change it). For admin editors, omitting it means the
+    // server's diff-aware update skips the pin permission check entirely,
+    // so admins can edit pinned posts without owner permission.
+    const isOwner = authState.user?.rank === 'owner';
+    const payload = { title, body, category };
+    if (isOwner) payload.pinned = $('posts-form-pin').checked;
+    saveBtn.disabled = true;
+    const originalLabel = saveBtn.textContent;
+    saveBtn.textContent = id ? '💾 Saving…' : '💾 Publishing…';
+    try {
+      if (id) {
+        await fetchJson('/api/posts/update', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: Number(id), ...payload }),
+        });
+        toast('✓ Saved', title, 'success', 1800);
+      } else {
+        await fetchJson('/api/posts/create', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        toast('✓ Published', title, 'success', 1800);
+      }
+      resetPostForm();
+      $('posts-create-card').hidden = true;
+      renderPostsPage();
+    } catch (err) {
+      toast('▲ Save failed', err.message, 'error', 3500);
+    } finally {
+      saveBtn.disabled = false;
+      saveBtn.textContent = originalLabel;
+    }
+  });
+
+  // --- Ranks page ---
+  const RANK_ORDER = ['owner', 'admin', 'moderator', 'member', 'banned'];
+
+  // Whitelist the rank values we'll inject as CSS class names — defends
+  // against the (near-zero but real) case where a malformed rank gets into
+  // the DB via direct SQL edit.
+  const SAFE_RANK_CLASS = new Set(RANK_ORDER);
+  const safeRankClass = (r) => SAFE_RANK_CLASS.has(r) ? r : 'unknown';
+
+  async function renderRanksPage() {
+    const list = $('ranks-list');
+    const summary = $('ranks-summary');
+    const grantCard = $('ranks-grant-card');
+    if (!list) return;
+    if (!authState.user) {
+      list.innerHTML = '<div class="muted">Sign in (top-right) to view ranks.</div>';
+      if (summary) summary.textContent = '—';
+      if (grantCard) grantCard.hidden = true;
+      return;
+    }
+    // Hide the entire grant card (not just disable the button) for callers
+    // below admin+.
+    const callerRank = authState.user.rank;
+    const callerIdx  = RANK_ORDER.indexOf(callerRank);
+    const canGrant = callerIdx >= 0 && callerIdx <= RANK_ORDER.indexOf('admin');
+    if (grantCard) grantCard.hidden = !canGrant;
+
+    try {
+      const data = await fetchJson('/api/roles/list');
+      const users = data.users || [];
+      if (summary) {
+        const counts = users.reduce((acc, u) => { acc[u.rank] = (acc[u.rank] || 0) + 1; return acc; }, {});
+        summary.textContent = RANK_ORDER.filter((r) => counts[r]).map((r) => `${counts[r]} ${r}`).join(' · ') || 'No users yet.';
+      }
+      const byRank = {};
+      for (const r of RANK_ORDER) byRank[r] = [];
+      for (const u of users) (byRank[u.rank] || (byRank[u.rank] = [])).push(u);
+      list.innerHTML = RANK_ORDER.filter((r) => byRank[r] && byRank[r].length).map((r) => `
+        <div class="ranks-group-head">${escapeHtmlSafe(r)}s · ${byRank[r].length}</div>
+        ${byRank[r].map((u) => {
+          const fallbackChar = escapeHtmlSafe((u.tag || '?')[0]);
+          // data-fallback lets us swap the broken <img> for a letter avatar
+          // post-render in a JS hook below — safer than inline onerror with
+          // user-controlled text in the handler string.
+          const avatar = u.avatar
+            ? `<img class="rank-avatar" src="${escapeHtmlSafe(u.avatar)}" data-fallback="${fallbackChar}" />`
+            : `<div class="rank-avatar-fallback">${fallbackChar}</div>`;
+          const granted = u.grantedAt ? new Date(u.grantedAt).toLocaleDateString() : '—';
+          const isYou = u.userId === authState.user.userId;
+          const cls = safeRankClass(u.rank);
+          return `
+            <div class="rank-row ${isYou ? 'is-you' : ''} ${cls === 'banned' ? 'is-banned' : ''}">
+              ${avatar}
+              <div>
+                <div class="rank-tag">${escapeHtmlSafe(u.tag || '(unknown)')}${isYou ? '<span class="rank-you-tag">you</span>' : ''}</div>
+                <div class="rank-id">${escapeHtmlSafe(u.userId)}</div>
+              </div>
+              <span class="rank-badge ${cls}">${escapeHtmlSafe(u.rank)}</span>
+              <div class="rank-granted">
+                <div>by ${escapeHtmlSafe(u.grantedBy || '—')}</div>
+                <div>${escapeHtmlSafe(granted)}</div>
+              </div>
+              ${u.notes ? `<div class="rank-notes">${escapeHtmlSafe(u.notes)}</div>` : ''}
+            </div>`;
+        }).join('')}
+      `).join('') || '<div class="muted">No registered users yet — wait for someone to sign in.</div>';
+
+      // Swap broken avatar images for a letter fallback. Safer than inline
+      // onerror because the fallback character comes from a data-attribute
+      // (read as a literal string) instead of being interpolated into a JS
+      // handler string.
+      list.querySelectorAll('img.rank-avatar').forEach((img) => {
+        img.addEventListener('error', () => {
+          const ch = img.dataset.fallback || '?';
+          const div = document.createElement('div');
+          div.className = 'rank-avatar-fallback';
+          div.textContent = ch;
+          img.replaceWith(div);
+        }, { once: true });
+      });
+    } catch (e) {
+      list.innerHTML = `<div class="error">▲ ${escapeHtmlSafe(e.message)}</div>`;
+    }
+  }
+
+  $('ranks-refresh')?.addEventListener('click', renderRanksPage);
+  $('ranks-grant-btn')?.addEventListener('click', async (e) => {
+    const grantBtn = e.currentTarget;
+    if (grantBtn.disabled) return;  // already in flight
+    const uid   = $('ranks-grant-uid').value.trim();
+    const rank  = $('ranks-grant-rank').value;
+    const notes = $('ranks-grant-notes')?.value?.trim() || '';
+    if (!uid) { toast('▲ Missing user ID', 'Enter a Discord user ID first.', 'error', 2500); return; }
+    if (!/^\d{15,25}$/.test(uid)) {
+      toast('▲ Invalid user ID', 'Discord IDs are 17–20 digit numbers.', 'error', 3000);
+      return;
+    }
+    const verb = rank === 'banned' ? 'Ban' : 'Grant';
+    if (!confirm(`${verb} "${rank}" for user ID ${uid}?`)) return;
+    grantBtn.disabled = true;
+    const originalLabel = grantBtn.textContent;
+    grantBtn.textContent = '⏳';
+    try {
+      await fetchJson('/api/roles/grant', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetId: uid, rank, notes: notes || undefined }),
+      });
+      toast('✓ Granted', `${uid} → ${rank}`, 'success', 2000);
+      // Reset the form so the next grant doesn't accidentally re-apply the
+      // same rank or notes to a different user.
+      $('ranks-grant-uid').value = '';
+      $('ranks-grant-rank').value = 'member';
+      if ($('ranks-grant-notes')) $('ranks-grant-notes').value = '';
+      renderRanksPage();
+    } catch (err) {
+      toast('▲ Grant failed', err.message, 'error', 3500);
+    } finally {
+      grantBtn.disabled = false;
+      grantBtn.textContent = originalLabel;
+    }
+  });
+
+  // Hook the page switcher.
+  const origSwitchPageV320 = switchPage;
+  switchPage = (name) => {
+    origSwitchPageV320(name);
+    if (name === 'login') renderLoginPage();
+    else if (name === 'posts') renderPostsPage();
+    else if (name === 'ranks') renderRanksPage();
+  };
+
+  // When auth state changes (login/logout), re-render whichever page is open.
+  const origRenderLoginButton = renderLoginButton;
+  renderLoginButton = function () {
+    origRenderLoginButton();
+    if (activePage === 'login') renderLoginPage();
+    else if (activePage === 'posts') renderPostsPage();
+    else if (activePage === 'ranks') renderRanksPage();
+  };
 
   connect();
 })();

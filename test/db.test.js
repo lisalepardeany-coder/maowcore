@@ -29,17 +29,20 @@ test('db: better-sqlite3 either loads or reports a clear error', () => {
   assert.ok(db.raw, 'raw db handle exposed');
 });
 
-test('db: schema is at v1 after init', { skip: !sqliteOk }, () => {
+test('db: schema is at v2 after init (v3.2.0 dashboard ranks + posts)', { skip: !sqliteOk }, () => {
   const row = db.raw.prepare(`SELECT value FROM _meta WHERE key = 'schema_version'`).get();
   assert.ok(row, '_meta.schema_version row exists');
-  assert.equal(Number(row.value), 1);
+  assert.equal(Number(row.value), 2);
 });
 
 test('db: all expected tables exist', { skip: !sqliteOk }, () => {
   const expected = [
+    // v1 (v3.1.0)
     'guild_config', 'history', 'sessions', 'economy_users', 'economy_shop',
     'social_profiles', 'social_ratings', 'crons', 'webhooks', 'rules',
     'custom_commands', 'playlist_subs', '_meta',
+    // v2 (v3.2.0)
+    'user_roles', 'posts',
   ];
   for (const t of expected) {
     const exists = db.raw.prepare(
