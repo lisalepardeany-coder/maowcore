@@ -1,6 +1,6 @@
 {
   "name": "discord-music-bot",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "Discord music bot with Spotify support",
   "main": "index.js",
   "scripts": {
@@ -31,7 +31,8 @@
     "@discordjs/opus": "^0.10.0",
     "sodium-native": "^4.3.1",
     "@noble/ciphers": "^1.0.0",
-    "@stablelib/xchacha20poly1305": "^2.0.0"
+    "@stablelib/xchacha20poly1305": "^2.0.0",
+    "better-sqlite3": "^11.5.0"
   },
   "engines": {
     "node": ">=18.0.0"

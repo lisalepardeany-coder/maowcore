@@ -19,6 +19,7 @@ const PKGS = [
   { name: 'sodium-native',   reason: 'Native libsodium (~2-3× faster than libsodium-wrappers)' },
   { name: '@noble/ciphers',  reason: 'Pure-JS crypto fallback (used if sodium-native fails to load)' },
   { name: '@stablelib/xchacha20poly1305', reason: 'Pure-JS XChaCha20-Poly1305 fallback' },
+  { name: 'better-sqlite3',  reason: 'Local database for economy/social/sessions/history — auto-migrates from JSON' },
 ];
 
 // Run a command. Tries `npm.cmd` (Windows native) without shell first;

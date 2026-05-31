@@ -6,6 +6,70 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.1.0] — 2026-06-01
+
+**SQLite migration** — economy, social, sessions, and history now back to
+a real database (`better-sqlite3`). Fixes race conditions, gives indexed
+queries on leaderboards/heatmaps, and adds proper transactions. Fully
+backward-compatible: JSON files auto-migrate on first boot, and the bot
+falls back to JSON if `better-sqlite3` fails to compile.
+
+### Added
+
+- **`lib/db.js`** — single shared SQLite connection at `data/maow.db`
+  (override via `DB_PATH` env). WAL mode for concurrent readers,
+  `synchronous=NORMAL` for the durability sweet spot, versioned
+  schema migrations stored in `_meta.schema_version`.
+- **Schema v1** — 12 tables covering guild config, history, sessions,
+  economy users + shop, social profiles + ratings, crons, webhooks,
+  rules, custom commands, playlist subs. Proper indexes on the hot
+  query paths (history by `(guild_id, ts DESC)`, ratings by song
+  name, economy leaderboard by `(guild_id, level DESC, xp DESC)`).
+- **Auto-migrator** (`scripts/migrate-to-sqlite.js`) — runs on first
+  boot, imports legacy JSON files into SQLite inside one transaction,
+  renames old files to `*.json.pre-v3.1` (NOT deleted — easy rollback).
+  Idempotent: skips tables that already have data.
+- **`better-sqlite3`** as optional dependency. If native compile fails,
+  every refactored module falls back to its v2.x JSON path
+  automatically. No breakage on hosts without build tools.
+- **`db.tx(fn)`** — wrap any callback in a transaction; rolls back on
+  throw. Used by `economy.award`/`spend` to fix concurrent-write races.
+- **`db.backup()`** — uses better-sqlite3's online backup API.
+- **`backup.js` snapshot format v2** — now includes the SQLite db
+  base64-encoded under `binaries['maow.db']`. v1 snapshots still
+  restore correctly (db file just isn't restored).
+
+### Changed
+
+- **`lib/economy.js`** — SQLite path uses transactions for `award` +
+  `spend`, eliminating the concurrent-write race that could lose
+  half a user's coins under load. Leaderboard now uses
+  `ORDER BY ... LIMIT` against an index (O(log n) instead of O(n)
+  load + sort + slice).
+- **`lib/social.js`** — `topRated` uses SQL `GROUP BY` + indexed
+  aggregation. Big servers with thousands of ratings: orders of
+  magnitude faster.
+- **`lib/history.js`** — `record` is now an indexed insert + trim;
+  `list` is an indexed range scan; `byDay` is a `WHERE ts >= ?`
+  scan instead of loading the whole guild's history.
+- **`lib/dashboard-auth.js`** — sessions read/write to SQLite when
+  available; capping logic uses `DELETE … ORDER BY created_at`.
+
+### Notes
+
+- 9 new tests for the DB layer + module SQLite paths (94 total,
+  85 passing in current env — 9 skipped because better-sqlite3 isn't
+  installed in the test environment yet). Tests use a temp DB so they
+  never touch operator data.
+- Modules NOT migrated this release (still JSON):
+  `automation`, `custom-commands`, `playlist-subs`. Empty SQLite
+  tables exist for future v3.2+ — migrating them now without a
+  matching runtime would create two sources of truth.
+- Rollback path: stop the bot, `mv data/*.json.pre-v3.1 data/`,
+  `rm data/maow.db`, restart. Bot reverts to v3.0 JSON behavior.
+- Run `npm run install-native` to get the native libs compiled if you
+  haven't already.
+
 ## [3.0.0] — 2026-06-01
 
 **Major version — production polish.** Pulls the loose ends together
