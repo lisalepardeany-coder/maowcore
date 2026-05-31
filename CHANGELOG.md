@@ -6,6 +6,18 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.2.1] — 2026-05-31
+
+### Removed
+
+- **Duplicate 365-day listening heatmap on the Insights page.** Two heatmap
+  cards were being rendered: the server-aggregated `📅 Listening heatmap`
+  (the original from v1.9.0) and a client-side `365-day listening heatmap`
+  that was added during the v2.4.0 Wrapped work. They showed the same data
+  in slightly different forms — the bottom one is gone. The `#prof-heatmap`
+  and `#prof-obsession` DOM nodes and their rendering code are removed. The
+  remaining `📅 Listening heatmap` card on Insights is unchanged.
+
 ## [3.2.0] — 2026-05-31
 
 Identity comes to MaowCore: a proper login page, role-based access control,

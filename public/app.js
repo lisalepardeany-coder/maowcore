@@ -2272,49 +2272,15 @@
       const d = new Date();
       while (days.has(d.toDateString())) { streak++; d.setDate(d.getDate() - 1); }
       tweenNumber($('prof-streak'), streak);
-      // Current obsession: most-played this week
-      const weekAgo = Date.now() - 7 * 86400000;
-      const weekPlays = history.filter((h) => h.ts >= weekAgo);
-      const byName = new Map();
-      weekPlays.forEach((h) => byName.set(h.name, (byName.get(h.name) || 0) + 1));
-      const obs = [...byName.entries()].sort((a, b) => b[1] - a[1])[0];
-      const obsEntry = obs ? history.find((h) => h.name === obs[0]) : null;
-      if (obsEntry) {
-        $('prof-obsession').innerHTML = `
-          ${obsEntry.thumbnail ? `<img class="np-thumb-mini" src="${escapeHtmlSafe(obsEntry.thumbnail)}" />` : '<div class="np-thumb-mini"></div>'}
-          <div class="np-info">
-            <div class="np-title">${escapeHtmlSafe(obsEntry.name)}</div>
-            <div class="np-meta muted">${obs[1]} plays this week</div>
-          </div>`;
-      } else {
-        $('prof-obsession').innerHTML = '<div class="muted">Need at least 5 plays this week.</div>';
-      }
       $('prof-artists').innerHTML = (stats.topArtists || []).map((e, i) =>
         `<div class="queue-row">${i + 1}. ${escapeHtmlSafe(e.name)}  <span class="muted">(${e.count})</span></div>`,
       ).join('') || '<div class="queue-empty">no data</div>';
       $('prof-songs').innerHTML = (stats.topSongs || []).map((e, i) =>
         `<div class="queue-row">${i + 1}. ${escapeHtmlSafe(e.name)}  <span class="muted">(${e.count})</span></div>`,
       ).join('') || '<div class="queue-empty">no data</div>';
-      // Heatmap — last 365 days
-      const heat = $('prof-heatmap');
-      heat.innerHTML = '';
-      const today = new Date(); today.setHours(0, 0, 0, 0);
-      const playsByDay = new Map();
-      history.forEach((h) => {
-        const k = new Date(h.ts); k.setHours(0, 0, 0, 0);
-        playsByDay.set(k.getTime(), (playsByDay.get(k.getTime()) || 0) + 1);
-      });
-      const max = Math.max(1, ...playsByDay.values());
-      for (let i = 364; i >= 0; i--) {
-        const d = new Date(today); d.setDate(d.getDate() - i);
-        const count = playsByDay.get(d.getTime()) || 0;
-        const level = count === 0 ? 0 : Math.min(4, Math.ceil((count / max) * 4));
-        const cell = document.createElement('div');
-        cell.className = 'heatmap-day';
-        cell.dataset.level = level;
-        cell.title = `${d.toDateString()}: ${count} plays`;
-        heat.appendChild(cell);
-      }
+      // v3.2.1 — the 365-day heatmap card was removed (duplicated the
+      // server-aggregated 📅 Listening heatmap above). The obsession-of-the-
+      // week block lived in the same card and went with it.
     } catch (e) { console.warn('[profile] render error:', e); }
   };
 
