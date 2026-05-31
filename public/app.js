@@ -780,6 +780,109 @@
   $('dev-refresh-int')?.addEventListener('click', renderDevPage);
   $('dev-search')?.addEventListener('input', (e) => { devState.search = e.target.value; drawDevEndpoints(); });
 
+  // ===== v3.1.1: In-dashboard DB browser =====
+  const dbState = { tables: [], activeTable: null };
+
+  async function renderDevDbTables() {
+    const list = $('dev-db-table-list');
+    const status = $('dev-db-status');
+    if (!list) return;
+    try {
+      const data = await fetchJson('/api/dev/db/tables');
+      if (!data.isAvailable) {
+        status.innerHTML = `<span style="color:var(--warning)">▲ ${escapeHtmlSafe(data.error || 'SQLite not available')}</span>`;
+        list.innerHTML = '<div class="muted small">No SQLite database. Run <code>npm run install-native</code> and restart the bot.</div>';
+        return;
+      }
+      dbState.tables = data.tables || [];
+      const sizeNote = data.path ? `<code style="font-family:var(--font-mono);font-size:11px">${escapeHtmlSafe(data.path)}</code>` : '';
+      status.innerHTML = `schema v${escapeHtmlSafe(data.schemaVersion || '?')} · ${dbState.tables.length} tables · ${sizeNote}`;
+      list.innerHTML = dbState.tables.map((t) =>
+        `<div class="dev-db-table-item${dbState.activeTable === t.name ? ' active' : ''}" data-tbl="${escapeHtmlSafe(t.name)}">
+          <span>${escapeHtmlSafe(t.name)}</span>
+          <span class="count">${t.count}</span>
+        </div>`,
+      ).join('');
+      list.querySelectorAll('.dev-db-table-item').forEach((el) => {
+        el.addEventListener('click', () => {
+          dbState.activeTable = el.dataset.tbl;
+          $('dev-db-sql').value = `SELECT * FROM ${el.dataset.tbl} ORDER BY 1 DESC LIMIT 100`;
+          renderDevDbTables();   // re-highlight
+          runDevDbQuery();
+        });
+      });
+    } catch (e) {
+      status.textContent = `▲ ${e.message}`;
+    }
+  }
+
+  async function runDevDbQuery({ write = false } = {}) {
+    const sql = $('dev-db-sql').value.trim();
+    const meta = $('dev-db-result-meta');
+    const out = $('dev-db-result');
+    if (!sql) { meta.textContent = 'Enter a SQL query above.'; out.innerHTML = ''; return; }
+    meta.textContent = 'Running…';
+    out.innerHTML = '';
+    try {
+      const data = await fetchJson('/api/dev/db/query', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sql, write }),
+      });
+      if (data.error) throw new Error(data.error);
+      if (data.kind === 'write') {
+        meta.innerHTML = `<span style="color:var(--success)">✓ Wrote ${data.changes} row${data.changes === 1 ? '' : 's'}</span> · lastInsertRowid: ${escapeHtmlSafe(data.lastInsertRowid)}`;
+        out.innerHTML = '';
+        renderDevDbTables();  // refresh counts
+        return;
+      }
+      // read
+      const cappedNote = data.capped ? ` (capped, showing 1000 of ${data.totalRows})` : '';
+      meta.textContent = `${data.rows.length} row${data.rows.length === 1 ? '' : 's'}${cappedNote}`;
+      if (!data.rows.length) { out.innerHTML = '<div class="muted small">No rows.</div>'; return; }
+      const fmtCell = (v) => {
+        if (v === null || v === undefined) return '<span class="null">NULL</span>';
+        const s = String(v);
+        if (s.length > 200) return escapeHtmlSafe(s.slice(0, 200)) + '<span class="muted">…</span>';
+        return escapeHtmlSafe(s);
+      };
+      const table = `<table class="dev-db-result-table">
+        <thead><tr>${data.columns.map((c) => `<th>${escapeHtmlSafe(c)}</th>`).join('')}</tr></thead>
+        <tbody>${data.rows.map((r) =>
+          `<tr>${data.columns.map((c) => `<td title="${escapeHtmlSafe(String(r[c] == null ? '' : r[c]))}">${fmtCell(r[c])}</td>`).join('')}</tr>`,
+        ).join('')}</tbody>
+      </table>`;
+      out.innerHTML = table;
+    } catch (e) {
+      meta.innerHTML = `<span style="color:var(--danger)">▲ ${escapeHtmlSafe(e.message)}</span>`;
+      // If it's a write-mode error, offer to retry with confirm.
+      if (/write: true/i.test(e.message)) {
+        if (confirm('This query mutates the database. Stop the bot before running write queries — running with the bot live may corrupt the WAL.\n\nProceed anyway?')) {
+          runDevDbQuery({ write: true });
+        }
+      }
+    }
+  }
+
+  $('dev-db-run')?.addEventListener('click', () => runDevDbQuery());
+  $('dev-db-clear')?.addEventListener('click', () => {
+    $('dev-db-sql').value = '';
+    $('dev-db-result').innerHTML = '';
+    $('dev-db-result-meta').textContent = '—';
+  });
+  $('dev-db-sql')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      runDevDbQuery();
+    }
+  });
+
+  // Hook renderDevPage to also load the DB browser.
+  const origRenderDevPage = renderDevPage;
+  renderDevPage = async function() {
+    await origRenderDevPage();
+    await renderDevDbTables();
+  };
+
   // ===== v2.2.0: Dashboard language picker (lightweight i18n) =====
   const DASH_STRINGS = {
     en: { signIn: 'Sign in with Discord', healthy: 'healthy', noServer: 'Select a server first.' },

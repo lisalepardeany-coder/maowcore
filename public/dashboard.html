@@ -302,7 +302,7 @@
         </div>
       </nav>
       <div class="sidebar-footer">
-        <div class="muted small">v3.1.0</div>
+        <div class="muted small">v3.1.1</div>
       </div>
     </aside>
 
@@ -533,6 +533,31 @@
             <input id="dev-search" type="text" placeholder="🔍 Filter…" style="padding:6px 10px;border-radius:4px;background:var(--bg-input);border:1px solid var(--border);color:var(--fg);font-size:12px" />
           </div>
           <div id="dev-endpoints"><div class="muted">Loading…</div></div>
+        </div>
+
+        <!-- Database browser (v3.1.1) — read SQLite live from the dashboard -->
+        <div class="card">
+          <div class="card-head">
+            <h3>🗄 Database browser</h3>
+            <div class="muted small" id="dev-db-status">—</div>
+          </div>
+          <div class="dev-db-grid">
+            <div class="dev-db-tables">
+              <div class="muted small" style="margin-bottom:6px">Tables</div>
+              <div id="dev-db-table-list"><div class="muted">Loading…</div></div>
+            </div>
+            <div class="dev-db-query">
+              <div style="display:flex;gap:8px;margin-bottom:6px">
+                <button class="primary" id="dev-db-run">▶ Run</button>
+                <button id="dev-db-clear" style="background:var(--bg-input);color:var(--fg-muted);padding:6px 12px;border-radius:4px;border:1px solid var(--border)">Clear</button>
+                <span class="muted small" style="align-self:center">Tip: <code>Ctrl+Enter</code> to run</span>
+              </div>
+              <textarea id="dev-db-sql" rows="4" placeholder="SELECT * FROM history ORDER BY ts DESC LIMIT 20"
+                style="width:100%;padding:8px 12px;background:#000;color:#e6e6e6;border:1px solid var(--border);border-radius:6px;font-family:var(--font-mono);font-size:12px"></textarea>
+              <div class="muted small" id="dev-db-result-meta" style="margin-top:6px">—</div>
+              <div id="dev-db-result" style="margin-top:6px;max-height:480px;overflow:auto"></div>
+            </div>
+          </div>
         </div>
       </section>
 

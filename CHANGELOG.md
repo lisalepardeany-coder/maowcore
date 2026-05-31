@@ -6,6 +6,35 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.1.1] — 2026-06-01
+
+In-dashboard DB browser + a pre-existing date-bucket bug fix exposed
+by the new SQLite test suite.
+
+### Added
+
+- **Database browser** on the Developer page (`⌨ Developer`).
+  - Left column: list of tables with row counts. Click to load the
+    table's first 100 rows.
+  - Right column: SQL textarea + Run button + result table.
+  - **Read-only by default.** Mutating SQL is gated behind a confirm
+    dialog that warns about WAL-lock conflicts when the bot is running.
+  - Results capped at 1000 rows so a runaway SELECT can't ship gigs.
+  - `Ctrl+Enter` runs the query.
+- Two new endpoints: `GET /api/dev/db/tables`, `POST /api/dev/db/query`.
+- `scripts/db-shell.js` — CLI alternative (interactive SQL REPL).
+  Run with `npm run db-shell`.
+
+### Fixed
+
+- **`history.byDay` was using `toISOString()` for date keys** but
+  `today.setHours(0,0,0,0)` for the bucket-start times. Mixing UTC date
+  strings with local-time midnight produced wrong day labels for
+  anyone not in UTC (e.g., a Berlin user's "today" bucket landed on
+  yesterday's UTC date). Now uses consistent local-time YYYY-MM-DD
+  formatting via a `dateKey()` helper. Affects the Listening heatmap
+  on the Insights page.
+
 ## [3.1.0] — 2026-06-01
 
 **SQLite migration** — economy, social, sessions, and history now back to

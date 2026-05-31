@@ -120,8 +120,11 @@ test('history: byDay aggregates from SQLite', { skip: !sqliteOk }, () => {
   delete require.cache[require.resolve('../lib/history')];
   const hist = require('../lib/history');
   const map = hist.byDay('hist-guild', 30);
-  const today = new Date().toISOString().slice(0, 10);
-  assert.ok(map[today] >= 1, 'today should show at least 1 play from previous test');
+  // byDay uses LOCAL-time YYYY-MM-DD keys (not toISOString — that would
+  // produce wrong buckets for non-UTC timezones).
+  const d = new Date();
+  const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  assert.ok(map[today] >= 1, `today (${today}) should show at least 1 play from previous test`);
 });
 
 test('cleanup', () => {
