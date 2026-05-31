@@ -6,6 +6,37 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.2.3] — 2026-05-31
+
+### Fixed
+
+- **Service worker now skips cross-origin and `/api/*` requests.** The old
+  SW intercepted every GET, including Discord CDN avatar URLs and
+  cross-instance health probes. When a fetch failed it returned
+  `dashboard.html` as a fallback — which the browser then tried to render
+  as an image (Discord animated avatars, `415` errors on `a_*.gif`) or
+  parse as JSON (failed health probes to offline instances). The new SW
+  only handles same-origin static assets and lets the network handle
+  everything else. Cache version bumped from `maowcore-v1` → `maowcore-v2`
+  so the old SW is replaced cleanly on next page load.
+- **`/api/*` responses are no longer SW-intercepted at all.** Stale cache
+  hits and HTML-fallback-on-API-error were both possible footguns. API
+  requests now go straight to the network — if the backend is unreachable
+  the caller gets a real network error instead of an HTML blob.
+- **Password field warning on the "Add instance" modal silenced.** The
+  `instance-edit-token` input was a `<input type="password">` not wrapped
+  in a `<form>`, which made browsers (and password managers) complain.
+  Wrapped the modal body in a `<form onsubmit="event.preventDefault()">`
+  so credential tooling recognizes it correctly. Added `autocomplete`
+  attributes so saved bot tokens don't get suggested as passwords for
+  unrelated sites.
+
+### Notes
+
+- After upgrading, force-refresh the dashboard once (Ctrl+Shift+R / Cmd+Shift+R)
+  so the new service worker activates immediately. Otherwise the old SW
+  controls the page until its next natural lifecycle.
+
 ## [3.2.2] — 2026-05-31
 
 ### Fixed

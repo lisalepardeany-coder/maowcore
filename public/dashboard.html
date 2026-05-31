@@ -120,21 +120,25 @@
           <h3 id="instance-modal-title">Add bot instance</h3>
           <button class="instance-modal-close" id="instance-modal-close">×</button>
         </div>
-        <div class="instance-modal-body">
+        <!-- Wrapped in <form> + onsubmit-prevent so password managers and
+             a11y tooling recognize the token input as a credential field
+             (silences the "Password field is not contained in a form"
+             browser warning). Submission is handled by the Save button. -->
+        <form class="instance-modal-body" id="instance-edit-form" onsubmit="event.preventDefault(); return false;" autocomplete="off">
           <label>
             <div class="muted small">Display name</div>
-            <input id="instance-edit-name" type="text" placeholder="e.g. Main bot / Dev bot" />
+            <input id="instance-edit-name" type="text" placeholder="e.g. Main bot / Dev bot" autocomplete="off" />
           </label>
           <label>
             <div class="muted small">Control server URL</div>
-            <input id="instance-edit-url" type="text" placeholder="http://127.0.0.1:8765" />
+            <input id="instance-edit-url" type="text" placeholder="http://127.0.0.1:8765" autocomplete="off" />
           </label>
           <label>
             <div class="muted small">Bearer token (the bot's CONTROL_TOKEN — leave empty for legacy open mode)</div>
-            <input id="instance-edit-token" type="password" placeholder="(optional)" />
+            <input id="instance-edit-token" type="password" placeholder="(optional)" autocomplete="new-password" />
           </label>
           <div class="muted small" id="instance-edit-status">—</div>
-        </div>
+        </form>
         <div class="instance-modal-foot">
           <button class="instance-test-btn" id="instance-test-btn">⚡ Test connection</button>
           <div>
