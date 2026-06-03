@@ -1,6 +1,7 @@
 require('dotenv').config();
-const fs = require('node:fs');
+const fs   = require('node:fs');
 const path = require('node:path');
+const os   = require('node:os');
 const {
   Client,
   Collection,
@@ -780,24 +781,36 @@ client.distube?.on?.('empty', async (queue) => {
   }
 });
 
-// Reaction-roles handler — only acts on messages registered via /reactionrole
+// Reaction-roles handler
+// Supports two storage formats (both coexist in reactionRoles):
+//   Single  — reactionRoles[msgId] = { emoji, roleId }          ← /reactionrole command
+//   Multi   — reactionRoles[msgId] = [{ emoji, roleId }, …]     ← /setup role panel & verify
 const handleReaction = async (reaction, user, grant) => {
   if (user.bot) return;
   if (reaction.partial) { try { await reaction.fetch(); } catch { return; } }
+  if (reaction.message.partial) { try { await reaction.message.fetch(); } catch { return; } }
   const guildId = reaction.message.guildId;
   if (!guildId) return;
   const rr = getGuild(guildId).reactionRoles?.[reaction.message.id];
   if (!rr) return;
-  if (reaction.emoji.name !== rr.emoji && reaction.emoji.toString() !== rr.emoji) return;
-  const guild = reaction.message.guild;
+
+  // Normalise to array so both formats share one code path
+  const mappings = Array.isArray(rr) ? rr : [rr];
+  const emojiStr = reaction.emoji.id
+    ? `<:${reaction.emoji.name}:${reaction.emoji.id}>`  // custom emoji
+    : reaction.emoji.name;                               // unicode emoji
+  const match = mappings.find((m) => m.emoji === emojiStr || m.emoji === reaction.emoji.name);
+  if (!match) return;
+
+  const guild  = reaction.message.guild;
   const member = await guild.members.fetch(user.id).catch(() => null);
   if (!member) return;
   try {
-    if (grant) await member.roles.add(rr.roleId);
-    else await member.roles.remove(rr.roleId);
+    if (grant) await member.roles.add(match.roleId,  `Reaction role: ${emojiStr}`);
+    else       await member.roles.remove(match.roleId, `Reaction role removed: ${emojiStr}`);
   } catch (e) { console.warn('[reactionrole] failed:', e.message); }
 };
-client.on(Events.MessageReactionAdd, (r, u) => handleReaction(r, u, true));
+client.on(Events.MessageReactionAdd,    (r, u) => handleReaction(r, u, true));
 client.on(Events.MessageReactionRemove, (r, u) => handleReaction(r, u, false));
 
 // Bot self-introduction when joining a new server
@@ -836,30 +849,116 @@ client.on(Events.GuildDelete, (guild) => {
   forgetGuild(guild.id);
 });
 
-// Auto-update server stats channels every 10 minutes (Discord rate-limits name changes)
-const STATS_TICK_MS = 10 * 60 * 1000;
+// ── Stats channel updater ────────────────────────────────────────────────────
+// Discord rate limit: 2 name changes per channel per 10 minutes.
+// We run every 5 minutes — safe (1 edit per 5 min = 2 per 10 min max).
+const STATS_TICK_MS    = 5 * 60 * 1000;   // server stats:   every 5 min
+const SYS_MONITOR_MS   = 5 * 60 * 1000;   // system monitor: every 5 min
+
+const safeRename = async (ch, newName) => {
+  if (!ch || ch.name === newName) return;
+  try { await ch.setName(newName); } catch { /* rate-limited or missing perms — skip silently */ }
+};
+
+// ── Server stat channels (members, bots, channels, roles, boosts) ────────────
 const updateStatsChannels = async () => {
   for (const guild of client.guilds.cache.values()) {
     const cfg = getGuild(guild.id);
     if (!cfg.statsChannels) continue;
     const counts = {
-      members: guild.memberCount,
-      bots: [...guild.members.cache.values()].filter((m) => m.user.bot).length,
+      members:  guild.memberCount,
+      bots:     [...guild.members.cache.values()].filter((m) => m.user.bot).length,
       channels: guild.channels.cache.size,
+      roles:    guild.roles.cache.size,
+      boosts:   guild.premiumSubscriptionCount ?? 0,
     };
-    const labelByKey = { members: '◆ Members:', bots: '✦ Bots:', channels: '⌬ Channels:' };
+    const labels = {
+      members:  '👥 Members:',
+      bots:     '🤖 Bots:',
+      channels: '📁 Channels:',
+      roles:    '🎭 Roles:',
+      boosts:   '🚀 Boosts:',
+    };
     for (const [key, channelId] of Object.entries(cfg.statsChannels)) {
       const ch = guild.channels.cache.get(channelId);
-      if (!ch) continue;
-      const newName = `${labelByKey[key] || key} ${counts[key] ?? 0}`;
-      if (ch.name !== newName) {
-        try { await ch.setName(newName); } catch { /* rate-limited or no perms */ }
-      }
+      await safeRename(ch, `${labels[key] ?? key} ${counts[key] ?? 0}`);
     }
   }
 };
-setInterval(updateStatsChannels, STATS_TICK_MS);
-client.once(Events.ClientReady, () => setTimeout(updateStatsChannels, 5000));  // initial update 5s after ready
+
+// ── CPU usage helper (samples over 500 ms for accuracy) ───────────────────────
+function getCpuPercent() {
+  return new Promise((resolve) => {
+    const snap1 = os.cpus().map((c) => ({ ...c.times }));
+    setTimeout(() => {
+      let idle = 0, total = 0;
+      os.cpus().forEach((cpu, i) => {
+        for (const t of Object.keys(cpu.times)) {
+          const delta = cpu.times[t] - snap1[i][t];
+          total += delta;
+          if (t === 'idle') idle += delta;
+        }
+      });
+      resolve(total === 0 ? 0 : Math.round(100 * (1 - idle / total)));
+    }, 500);
+  });
+}
+
+// ── Format helpers ─────────────────────────────────────────────────────────────
+const fmtUptime = (sec) => {
+  const d = Math.floor(sec / 86400);
+  const h = Math.floor((sec % 86400) / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  return d > 0 ? `${d}d ${h}h` : h > 0 ? `${h}h ${m}m` : `${m}m`;
+};
+const fmtMB  = (b) => `${(b / 1024 / 1024).toFixed(0)} MB`;
+const fmtGB  = (b) => `${(b / 1024 / 1024 / 1024).toFixed(1)} GB`;
+
+// ── System monitor channels (CPU, RAM, uptime, ping, heap, load) ──────────────
+const updateSystemMonitor = async () => {
+  // CPU percent is async — fetch once, reuse across all guilds
+  const cpuPct = await getCpuPercent();
+
+  for (const guild of client.guilds.cache.values()) {
+    const cfg = getGuild(guild.id);
+    if (!cfg.sysMonitorChannels) continue;
+
+    const mem        = process.memoryUsage();
+    const totalRam   = os.totalmem();
+    const usedRam    = totalRam - os.freemem();
+    const [load1]    = os.loadavg();           // 1-min load avg (0 on Windows — handled below)
+    const loadStr    = process.platform === 'win32' ? 'N/A' : load1.toFixed(2);
+    const uptimeStr  = fmtUptime(Math.floor(process.uptime()));
+    const pingMs     = Math.round(client.ws.ping);
+    const pingStr    = pingMs < 0 ? '—' : `${pingMs} ms`;
+
+    const values = {
+      cpu:    `🖥️ CPU: ${cpuPct}%`,
+      ram:    `💾 RAM: ${fmtMB(usedRam)} / ${fmtGB(totalRam)}`,
+      heap:   `🔥 Heap: ${fmtMB(mem.heapUsed)} / ${fmtMB(mem.heapTotal)}`,
+      uptime: `⬆️ Up: ${uptimeStr}`,
+      ping:   `🏓 Ping: ${pingStr}`,
+      load:   `🔄 Load: ${loadStr}`,
+    };
+
+    for (const [key, channelId] of Object.entries(cfg.sysMonitorChannels)) {
+      const ch = guild.channels.cache.get(channelId);
+      await safeRename(ch, values[key] ?? key);
+    }
+  }
+};
+
+setInterval(updateStatsChannels,  STATS_TICK_MS);
+setInterval(updateSystemMonitor,  SYS_MONITOR_MS);
+client.once(Events.ClientReady, () => {
+  setTimeout(updateStatsChannels,  5_000);   // initial fill 5s after ready
+  setTimeout(updateSystemMonitor, 10_000);   // stagger so they don't both fire at once
+});
+
+// GitHub feed — polls for new commits, releases, issues, and PRs and
+// broadcasts them to the channels configured by /setup.
+const { startGitHubFeed } = require('./lib/github-feed');
+client.once(Events.ClientReady, () => startGitHubFeed(client));
 
 // Reminder ticker — checks every 15s for due reminders. Guards against
 // re-entrancy so a slow tick can't process the same reminder twice.
