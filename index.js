@@ -1,11 +1,16 @@
 require('dotenv').config();
+// Load runtime-editable integration creds (Last.fm) into process.env before
+// any integration code reads them.
+require('./lib/integrations-config').load();
 const fs   = require('node:fs');
 const path = require('node:path');
 const os   = require('node:os');
+const ops  = require('./lib/ops');
 const {
   Client,
   Collection,
   GatewayIntentBits,
+  Partials,
   Events,
   MessageFlags,
   ActionRowBuilder,
@@ -13,6 +18,7 @@ const {
   ButtonStyle,
   ChannelType,
   PermissionFlagsBits,
+  AuditLogEvent,
 } = require('discord.js');
 const { DisTube } = require('distube');
 const { SpotifyPlugin } = require('@distube/spotify');
@@ -60,7 +66,14 @@ const client = new Client({
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessageReactions,
+    GatewayIntentBits.GuildModeration, // ban events for anti-nuke
+    GatewayIntentBits.DirectMessages,  // modmail (DM → staff thread)
   ],
+  // REQUIRED for reaction roles: the verify / role-select messages are
+  // usually not in the message cache (especially after a restart), so the
+  // gateway delivers their reaction events as PARTIALS. Without these the
+  // MessageReactionAdd/Remove events never fire for those messages.
+  partials: [Partials.Message, Partials.Reaction, Partials.Channel],
 });
 
 const ytDlpPlugin = new YtDlpPlugin({ update: false });
@@ -400,7 +413,25 @@ client.distube
     }).catch(() => {});
   })
   .on('error', (error, queue) => {
+    // FFMPEG_EXITED fires whenever ffmpeg is terminated mid-stream — which
+    // happens on every skip / stop / leave / queue-end. It's benign noise,
+    // not a real failure, so log it quietly and DON'T alarm users with an
+    // error embed in the music channel.
+    const code = error?.errorCode || '';
+    const benign = code === 'FFMPEG_EXITED' || /ffmpeg exited/i.test(error?.message || '');
+    if (benign) {
+      try {
+        control.log('ffmpeg stream terminated (skip/stop/end — harmless)', 'info', 'play',
+          { subsystem: 'distube', meta: { code } });
+      } catch { /* control not ready */ }
+      return;
+    }
+    // Genuine playback error — log loudly + notify the channel.
     console.error('DisTube error:', error);
+    try {
+      control.log(`▲ DisTube error: ${error?.message || error}`, 'error', 'play',
+        { subsystem: 'distube', meta: { code, stack: error?.stack } });
+    } catch { /* control not ready */ }
     const msg = (error?.message || String(error)).slice(0, 1900);
     queue?.textChannel
       ?.send({ embeds: [themedEmbed(COLORS.FLARE, '▲  TRANSMISSION ERROR', '```' + msg + '```')] })
@@ -488,11 +519,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
     try {
       await command.execute(interaction);
       const dur = Date.now() - startedAt;
+      ops.recordCommand(stripPrefix(interaction.commandName), true, dur);
       control.log(`✓ /${interaction.commandName} ok (${dur}ms)`, 'success', 'command',
         { subsystem: 'discord', meta: { user: who, guild: guildName, durationMs: dur } });
     } catch (err) {
       console.error(`Error in /${interaction.commandName}:`, err);
       const dur = Date.now() - startedAt;
+      ops.recordCommand(stripPrefix(interaction.commandName), false, dur);
       control.log(`✕ /${interaction.commandName} failed (${dur}ms): ${err.message || err}`,
         'error', 'command',
         { subsystem: 'discord', meta: { user: who, guild: guildName, durationMs: dur, error: err?.message, stack: err?.stack } });
@@ -560,12 +593,11 @@ const welcomeEmbed = (member, isJoin) => {
     .setThumbnail(member.user.displayAvatarURL({ size: 128 }));
 };
 
-client.on(Events.GuildMemberAdd, (member) => {
-  // Anti-raid check first. checkRaid takes just the guild — it tracks rolling
-  // join timestamps per guild and trips at 5 joins in <10s.
-  if (automod.checkRaid(member.guild)) {
-    modlog.post(member.guild, { action: 'raid', target: member.user, mod: 'automod', reason: '5+ joins in <10s detected' });
-  }
+client.on(Events.GuildMemberAdd, async (member) => {
+  // Raid shield + alt-gate. If the joiner was kicked/banned, skip the welcome.
+  let acted = null;
+  try { acted = await automod.checkJoin(member, modlog); } catch (e) { console.warn('[automod] join:', e.message); }
+  if (acted?.action === 'kick' || acted?.action === 'ban') return;
   const cfg = getGuild(member.guild.id);
   if (!cfg.welcomeChannelId) return;
   const ch = member.guild.channels.cache.get(cfg.welcomeChannelId);
@@ -576,6 +608,95 @@ client.on(Events.GuildMemberAdd, (member) => {
 client.on(Events.MessageCreate, async (msg) => {
   if (!msg.guild) return;
   try { await automod.checkMessage(msg, modlog); } catch (e) { console.warn('[automod] error:', e.message); }
+});
+
+// ── Anti-nuke: watch destructive actions, find the actor via the audit log ────
+const nukeWatch = async (guild, auditType, label) => {
+  if (!guild || !getGuild(guild.id).automod?.antiNuke) return;
+  try {
+    const logs = await guild.fetchAuditLogs({ type: auditType, limit: 1 });
+    const entry = logs.entries.first();
+    if (!entry || Date.now() - entry.createdTimestamp > 10_000) return; // only fresh actions
+    await automod.recordNuke(guild, entry.executor?.id, label, modlog);
+  } catch (e) { console.warn('[anti-nuke]', e.message); }
+};
+client.on(Events.ChannelDelete, (channel) => { if (channel.guild) nukeWatch(channel.guild, AuditLogEvent.ChannelDelete, 'channel delete'); });
+client.on(Events.GuildRoleDelete, (role) => nukeWatch(role.guild, AuditLogEvent.RoleDelete, 'role delete'));
+client.on(Events.GuildBanAdd, (ban) => nukeWatch(ban.guild, AuditLogEvent.MemberBanAdd, 'ban'));
+
+// ── Modmail: relay member DMs ↔ staff threads ─────────────────────────────────
+const modActions = require('./lib/mod-actions');
+const modmail = require('./lib/modmail');
+client.once(Events.ClientReady, () => modActions.startTempActions(client)); // auto-expire temp bans/mutes
+client.on(Events.MessageCreate, async (msg) => {
+  try {
+    if (!msg.guild) { await modmail.handleUserDM(client, msg); return; }     // a DM from a member
+    if (msg.channel.isThread?.()) await modmail.handleStaffReply(msg);        // staff reply in a modmail thread
+  } catch (e) { console.warn('[modmail]', e.message); }
+});
+
+// ── Leveling: text XP per message + voice XP on a ticker ──────────────────────
+const leveling = require('./lib/leveling');
+client.once(Events.ClientReady, () => leveling.startVoiceXp(client));
+client.on(Events.MessageCreate, (msg) => { leveling.onMessage(msg).catch(() => {}); });
+
+// ── Community: event RSVP buttons + daily birthday check ──────────────────────
+const community = require('./lib/community');
+const { updateGuild } = require('./lib/config');
+// Separate listener — only touches rsvp: buttons, so it can't clash with the
+// slash-command / music-button handler above.
+client.on(Events.InteractionCreate, async (interaction) => {
+  if (!interaction.isButton() || !interaction.customId.startsWith('rsvp:')) return;
+  try {
+    const [, id, status] = interaction.customId.split(':');
+    const e = community.rsvp(interaction.guildId, id, interaction.user.id, status);
+    if (!e) return interaction.reply({ content: 'This event no longer exists.', flags: MessageFlags.Ephemeral }).catch(() => {});
+    await interaction.update({ embeds: [community.eventEmbed(e)], components: [community.eventButtons(id)] });
+  } catch (err) { console.warn('[rsvp]', err.message); }
+});
+async function birthdayCheck() {
+  const today = new Date();
+  const key = `${today.getFullYear()}-${today.getMonth() + 1}-${today.getDate()}`;
+  for (const guild of client.guilds.cache.values()) {
+    const cfg = getGuild(guild.id);
+    const todays = community.todaysBirthdays(guild.id, today);
+    // Birthday role: keep it on exactly today's celebrants.
+    if (cfg.birthdayRoleId) {
+      const role = guild.roles.cache.get(cfg.birthdayRoleId);
+      if (role) {
+        for (const m of role.members.values()) if (!todays.includes(m.id)) m.roles.remove(role, 'Birthday over').catch(() => {});
+        for (const u of todays) { const m = await guild.members.fetch(u).catch(() => null); if (m && !m.roles.cache.has(role.id)) m.roles.add(role, 'Happy birthday!').catch(() => {}); }
+      }
+    }
+    // Announce once per day.
+    if (cfg.birthdayLastRun !== key && todays.length && cfg.birthdayChannelId) {
+      const ch = guild.channels.cache.get(cfg.birthdayChannelId);
+      if (ch) { ch.send({ content: `🎉🎂 Happy Birthday ${todays.map((u) => `<@${u}>`).join(', ')}! Have an amazing day! 🥳`, allowedMentions: { users: todays } }).catch(() => {}); updateGuild(guild.id, { birthdayLastRun: key }); }
+    }
+  }
+}
+client.once(Events.ClientReady, () => { setTimeout(() => birthdayCheck().catch(() => {}), 15_000); const iv = setInterval(() => birthdayCheck().catch(() => {}), 60 * 60_000); iv.unref?.(); });
+
+// Collab games — counting + one-word-story channel listeners.
+const collab = require('./lib/collab');
+client.on(Events.MessageCreate, (msg) => {
+  if (!msg.guild || msg.author.bot) return;
+  const cfg = getGuild(msg.guild.id);
+  try {
+    if (cfg.countingChannelId === msg.channelId) {
+      const r = collab.countStep(cfg.counting, msg.author.id, msg.content);
+      if (!r.handled) return;
+      updateGuild(msg.guild.id, { counting: r.state });
+      if (r.ok) msg.react(r.newBest ? '🏆' : '✅').catch(() => {});
+      else { msg.react('❌').catch(() => {}); msg.channel.send(`💥 **${msg.author.username}** broke the chain at **${r.ruinedAt}** (expected ${r.expected})! Back to **1**.`).catch(() => {}); }
+    } else if (cfg.storyChannelId === msg.channelId) {
+      const r = collab.storyStep(cfg.story, msg.author.id, msg.content);
+      if (!r.handled) return;
+      if (r.ok) { updateGuild(msg.guild.id, { story: r.state }); msg.react('✅').catch(() => {}); }
+      else if (r.reason === 'double') msg.react('🙅').catch(() => {});
+      else if (r.reason === 'toolong') msg.react('📏').catch(() => {});
+    }
+  } catch (e) { console.warn('[collab]', e.message); }
 });
 client.on(Events.GuildMemberRemove, (member) => {
   const cfg = getGuild(member.guild.id);
@@ -591,6 +712,9 @@ const tempVoiceChannels = new Set();
 // Discord ready — pin the boot timeline step + log it through diagnostics.
 client.once(Events.ClientReady, () => {
   diag.bootOk('ready', `${client.user.tag} · ${client.guilds.cache.size} guild${client.guilds.cache.size === 1 ? '' : 's'}`);
+  try { ops.recordEvent('boot', `${client.user.tag} · ${client.guilds.cache.size} guilds`); } catch { /* */ }
+  // Apply any custom presence configured from the dashboard.
+  try { require('./lib/presence').applyNow(client); } catch { /* */ }
   control.log(`◇ Discord ready: ${client.user.tag} in ${client.guilds.cache.size} guild${client.guilds.cache.size === 1 ? '' : 's'}`,
     'success', 'discord', { subsystem: 'discord', meta: { tag: client.user.tag, guilds: client.guilds.cache.size } });
 });
@@ -602,7 +726,24 @@ client.on('shardReconnecting', (id)       => control.log(`↻ Shard ${id} reconn
 client.on('shardResume',       (id, evs)  => control.log(`↑ Shard ${id} resumed (${evs} events replayed)`, 'info', 'discord', { subsystem: 'discord' }));
 client.on('error',             (err)      => control.log(`▲ Discord client error: ${err?.message || err}`, 'error', 'discord', { subsystem: 'discord', meta: { stack: err?.stack } }));
 client.on('warn',              (info)     => control.log(`▲ Discord warn: ${info}`, 'warn', 'discord', { subsystem: 'discord' }));
-client.on('rateLimit',         (info)     => control.log(`⏱ Rate limited: ${info?.method} ${info?.path} (retry ${info?.timeout}ms)`, 'warn', 'discord', { subsystem: 'discord', meta: info }));
+client.on('rateLimit',         (info)     => { ops.recordRateLimit(info); control.log(`⏱ Rate limited: ${info?.method} ${info?.path} (retry ${info?.timeout}ms)`, 'warn', 'discord', { subsystem: 'discord', meta: info }); });
+
+// Message logs — capture deletes/edits for the dashboard Message Logs page.
+// Only fires for cached messages (recent activity); uncached ones log metadata.
+const messageLogs = require('./lib/message-logs');
+client.on(Events.MessageDelete, (msg) => {
+  if (!msg.guild || msg.author?.bot) return;
+  messageLogs.record({ type: 'delete', guildId: msg.guild.id, channelId: msg.channelId,
+    channelName: msg.channel?.name || null, authorId: msg.author?.id || null, authorTag: msg.author?.tag || null,
+    content: (msg.content || '').slice(0, 1000) });
+});
+client.on(Events.MessageUpdate, (oldMsg, newMsg) => {
+  if (!newMsg.guild || newMsg.author?.bot) return;
+  if (oldMsg.content === newMsg.content) return;
+  messageLogs.record({ type: 'edit', guildId: newMsg.guild.id, channelId: newMsg.channelId,
+    channelName: newMsg.channel?.name || null, authorId: newMsg.author?.id || null, authorTag: newMsg.author?.tag || null,
+    content: (oldMsg.content || '').slice(0, 1000), newContent: (newMsg.content || '').slice(0, 1000) });
+});
 
 // On ready: scan for orphaned temp voice channels left over from previous runs
 // (empty voice channels in the auto-voice category whose name starts with 🎙).
@@ -960,6 +1101,11 @@ client.once(Events.ClientReady, () => {
 const { startGitHubFeed } = require('./lib/github-feed');
 client.once(Events.ClientReady, () => startGitHubFeed(client));
 
+// Live notifications — watches configured Twitch (go-live) and YouTube
+// (new uploads) channels per guild and pings the 🔴 Live Notifs role.
+const { startLiveNotify } = require('./lib/live-notify');
+client.once(Events.ClientReady, () => startLiveNotify(client));
+
 // Reminder ticker — checks every 15s for due reminders. Guards against
 // re-entrancy so a slow tick can't process the same reminder twice.
 let reminderTickRunning = false;
@@ -993,6 +1139,7 @@ setInterval(async () => {
 process.on('unhandledRejection', (reason) => {
   const msg = reason?.message || String(reason);
   console.error('[unhandledRejection]', msg);
+  try { ops.recordEvent('crash', `unhandledRejection: ${msg}`); } catch { /* */ }
   // Also surface in the dashboard so silent background failures aren't invisible.
   try {
     control.log(`▲ Unhandled promise rejection: ${msg}`, 'error', 'system',
@@ -1001,6 +1148,7 @@ process.on('unhandledRejection', (reason) => {
 });
 process.on('uncaughtException', (err) => {
   console.error('[uncaughtException]', err?.stack || err?.message || err);
+  try { ops.recordEvent('crash', `uncaughtException: ${err?.message || err}`); } catch { /* */ }
   // Intentionally not exiting — keep the bot + dashboard alive. If this fires
   // repeatedly something is genuinely wrong; check the logs.
   try {
@@ -1051,6 +1199,7 @@ let shuttingDown = false;
 const shutdown = async (signal) => {
   if (shuttingDown) return;
   shuttingDown = true;
+  try { ops.recordEvent('shutdown', signal); } catch { /* */ }
   console.log(`\n◌  ${signal} received — closing uplink…`);
   // Cap the total shutdown time at 5s. If destroy hangs (rare but possible
   // on a stuck WebSocket), force-exit anyway so the user isn't stuck.

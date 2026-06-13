@@ -13,6 +13,8 @@ const {
 } = require('discord.js');
 const { getGuild, updateGuild } = require('../lib/config');
 const { COLORS } = require('../lib/theme');
+const { buildFromTemplate } = require('../lib/setup-engine');
+const { getTemplate, templateChoices } = require('../lib/setup-templates');
 
 // ─── Tiny helpers ─────────────────────────────────────────────────────────────
 
@@ -225,8 +227,15 @@ const ROLE_DEFS = [
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('setup')
-    .setDescription('Build the full MaowCore community server structure (admin only)')
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+    .setDescription('Build a server from a template — streamer, YouTube, gaming, music & more (admin only)')
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .addStringOption((o) =>
+      o.setName('template')
+        .setDescription('Which server template to build')
+        .addChoices(
+          ...templateChoices,
+          { name: '✦ MaowCore (full dev/community server)', value: 'maowcore' },
+        )),
 
   async execute(interaction) {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
@@ -237,6 +246,27 @@ module.exports = {
     const progress = async (msg) => {
       await interaction.editReply(`⚙️ ${msg}`).catch(() => {});
     };
+
+    // ── Dispatch: creator/streamer templates run through the data-driven engine.
+    // The original full "MaowCore" community server is the default fall-through.
+    const templateId = interaction.options.getString('template') || 'maowcore';
+    if (templateId !== 'maowcore') {
+      const tpl = getTemplate(templateId);
+      if (!tpl) return interaction.editReply(`▲  Unknown template: \`${templateId}\``);
+      try {
+        const stats = await buildFromTemplate(interaction, tpl, progress);
+        return interaction.editReply(
+          `${tpl.emoji}  **${tpl.label} server built!**\n` +
+          `• **${stats.categories} categories** · **${stats.channels} channels** · **${stats.roles} roles**\n` +
+          `• Rules, ✅ verify gate, 🎭 self-roles, and permissions all wired\n` +
+          `• \`/announceupdate\` posts bot updates to **#🔔-bot-updates** here\n\n` +
+          `Re-run \`/setup\` anytime — it’s idempotent (existing roles/channels are reused, not duplicated).`,
+        );
+      } catch (e) {
+        console.error('[setup:template]', e);
+        return interaction.editReply(`▲  Setup failed: ${e.message}`);
+      }
+    }
 
     try {
       // ══════════════════════════════════════════════════════════════════════

@@ -6,6 +6,115 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.4.0] — 2026-06-13
+
+A huge community-engagement release: a rebuilt automod engine, a moderation
+hub, full text+voice leveling with auto-managed roles, an economy with
+scratch cards & a casino, AI-powered party games, social features
+(birthdays, confessions, events, collab games), live-stream alerts and a
+server-announcement composer.
+
+### Added
+
+- **Automod v2** (`/automod`) — a rewritten engine covering spam (rate +
+  duplicate flooding), raid detection, scam-link filtering, a custom word
+  filter, and anti-nuke protection (mass ban/kick/channel-delete tripwires),
+  all feeding a configurable **escalation ladder** (warn → timeout → kick →
+  ban) with per-rule actions.
+- **`/mod` hub** — temp-punishments (timed mute/ban with auto-revert),
+  moderator notes, full per-user moderation history, and **modmail** (DM ↔
+  staff-thread relay).
+- **`/levelxp` leveling** — text **and** voice XP on a tunable curve, with
+  per-channel/per-role XP exclusions, role- and event-based multipliers,
+  double-XP windows, and **auto-managed milestone roles** (`/levelxp setup`
+  generates a tier ladder, now clamped to a safe role count).
+- **`/eco` economy** — daily/work/beg earners with streaks, **scratch
+  cards**, a **casino** (slots/blackjack/etc.), `rob`, a **lottery**, and a
+  shop.
+- **`/fun` games** — AI-driven tic-tac-toe (minimax), rock-paper-scissors,
+  high-low, trivia, song-guess, daily question, and 8-ball.
+- **`/community`** — birthdays (with announce channel + birthday role),
+  anonymous confessions (with optional staff log), events with RSVP buttons,
+  and collab games (**counting** + **one-word story**).
+- **`/livenotify`** — go-live alerts for streamers.
+- **`/serverannouncement`** — a formatted server-announcement composer with
+  presets.
+
+### Fixed
+
+- **`/levelxp setup`** no longer attempts to create hundreds of roles — the
+  milestone count is clamped (widening the interval as needed) so it stays
+  well under Discord's 250-role guild cap.
+- Scam-link detection no longer false-flags legitimate `discord.com` links.
+
+### Changed
+
+- Economy cooldown state is now pruned of long-expired entries so it can't
+  grow unbounded.
+- Removed dead code in the automod engine.
+
+## [3.3.0] — 2026-06-04
+
+Server-setup templates, a bot-update broadcaster, and a big dashboard
+glow-up — new themes, dozens of cinematic boot screens, and a redesigned
+home page.
+
+### Added
+
+- **`/setup` templates** — `/setup` is rebuilt around a dropdown of **11
+  ready-made server templates** so you can spin up a fully-structured
+  community in one command:
+  - 🟣 Twitch Streamer · 📹 YouTube Creator · 🎲 Variety Streamer ·
+    🟩 Kick Streamer · 🌸 VTuber · 🎵 Musician / DJ · 🎮 Gaming Community ·
+    🎨 Artist / Creative · 🎙️ Podcast · 🏆 Esports Team · ☕ Cozy Community
+  - Each builds creator-flavoured roles (Broadcaster/Creator + a staff
+    ladder + Subscriber/VIP/Member/Muted + self-roles), 8–9 categories,
+    36–40 channels, **tailored rules**, a **✅ verify gate**, a **🎭
+    self-role panel**, and permissions derived automatically from role
+    flags (sub-only / VIP-only lounges, staff-locked channels, voice locks).
+  - The original full **✦ MaowCore** dev/community server is still there as
+    one of the choices.
+  - Powered by a new data-driven engine — `lib/setup-engine.js` +
+    `lib/setup-templates.js`. Re-running is idempotent (existing
+    roles/channels are reused, never duplicated).
+- **`/announceupdate`** — broadcast a MaowCore update to your server, or to
+  **every server** the bot is in (owner-only). It pulls the latest
+  `CHANGELOG.md` section (or your own notes), posts a tidy embed to each
+  server's `#🔔-bot-updates` channel, and pings the opt-in **🔔 Bot
+  Updates** role where it exists. Options: `scope`, `version`, `notes`,
+  `ping`, `channel`.
+- **Dashboard — Boot Lab** (`/boot-gallery`): preview every cinematic boot
+  sequence and pick the one that plays on load — independent of your theme.
+- **Dashboard — 25 cinematic boot screens** plus **50 Backrooms levels**:
+  a Person of Interest "Machine" surveillance HUD, 55 analog-horror VHS
+  Backrooms levels (Level 0 → Level !, Poolrooms, Level Fun, The End…),
+  Matrix code-rain variants, server/POST boots, hacker-intrusion boots,
+  and sci-fi AIs (HAL/Alien/neural-net). **90+ boots total.**
+- **Dashboard — 10 new themes** including a full **Backrooms** theme group
+  (The Lobby, Poolrooms, Lights Out, Level !, Thalassophobia, Level Fun,
+  Pipe Dreams, Field of Wheat, The Red Halls, Home·3999). **38 themes total.**
+- **Dashboard — Discord-style connecting boot** for the Discord theme
+  (bouncing logo, "Did you know?" tips) instead of the generic system boot.
+
+### Changed
+
+- **Dashboard home is now a launcher/dashboard** — a compact now-playing
+  strip (with an "Open player →" link), quick-play, at-a-glance stats, and
+  shortcut tiles — instead of duplicating the full player that already
+  lives on the Player page. The header now distinguishes the bot's
+  connection from your sign-in.
+
+### Fixed
+
+- **Boot screens crashed in the production dashboard** with
+  `Cannot read properties of null (reading 'group')` on every built-in boot
+  (i.e. most page loads). A guard clause's parentheses were dropped during
+  minification; rewritten with optional chaining so it's immune.
+- **Last.fm credential fields** are now inside a `<form>` — no more
+  "password field is not contained in a form" console warnings.
+- Minor dashboard polish: welcome-header spacing and the "Signed in as"
+  label.
+
 ## [3.2.4] — 2026-05-31
 
 Voice-channel quality-of-life. Three voice features that were either

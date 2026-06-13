@@ -1,15 +1,18 @@
 {
   "name": "discord-music-bot",
-  "version": "3.2.4",
+  "version": "3.4.0",
   "description": "Discord music bot with Spotify support",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
+    "start": "node --max-old-space-size=4096 --expose-gc index.js",
     "deploy": "node deploy-commands.js",
     "test": "node --test test/*.test.js",
     "postinstall": "node scripts/patch-ytsr.js",
     "install-native": "node scripts/install-native.js",
-    "db-shell": "node scripts/db-shell.js"
+    "db-shell": "node scripts/db-shell.js",
+    "dashboard:install": "npm --prefix dashboard install",
+    "dashboard:dev": "npm --prefix dashboard run dev",
+    "dashboard:build": "npm --prefix dashboard run build"
   },
   "dependencies": {
     "@discordjs/voice": "^0.19.2",
@@ -21,7 +24,7 @@
     "discord.js": "^14.16.3",
     "distube": "^5.2.3",
     "dotenv": "^16.4.5",
-    "ffmpeg-static": "^5.2.0",
+    "ffmpeg-static": "^5.3.0",
     "genius-lyrics": "^4.4.7",
     "libsodium-wrappers": "^0.7.15",
     "opusscript": "^0.0.8",
@@ -30,10 +33,10 @@
   },
   "optionalDependencies": {
     "@discordjs/opus": "^0.10.0",
-    "sodium-native": "^4.3.1",
     "@noble/ciphers": "^1.0.0",
     "@stablelib/xchacha20poly1305": "^2.0.0",
-    "better-sqlite3": "^11.5.0"
+    "better-sqlite3": "^11.5.0",
+    "sodium-native": "^4.3.1"
   },
   "engines": {
     "node": ">=18.0.0"
