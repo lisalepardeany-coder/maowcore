@@ -1,5 +1,7 @@
 const { SlashCommandBuilder, EmbedBuilder, MessageFlags, PermissionFlagsBits } = require('discord.js');
 const warnings = require('../lib/warnings');
+const automod = require('../lib/automod');
+const modlog = require('../lib/modlog');
 const { COLORS } = require('../lib/theme');
 
 module.exports = {
@@ -20,7 +22,14 @@ module.exports = {
     if (sub === 'add') {
       const reason = interaction.options.getString('reason');
       const count = warnings.add(interaction.guildId, user.id, reason, interaction.user.id);
-      return interaction.reply(`⚠️  Warned **${user.tag}** — now has **${count}** warning${count === 1 ? '' : 's'}. Reason: ${reason}`);
+      // Auto-escalation — if the new count hits a configured rung, punish.
+      let escalated = null;
+      try {
+        const member = await interaction.guild.members.fetch(user.id).catch(() => null);
+        if (member) escalated = await automod.escalate(interaction.guild, member, count, modlog);
+      } catch { /* */ }
+      return interaction.reply(`⚠️  Warned **${user.tag}** — now has **${count}** warning${count === 1 ? '' : 's'}. Reason: ${reason}`
+        + (escalated ? `\n⚖️  Auto-escalation: **${escalated}** applied at ${count} warnings.` : ''));
     }
     if (sub === 'list') {
       const list = warnings.list(interaction.guildId, user.id);
