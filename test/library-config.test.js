@@ -14,7 +14,7 @@ const library = require('../lib/library');
 
 test('library.loadConfig: returns defaults when no _config.json exists', () => {
   const cfg = library.loadConfig();
-  assert.equal(cfg.concurrency, 5);
+  assert.equal(cfg.concurrency, 2); // gentle default: YouTube rate-limits bursts
   assert.equal(cfg.limitRate, null);
 });
 

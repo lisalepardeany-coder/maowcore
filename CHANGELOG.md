@@ -6,6 +6,23 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.5.5] — 2026-11-23
+
+### Fixed
+
+- **Playlist downloads no longer get the server rate-limited by YouTube.**
+  - Downloads run 2 at a time by default (was 5), never more than 3 for
+    YouTube.
+  - Downloads pause between requests (yt-dlp's `--sleep-requests 1
+    --sleep-interval 3 --max-sleep-interval 8`, its own advice).
+  - A playlist stops at the first rate limit instead of trying every
+    remaining song, which only made YouTube's block last longer. The summary
+    says how many weren't tried. Running it again later skips installed songs.
+- **Rate limits are named plainly.** "The current session has been
+  rate-limited by YouTube" now comes with what it means (blocked for up to an
+  hour, wait it out), both for downloads and for playback. The
+  `ffmpeg exited with code 8` that follows is only a result of it.
+
 ## [3.5.4] — 2026-11-23
 
 ### Fixed

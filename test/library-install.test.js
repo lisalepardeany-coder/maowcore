@@ -10,5 +10,6 @@ test('library: yt-dlp errors come with what to do', () => {
   assert.match(explainYtDlpError('ERROR: Postprocessing: ffprobe and ffmpeg not found'), /Original/);
   assert.match(explainYtDlpError('ERROR: [youtube] abc: Private video'), /can't be downloaded/);
   assert.match(explainYtDlpError('yt-dlp exited 255: [PYI-249:ERROR] Failed to extract Cryptodome/Cipher/_ARC4.abi3.so: decompression resulted in return code -1!'), /temp folder/);
+  assert.match(explainYtDlpError('ERROR: [youtube] x: Video unavailable. The current session has been rate-limited by YouTube for up to an hour.'), /rate-limited this server/);
   assert.equal(explainYtDlpError('something else'), 'something else');
 });
