@@ -7,6 +7,10 @@ yarn.lock
 .env
 .env.local
 .env.*.local
+# On a hosting panel: temp files (yt-dlp unpacks itself here, see lib/hosting.js)
+# and the yt-dlp the Pterodactyl install downloads
+/.tmp/
+/bin/
 # YouTube cookies dropped for import (only its README is kept)
 cookies/*
 !cookies/README.md

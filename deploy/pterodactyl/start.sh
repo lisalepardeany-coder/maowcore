@@ -21,8 +21,14 @@ if [[ -f dashboard/package.json ]]; then
   fi
 fi
 
-# 2. yt-dlp updates itself (YouTube breaks old versions often).
+# 2. Temporary files on the disk instead of the panel's small in-memory /tmp:
+#    yt-dlp unpacks ~35 MB there on every run (lib/hosting.js does the same for the bot).
+#    Leftovers from runs that were killed are cleared, as nothing is running yet.
+mkdir -p .tmp && rm -rf .tmp/_MEI* 2>/dev/null
+export TMPDIR=/home/container/.tmp
+
+# 3. yt-dlp updates itself (YouTube breaks old versions often).
 if [[ -x bin/yt-dlp ]]; then ./bin/yt-dlp -U 2>&1 | tail -n 1; fi
 
-# 3. The bot.
+# 4. The bot.
 exec node index.js

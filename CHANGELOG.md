@@ -6,6 +6,20 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.5.4] — 2026-11-23
+
+### Fixed
+
+- **Playlist downloads on Pterodactyl failed for every song** with
+  `[PYI-…:ERROR] Failed to extract …: decompression resulted in return code -1`.
+  The standalone yt-dlp unpacks itself (~35 MB) into the temp folder on every
+  run, and the panel's `/tmp` is a small in-memory folder (100 MB by default).
+  Five downloads at once filled it. On a panel, temp files now go to `.tmp/` on
+  the server's disk (`lib/hosting.js`, `start.sh`), and leftovers from killed
+  runs are cleared on start.
+- The playlist summary line now says why songs failed (the most common error),
+  and is shown as an error when nothing installed.
+
 ## [3.5.3] — 2026-11-23
 
 ### Fixed

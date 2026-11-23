@@ -9,5 +9,6 @@ test('library: yt-dlp errors come with what to do', () => {
   assert.match(explainYtDlpError('ERROR: unable to download video data: HTTP Error 403: Forbidden'), /403/);
   assert.match(explainYtDlpError('ERROR: Postprocessing: ffprobe and ffmpeg not found'), /Original/);
   assert.match(explainYtDlpError('ERROR: [youtube] abc: Private video'), /can't be downloaded/);
+  assert.match(explainYtDlpError('yt-dlp exited 255: [PYI-249:ERROR] Failed to extract Cryptodome/Cipher/_ARC4.abi3.so: decompression resulted in return code -1!'), /temp folder/);
   assert.equal(explainYtDlpError('something else'), 'something else');
 });
