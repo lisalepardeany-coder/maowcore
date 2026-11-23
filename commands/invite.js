@@ -1,13 +1,15 @@
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } = require('discord.js');
 const { COLORS } = require('../lib/theme');
-const { inviteUrl, resolveClientId } = require('../lib/invite');
+const { inviteUrl, userInstallUrl, resolveClientId } = require('../lib/invite');
 
 module.exports = {
+  everywhere: true,
   data: new SlashCommandBuilder()
     .setName('invite')
-    .setDescription('Get the OAuth2 link to invite MaowCore to another server'),
+    .setDescription('Get links to add MaowCore to a server or to your own account'),
   async execute(interaction) {
-    const url = inviteUrl(resolveClientId(interaction.client));
+    const clientId = resolveClientId(interaction.client);
+    const url = inviteUrl(clientId);
     if (!url) {
       return interaction.reply({
         content: '▲ Could not build invite link — client ID unavailable.',
@@ -17,16 +19,18 @@ module.exports = {
     const embed = new EmbedBuilder()
       .setColor(COLORS.COSMIC)
       .setAuthor({ name: '✦  COSMIC UPLINK' })
-      .setTitle('Invite MaowCore to your server')
+      .setTitle('Invite MaowCore')
       .setDescription([
-        'Click the button below to add MaowCore to another server.',
+        '**Add to server** — the full bot: music, moderation, setup.',
+        'Grants every permission the bot actually uses. No Administrator.',
         '',
-        'The link grants every permission the bot actually uses — music',
-        'playback, moderation tools, channel/role management. No Administrator.',
+        '**Add to my account** — use the portable commands (`/lyrics`, `/nowplaying`,',
+        '`/meme`, `/avatar`, `/remind`) in DMs, group chats and any server.',
       ].join('\n'))
       .setFooter({ text: 'Or paste the URL directly into a browser.' });
     const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setLabel('✦ Invite').setStyle(ButtonStyle.Link).setURL(url),
+      new ButtonBuilder().setLabel('✦ Add to server').setStyle(ButtonStyle.Link).setURL(url),
+      new ButtonBuilder().setLabel('✧ Add to my account').setStyle(ButtonStyle.Link).setURL(userInstallUrl(clientId)),
     );
     return interaction.reply({
       embeds: [embed],

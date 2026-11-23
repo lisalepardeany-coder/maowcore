@@ -1,6 +1,6 @@
 # MaowCore Vencord Plugin
 
-Adds a Now Playing indicator, quick-queue context menu, and optional status sync to Vencord. Talks to your MaowCore bot's WebSocket on `ws://127.0.0.1:8765/`.
+Adds a Now Playing indicator, quick-queue context menu, and optional status sync to Vencord. Talks to your MaowCore bot's WebSocket on `ws://127.0.0.1:8766/`.
 
 ## Install (user plugin)
 
@@ -25,6 +25,6 @@ You can also paste `index.js` into the Vencord QuickCSS / theme system, but func
 
 Open Vencord Settings → Plugins → MaowCore → cog icon:
 
-- `wsUrl` — defaults to `ws://127.0.0.1:8765/`. Change if your bot runs on a different host.
+- `wsUrl` — defaults to `ws://127.0.0.1:8766/`. Change if your bot runs on a different host.
 - `statusSync` — whether to push the current song to your Discord Custom Status.
 - `showNowPlaying` — toggle the floating widget.

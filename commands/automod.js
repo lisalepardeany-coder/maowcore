@@ -17,6 +17,11 @@ module.exports = {
     .addSubcommand((s) => s.setName('removeword').setDescription('Remove a banned word')
       .addStringOption((o) => o.setName('word').setDescription('Word to remove').setRequired(true)))
     .addSubcommand((s) => s.setName('toggleword').setDescription('Enable/disable word filter'))
+    .addSubcommand((s) => s.setName('caps').setDescription('Toggle the shouting filter (mostly CAPITALS)'))
+    .addSubcommand((s) => s.setName('mentions').setDescription('Toggle the mass-mention filter')
+      .addIntegerOption((o) => o.setName('limit').setDescription('Mentions in one message that count as too many (default 5)').setMinValue(3).setMaxValue(30)))
+    .addSubcommand((s) => s.setName('repeats').setDescription('Toggle the repeated-message filter (same text 3× in 30 s)'))
+    .addSubcommand((s) => s.setName('autowarn').setDescription('Toggle: filter hits also give a warning (counts toward /warn rules)'))
     .addSubcommand((s) => s.setName('show').setDescription('Show current automod config')),
   async execute(interaction) {
     const sub = interaction.options.getSubcommand();
@@ -36,6 +41,14 @@ module.exports = {
     if (sub === 'links')    return flip('linkFilter');
     if (sub === 'antiraid') return flip('antiRaid');
     if (sub === 'toggleword') return flip('wordFilter');
+    if (sub === 'caps') return flip('capsFilter');
+    if (sub === 'repeats') return flip('dupFilter');
+    if (sub === 'autowarn') return flip('autoWarn');
+    if (sub === 'mentions') {
+      const limit = interaction.options.getInteger('limit');
+      if (limit) { automod.setAutomod(interaction.guildId, { mentionFilter: true, mentionLimit: limit }); return interaction.reply({ content: `✦  Mass-mention filter on at ${limit}+ mentions.`, flags: MessageFlags.Ephemeral }); }
+      return flip('mentionFilter');
+    }
 
     if (sub === 'addword') {
       const word = interaction.options.getString('word').toLowerCase().trim();
@@ -60,6 +73,10 @@ module.exports = {
           `**Link filter:** ${am.linkFilter ? '✦ on' : '✕ off'}`,
           `**Anti-raid:** ${am.antiRaid ? '✦ on' : '✕ off'}`,
           `**Word filter:** ${am.wordFilter ? '✦ on' : '✕ off'} (${(am.bannedWords || []).length} words)`,
+          `**Shouting filter:** ${am.capsFilter ? '✦ on' : '✕ off'}`,
+          `**Mass mentions:** ${am.mentionFilter ? `✦ on (${am.mentionLimit || 5}+)` : '✕ off'}`,
+          `**Repeated messages:** ${am.dupFilter ? '✦ on' : '✕ off'}`,
+          `**Auto-warn on filter hits:** ${am.autoWarn ? '✦ on' : '✕ off'}`,
           `**Modlog channel:** ${cfg.modlogChannelId ? `<#${cfg.modlogChannelId}>` : '*not set*'}`,
         ].join('\n'));
       return interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });

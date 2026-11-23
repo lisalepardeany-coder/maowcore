@@ -21,11 +21,29 @@ const reset = () => {
   db.raw.exec(`DELETE FROM user_roles`);
 };
 
-test('roles: ladder is owner > admin > moderator > member > banned', () => {
-  assert.deepEqual(roles.LADDER, ['banned', 'member', 'moderator', 'admin', 'owner']);
-  assert.equal(roles.rankIndex('owner'), 4);
+test('roles: ladder is owner > admin > moderator > member > guest > banned', () => {
+  assert.deepEqual(roles.LADDER, ['banned', 'guest', 'member', 'moderator', 'admin', 'owner']);
+  assert.equal(roles.rankIndex('owner'), 5);
   assert.equal(roles.rankIndex('banned'), 0);
-  assert.equal(roles.rankIndex('member'), 1);
+  assert.equal(roles.rankIndex('member'), 2);
+});
+
+test('roles: new sign-ins wait as guest while the login lock is on', () => {
+  const prev = { lock: process.env.PANEL_REQUIRE_LOGIN, open: process.env.PANEL_OPEN_SIGNUP };
+  try {
+    delete process.env.PANEL_OPEN_SIGNUP;
+    process.env.PANEL_REQUIRE_LOGIN = '1';
+    assert.equal(roles.newUserRank(), 'guest');
+    process.env.PANEL_OPEN_SIGNUP = '1';
+    assert.equal(roles.newUserRank(), 'member');
+    process.env.PANEL_REQUIRE_LOGIN = '0';
+    delete process.env.PANEL_OPEN_SIGNUP;
+    assert.equal(roles.newUserRank(), 'member');
+  } finally {
+    for (const [k, v] of [['PANEL_REQUIRE_LOGIN', prev.lock], ['PANEL_OPEN_SIGNUP', prev.open]]) {
+      if (v === undefined) delete process.env[k]; else process.env[k] = v;
+    }
+  }
 });
 
 test('roles: noteLogin assigns owner when OWNER_USER_ID matches', { skip: !sqliteOk }, () => {

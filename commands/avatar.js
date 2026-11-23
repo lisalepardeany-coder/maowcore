@@ -2,6 +2,7 @@ const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { COLORS } = require('../lib/theme');
 
 module.exports = {
+  everywhere: true,
   data: new SlashCommandBuilder()
     .setName('avatar')
     .setDescription("Show a member's avatar")

@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Status Control</title>
+<style>
+:root{--bg:#1d1a10;--panel:#2a2618;--ink:#f5edc8;--muted:#bdb38a;--line:#5d5433;--accent:#e2c64f}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 "Courier New",ui-monospace,monospace}
+main{width:min(760px,100% - 32px);margin:24px auto 60px}
+h1{margin:0 0 4px}h2{margin:0 0 10px;font-size:19px}
+a{color:var(--accent)}
+.card{background:var(--panel);border:2px solid var(--line);padding:16px;margin-top:16px}
+label{display:block;font-weight:700;margin:10px 0 4px}
+input,select,textarea{width:100%;font:inherit;background:#15130b;color:var(--ink);border:2px solid var(--line);padding:9px;min-height:44px}
+button{font:inherit;font-weight:700;background:var(--accent);color:#1d1a10;border:0;padding:10px 14px;min-height:44px;cursor:pointer;margin:12px 8px 0 0}
+button.alt{background:#4a432a;color:var(--ink)}
+.row{display:flex;gap:10px;flex-wrap:wrap}.row>div{flex:1 1 200px}
+#msg{position:sticky;top:0;padding:8px 0;color:var(--accent);min-height:36px;font-weight:700}
+.item{padding:9px 0;border-bottom:1px dashed var(--line);display:flex;justify-content:space-between;gap:10px;align-items:center}
+.item small{color:var(--muted);display:block}
+.item button{margin:0}
+#app{display:none}
+.check{display:flex;gap:10px;align-items:center;font-weight:700;margin-top:10px}.check input{width:22px;min-height:22px}
+</style>
+</head>
+<body>
+<main>
+<h1>Status Control</h1>
+<div><a href="/status">Open the public status page ↗</a></div>
+<div id="msg" role="status"></div>
+<section class="card" id="login">
+  <h2>Sign in</h2>
+  <label for="token">Control token (CONTROL_TOKEN in .env)</label>
+  <input id="token" type="password" autocomplete="off">
+  <button id="go">Unlock</button>
+</section>
+<div id="app">
+  <section class="card"><h2>Set a status</h2>
+    <div class="row">
+      <div><label for="svc">Applies to</label><select id="svc"></select></div>
+      <div><label for="kind">Status</label><select id="kind">
+        <option value="maintenance">Maintenance</option><option value="offline">Offline</option><option value="degraded">Degraded</option><option value="operational">Operational</option><option value="custom">Custom…</option>
+      </select></div>
+    </div>
+    <label for="label">Custom text</label><input id="label" maxlength="80" placeholder="Springtrap got loose">
+    <label for="message">Note for visitors (optional)</label><input id="message" maxlength="300">
+    <button id="apply">Apply status</button><button class="alt" id="clear">Back to automatic</button>
+    <div id="active"></div>
+  </section>
+  <section class="card"><h2>Add a note</h2>
+    <div class="row">
+      <div><label for="itype">Type</label><select id="itype"><option value="incident">Incident</option><option value="scheduled">Scheduled maintenance</option></select></div>
+      <div><label for="ititle">Title</label><input id="ititle" maxlength="120" placeholder="ffmpeg broke, fixed"></div>
+    </div>
+    <div class="row">
+      <div><label for="istart">Start</label><input id="istart" type="datetime-local"></div>
+      <div><label for="iend">End (optional)</label><input id="iend" type="datetime-local"></div>
+    </div>
+    <label for="ibody">Details (optional)</label><textarea id="ibody" rows="2" maxlength="1000"></textarea>
+    <button id="addinc">Add note</button>
+    <div id="incs"></div>
+  </section>
+  <section class="card"><h2>Discord alerts</h2>
+    <label for="chan">Post status changes to</label><select id="chan"></select>
+    <label class="check"><input id="dm" type="checkbox"> DM the bot owner about outages</label>
+    <button id="saveset">Save</button>
+  </section>
+</div>
+</main>
+<script>
+const $=(s)=>document.querySelector(s);let token='';
+try{token=sessionStorage.getItem('st-token')||''}catch{}
+const say=(t)=>{$('#msg').textContent=t};
+async function api(p,body){
+  const r=await fetch(p,{method:body?'POST':'GET',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
+  const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||('HTTP '+r.status));return d;
+}
+const opt=(v,t)=>{const o=document.createElement('option');o.value=v;o.textContent=t;return o};
+function item(title,sub,btn,fn){const d=document.createElement('div');d.className='item';const l=document.createElement('div');l.textContent=title;const s=document.createElement('small');s.textContent=sub;l.append(s);d.append(l);if(btn){const b=document.createElement('button');b.className='alt';b.textContent=btn;b.onclick=fn;d.append(b)}return d}
+async function load(){
+  const d=await api('/api/status/admin');
+  $('#login').style.display='none';$('#app').style.display='block';
+  const cur=$('#svc').value;$('#svc').replaceChildren(opt('all','Everything'),...d.services.map(s=>opt(s.id,s.name)));if(cur)$('#svc').value=cur;
+  $('#chan').replaceChildren(opt('','Do not post'),...d.channels.map(c=>opt(c.id,c.name)));$('#chan').value=d.settings.channelId||'';
+  $('#dm').checked=d.settings.dmAlerts!==false;
+  $('#active').replaceChildren(...Object.entries(d.overrides).map(([k,o])=>item(`${k==='all'?'Everything':k}: ${o.label||o.kind}`,'Manual status active','Clear',()=>act(()=>api('/api/status/override',{service:k,clear:true}),'Cleared'))));
+  $('#incs').replaceChildren(...d.incidents.map(i=>item(i.title,new Date(i.start).toLocaleString()+(i.end?' → '+new Date(i.end).toLocaleString():''),'Delete',()=>act(()=>api('/api/status/incident',{deleteId:i.id}),'Deleted'))));
+}
+async function act(fn,done){try{await fn();say(done);await load()}catch(e){say('Failed: '+e.message)}}
+$('#go').onclick=async()=>{token=$('#token').value.trim();try{await load();try{sessionStorage.setItem('st-token',token)}catch{};say('Unlocked')}catch(e){say('Failed: '+e.message)}};
+$('#apply').onclick=()=>act(()=>api('/api/status/override',{service:$('#svc').value,kind:$('#kind').value,label:$('#label').value||null,message:$('#message').value||null}),'Status applied');
+$('#clear').onclick=()=>act(()=>api('/api/status/override',{service:$('#svc').value,clear:true}),'Back to automatic');
+$('#addinc').onclick=()=>act(async()=>{const ms=(id)=>$(id).value?new Date($(id).value).getTime():null;await api('/api/status/incident',{type:$('#itype').value,title:$('#ititle').value,body:$('#ibody').value,start:ms('#istart'),end:ms('#iend')});$('#ititle').value='';$('#ibody').value=''},'Note added');
+$('#saveset').onclick=()=>act(()=>api('/api/status/settings',{channelId:$('#chan').value||null,dmAlerts:$('#dm').checked}),'Saved');
+load().catch(()=>{token=''});
+</script>
+</body>
+</html>

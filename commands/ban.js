@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, MessageFlags, PermissionFlagsBits } = require('discord.js');
 const modlog = require('../lib/modlog');
+const { appealDm } = require('../lib/mod-tools');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -14,7 +15,8 @@ module.exports = {
     const reason = interaction.options.getString('reason') || 'No reason given.';
     const purgeDays = interaction.options.getInteger('purge_days') ?? 0;
     try {
-      await user.send(`You were banned from **${interaction.guild.name}**. Reason: ${reason}`).catch(() => {});
+      // DM first (with an Appeal button when /appeals is on) — after the ban we may not share a server any more.
+      await user.send(appealDm(interaction.guild, reason)).catch(() => {});
       await interaction.guild.bans.create(user.id, { reason, deleteMessageSeconds: purgeDays * 86400 });
       modlog.post(interaction.guild, { action: 'ban', target: user, mod: interaction.user, reason });
       return interaction.reply(`🔨  Banned **${user.tag}**. Reason: ${reason}`);

@@ -1,6 +1,6 @@
 const { Events, ActivityType } = require('discord.js');
-const { inviteUrl, resolveClientId } = require('../lib/invite');
-const { deployToAll } = require('../lib/command-deploy');
+const { inviteUrl, userInstallUrl, resolveClientId } = require('../lib/invite');
+const { deployToAll, deployGlobal } = require('../lib/command-deploy');
 const library = require('../lib/library');
 
 module.exports = {
@@ -42,6 +42,20 @@ module.exports = {
     // command set is unchanged (hash cached on disk).
     // Set AUTO_DEPLOY_COMMANDS=false in .env to opt out.
     if (process.env.AUTO_DEPLOY_COMMANDS !== 'false') {
+      // Portable commands (DMs, group chats, user install) go global first;
+      // if that fails entirely, the guild deploy below carries them instead.
+      const g = await deployGlobal(client);
+      if (!g.ok) {
+        console.warn(`▲ Global commands failed, keeping them per-server: ${g.error}`);
+      } else {
+        if (g.deployed) console.log(`✦ Deployed ${g.count} portable commands globally${g.userInstall ? ' (DMs, group chats, user install)' : ''}`);
+        if (!g.userInstall) {
+          console.warn('▲ User install is off for this app — turn it on in the Developer Portal → Installation to use commands in group chats.');
+          if (g.userInstallError) console.warn(`    Discord said: ${g.userInstallError}`);
+        }
+        const link = userInstallUrl(resolveClientId(client));
+        if (g.userInstall && link) console.log(`✧ Add to your account (DMs & group chats): ${link}`);
+      }
       const results = await deployToAll(client);
       const deployed = results.filter((r) => r.ok && r.deployed);
       const skipped = results.filter((r) => r.ok && !r.deployed);

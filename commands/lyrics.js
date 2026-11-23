@@ -10,6 +10,7 @@ const {
 const Genius = require('genius-lyrics');
 const { COLORS } = require('../lib/theme');
 const { translate } = require('../lib/translate');
+const { findUserQueue } = require('../lib/guards');
 const sentiment = require('../lib/sentiment');
 
 const genius = new Genius.Client(process.env.GENIUS_TOKEN || undefined);
@@ -25,6 +26,66 @@ const cleanQuery = (s) =>
     .replace(/lyrics?/gi, '')
     .replace(/\s+/g, ' ')
     .trim();
+
+const normalize = (s) =>
+  s.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
+
+// LRCLIB: free, keyless lyrics API. Primary source because Genius answers
+// server requests with an HTML 403 block page.
+const searchLrclib = async (query) => {
+  const q = normalize(query);
+  if (!q) return null;
+  const res = await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent(q)}`, {
+    headers: { 'User-Agent': 'MaowCore Discord bot' },
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!res.ok) throw new Error(`LRCLIB returned HTTP ${res.status}`);
+  const results = (await res.json()).filter((r) => r.plainLyrics && !r.instrumental);
+  if (!results.length) return null;
+  // Rank by how many query words appear in the artist + title.
+  const words = q.split(' ');
+  const score = (r) => {
+    const hay = normalize(`${r.artistName} ${r.trackName}`).split(' ');
+    return words.filter((w) => hay.includes(w)).length;
+  };
+  const best = results.reduce((a, b) => (score(b) > score(a) ? b : a));
+  return {
+    song: {
+      title: best.trackName,
+      artist: { name: best.artistName },
+      url: null,
+      thumbnail: null,
+      source: 'LRCLIB',
+    },
+    lyrics: best.plainLyrics,
+  };
+};
+
+const searchGenius = async (query) => {
+  const [first] = await genius.songs.search(query);
+  if (!first) return null;
+  first.source = 'Genius';
+  return { song: first, lyrics: await first.lyrics() };
+};
+
+// Try each query against LRCLIB, then fall back to Genius.
+const findLyrics = async (queries) => {
+  let lastError = null;
+  for (const q of queries) {
+    try {
+      const hit = await searchLrclib(q);
+      if (hit) return hit;
+    } catch (e) { lastError = e; }
+  }
+  for (const q of queries) {
+    try {
+      const hit = await searchGenius(q);
+      if (hit) return hit;
+    } catch (e) { lastError = e; }
+  }
+  if (lastError && !/not valid JSON/.test(lastError.message || '')) throw lastError;
+  return null;
+};
 
 const paginate = (text) => {
   const pages = [];
@@ -46,7 +107,7 @@ const buildPage = (song, pages, idx, sent) =>
     .setURL(song.url)
     .setDescription(pages[idx])
     .setThumbnail(song.thumbnail || song.image || null)
-    .setFooter({ text: `Page ${idx + 1}/${pages.length} · source: Genius${moodFromSentiment(sent)}` });
+    .setFooter({ text: `Page ${idx + 1}/${pages.length} · source: ${song.source}${moodFromSentiment(sent)}` });
 
 const buildNav = (idx, total) =>
   new ActionRowBuilder().addComponents(
@@ -56,6 +117,8 @@ const buildNav = (idx, total) =>
   );
 
 module.exports = {
+  findLyrics,
+  everywhere: true,
   data: new SlashCommandBuilder()
     .setName('lyrics')
     .setDescription('Fetch lyric transmission for the current (or a specific) signal')
@@ -64,8 +127,10 @@ module.exports = {
     ),
   async execute(interaction) {
     let query = interaction.options.getString('query');
+    const queries = [];
+    if (query) queries.push(query);
     if (!query) {
-      const queue = interaction.client.distube.getQueue(interaction.guildId);
+      const queue = findUserQueue(interaction);
       const song = queue?.songs?.[0];
       if (!song) {
         return interaction.reply({
@@ -74,21 +139,19 @@ module.exports = {
         });
       }
       query = cleanQuery(`${song.name} ${song.uploader?.name || ''}`);
+      // Uploader names are often channel names that hurt matching, so retry without.
+      queries.push(query, cleanQuery(song.name));
     }
     await interaction.deferReply();
     let song;
-    try {
-      const [first] = await genius.songs.search(query);
-      if (!first) return interaction.editReply(`◌ No lyrics found for \`${query}\``);
-      song = first;
-    } catch (err) {
-      return interaction.editReply(`▲ Genius scan failed: ${err.message || err}`);
-    }
     let lyrics;
     try {
-      lyrics = stripBrackets(await song.lyrics());
+      const hit = await findLyrics(queries);
+      if (!hit) return interaction.editReply(`◌ No lyrics found for \`${query}\` — try \`artist song\` as the query.`);
+      song = hit.song;
+      lyrics = stripBrackets(hit.lyrics);
     } catch (err) {
-      return interaction.editReply(`▲ Could not retrieve lyrics: ${err.message || err}`);
+      return interaction.editReply(`▲ Lyrics scan failed: ${err.message || err}`);
     }
     if (!lyrics) return interaction.editReply('◌ Lyrics came back empty — try a more specific `query`.');
 

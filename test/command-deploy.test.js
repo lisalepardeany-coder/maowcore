@@ -154,6 +154,71 @@ test('cache survives a process restart (hash persisted to disk)', async () => {
   assert.equal(putCalls.length, 1, 'no new REST call after restart with same commands');
 });
 
+const makePortableClient = () => {
+  const { client, putCalls } = makeClient({ guildIds: ['g1'] });
+  client.commands.set('lyrics', { everywhere: true, data: { toJSON: () => ({ name: 'lyrics' }) }, execute: () => {} });
+  return { client, putCalls };
+};
+
+test('portable commands go global with user install, not per-guild', async () => {
+  const { deployGlobal, deployToAll } = require('../lib/command-deploy');
+  const { client, putCalls } = makePortableClient();
+  const g = await deployGlobal(client);
+  assert.equal(g.ok, true);
+  assert.equal(g.userInstall, true);
+  assert.match(putCalls[0].route, /applications\/app-id-test\/commands$/);
+  assert.deepEqual(putCalls[0].body, [{ name: 'lyrics', integration_types: [0, 1], contexts: [0, 1, 2] }]);
+  await deployToAll(client);
+  assert.deepEqual(putCalls[1].body.map((c) => c.name), ['foo', 'bar']);
+  // Unchanged on the next boot: no API call.
+  const again = await deployGlobal(client);
+  assert.equal(again.deployed, false);
+  assert.equal(putCalls.length, 2);
+});
+
+test('global deploy falls back to server-only install when user install is refused', async () => {
+  const { deployGlobal } = require('../lib/command-deploy');
+  const { client, putCalls } = makePortableClient();
+  const realPut = client.rest.put;
+  client.rest.put = async (route, opts) => {
+    if (opts.body.some((c) => c.integration_types?.includes(1))) throw new Error('user install disabled');
+    return realPut(route, opts);
+  };
+  const g = await deployGlobal(client);
+  assert.equal(g.ok, true);
+  assert.equal(g.userInstall, false);
+  assert.match(g.userInstallError, /user install disabled/);
+  assert.deepEqual(putCalls[0].body[0].integration_types, [0]);
+});
+
+test('if global deploy fails entirely, guilds keep the portable commands', async () => {
+  const { deployGlobal, deployToGuild } = require('../lib/command-deploy');
+  const { client, putCalls } = makePortableClient();
+  const realPut = client.rest.put;
+  client.rest.put = async (route, opts) => {
+    if (!route.includes('/guilds/')) throw new Error('nope');
+    return realPut(route, opts);
+  };
+  const g = await deployGlobal(client);
+  assert.equal(g.ok, false);
+  await deployToGuild(client, 'g1');
+  assert.deepEqual(putCalls[0].body.map((c) => c.name), ['foo', 'bar', 'lyrics']);
+});
+
+test('findUserQueue finds the queue in the voice channel the user is in, outside servers', () => {
+  const { findUserQueue, botInServer } = require('../lib/guards');
+  const queue = { voiceChannel: { members: new Map([['u1', {}]]) } };
+  const client = {
+    guilds: { cache: new Map([['g1', {}]]) },
+    distube: { getQueue: (id) => (id === 'g1' ? 'guild-queue' : null), queues: { collection: new Map([['g1', queue]]) } },
+  };
+  assert.equal(botInServer({ client, guildId: 'g1' }), true);
+  assert.equal(findUserQueue({ client, guildId: 'g1', user: { id: 'u1' } }), 'guild-queue');
+  assert.equal(findUserQueue({ client, guildId: null, user: { id: 'u1' } }), queue);
+  assert.equal(findUserQueue({ client, guildId: 'other', user: { id: 'u1' } }), queue);
+  assert.equal(findUserQueue({ client, guildId: null, user: { id: 'u2' } }), null);
+});
+
 test.afterEach(() => {
   cleanHashFile();
   const { _resetCache } = require('../lib/command-deploy');

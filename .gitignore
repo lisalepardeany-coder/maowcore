@@ -7,6 +7,9 @@ yarn.lock
 .env
 .env.local
 .env.*.local
+# YouTube cookies dropped for import (only its README is kept)
+cookies/*
+!cookies/README.md
 
 # Runtime data (user-specific — favorites, history, configs, session state)
 data/
@@ -25,3 +28,8 @@ Thumbs.db
 
 # Backups created by /backup command
 maowcore-backup-*.json
+
+# MaowCore Portable build output
+desktop/node_modules/
+desktop/dist/
+desktop/build/

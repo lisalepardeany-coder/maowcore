@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MaowCore Status</title>
+<style>
+:root{
+  --wall:#b9a557;--wall2:#a8944a;--carpet:#6f6235;--ink:#201a08;--panel:#f3e9bd;--line:#8b7a3a;--muted:#5e5222;
+  --up:#3f8f4f;--degraded:#c98a12;--down:#b5302a;--maint:#3f62b5;--none:#cdbf8a;
+  --dim:0;--mx:50vw;--my:50vh;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{background:var(--wall);color:var(--ink);font:16px/1.45 "Courier New",ui-monospace,monospace;overflow-x:hidden}
+#wall{position:fixed;inset:0;z-index:-2;
+  background:
+    radial-gradient(circle at 25px 25px,var(--wall2) 3px,transparent 4px) 0 0/50px 50px,
+    repeating-linear-gradient(90deg,transparent 0 48px,rgba(70,55,10,.12) 48px 50px),
+    linear-gradient(#c7b25f,var(--wall) 55%,#8f7f3e 100%)}
+#carpet{position:fixed;left:0;right:0;bottom:0;height:12vh;z-index:-1;background:repeating-linear-gradient(135deg,var(--carpet) 0 3px,#655930 3px 6px);border-top:6px solid #4d4322}
+#ceiling{position:fixed;top:0;left:0;right:0;height:34px;z-index:1;display:flex;justify-content:space-around;align-items:center;background:#ded3a3;border-bottom:3px solid #a99a5c;pointer-events:none}
+.light{width:18%;height:14px;background:#fffef0;box-shadow:0 0 34px 12px rgba(255,252,205,.85);transition:opacity .08s}
+#shade{position:fixed;inset:0;z-index:2;pointer-events:none;background:#080600;opacity:var(--dim);transition:opacity 1.2s}
+#beam{position:fixed;inset:0;z-index:3;pointer-events:none;display:none;background:radial-gradient(circle 190px at var(--mx) var(--my),transparent 0 70%,rgba(4,3,0,.96) 100%)}
+body.dark #beam{display:block}
+#figure{position:fixed;bottom:12vh;right:4vw;width:90px;z-index:0;opacity:0;transition:opacity 25s linear;pointer-events:none}
+body.watched #figure{opacity:.5}
+main{position:relative;z-index:4;width:min(980px,100% - 32px);margin:58px auto 16vh}
+header h1{margin:0;font-size:clamp(24px,5vw,38px);letter-spacing:.04em}
+header p{margin:2px 0 16px;color:#3b3210;font-weight:700}
+body.dark header h1,body.dark header p{color:#f3e9bd}
+.card{background:var(--panel);border:2px solid var(--line);box-shadow:0 5px 0 rgba(50,40,10,.35);padding:16px;margin-bottom:16px}
+#banner{display:flex;gap:14px;align-items:center;color:#fff;border-color:rgba(0,0,0,.35)}
+#banner b{font-size:clamp(18px,3.5vw,24px);display:block}
+#banner .dot{width:18px;height:18px;flex:none;border-radius:50%;background:#fff;animation:pulse 2s infinite}
+@keyframes pulse{50%{opacity:.35}}
+.b-operational{background:var(--up)}.b-degraded,.b-custom{background:#8f610a}.b-offline{background:var(--down)}.b-maintenance{background:var(--maint)}.b-lost{background:#222}
+.svc{padding:13px 0;border-bottom:1px dashed var(--line)}.svc:last-child{border:0;padding-bottom:0}.svc:first-child{padding-top:0}
+.svc-top{display:flex;justify-content:space-between;gap:12px;font-weight:700;flex-wrap:wrap}
+.s-operational{color:#256635}.s-degraded,.s-custom{color:#7c5206}.s-offline{color:#962018}.s-maintenance{color:#2c4a94}
+.msg{font-size:14px;color:var(--muted)}
+.bars{display:flex;gap:2px;height:36px;margin:8px 0 4px}
+.bar{flex:1 1 0;min-width:0;border-radius:2px;background:var(--none);position:relative;cursor:default;transition:transform .12s;padding:0;border:0}
+.bar:hover,.bar:focus-visible{transform:scaleY(1.2);outline:2px solid var(--ink)}
+.d-up{background:var(--up)}.d-degraded{background:var(--degraded)}.d-down{background:var(--down)}.d-maintenance{background:var(--maint)}
+.scale{display:flex;justify-content:space-between;font-size:13px;color:var(--muted)}
+#tip{position:fixed;z-index:9;display:none;background:#201a08;color:#f8efc6;padding:7px 10px;font-size:13px;max-width:240px;pointer-events:none}
+h2{margin:0 0 8px;font-size:19px}
+.inc{padding:9px 0;border-bottom:1px dashed var(--line)}.inc:last-child{border:0}.inc time{display:block;font-size:13px;color:var(--muted)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;margin-top:10px}.legend i{display:inline-block;width:12px;height:12px;margin-right:5px;vertical-align:-1px}
+#controls{display:flex;flex-wrap:wrap;gap:8px}
+button.tog{font:inherit;font-weight:700;background:#e3d79f;color:var(--ink);border:2px solid var(--line);padding:9px 12px;min-height:44px;cursor:pointer}
+button.tog[aria-pressed=true]{background:var(--ink);color:#f8efc6}
+#secret{position:fixed;left:50%;bottom:15vh;transform:translateX(-50%);z-index:6;background:#201a08;color:#f8efc6;padding:8px 14px;display:none;width:max-content;max-width:90vw}
+#scare{position:fixed;inset:0;z-index:20;display:none;background:#000;align-items:center;justify-content:center}
+#scare svg{height:92vh;max-width:100%;animation:lunge .5s ease-in forwards}
+@keyframes lunge{from{transform:scale(.25)}to{transform:scale(1.25)}}
+body.flicker .light{animation:flick 1.7s steps(1) infinite}
+body.flicker .light:nth-child(2){animation-delay:.4s}
+@keyframes flick{0%,41%,47%,100%{opacity:1}42%,46%{opacity:.15}72%{opacity:.5}}
+body.reduce *{animation:none!important;transition:none!important}
+body.reduce #figure{display:none}
+/* Inside the panel: use the panel's theme and let the panel do the scrolling. */
+html.embed,html.embed body{background:transparent;overflow:hidden;min-height:0}
+html.embed #wall,html.embed #carpet,html.embed #ceiling,html.embed #shade,html.embed #beam,html.embed #figure,html.embed #scare,html.embed header,html.embed #atmos{display:none!important}
+html.embed main{width:100%;margin:0}
+html.embed .card{margin-bottom:12px;box-shadow:none}
+html.embed .card:last-of-type{margin-bottom:0}
+html.embed body{color:var(--ink)}
+html.embed #banner{color:#fff}html.embed .b-operational{background:#2f7d3f}html.embed .b-degraded,html.embed .b-custom{background:#8f610a}html.embed .b-offline{background:#a92b25}html.embed .b-maintenance{background:#3f62b5}
+html.embed .s-operational{color:var(--up)}html.embed .s-degraded,html.embed .s-custom{color:var(--degraded)}html.embed .s-offline{color:var(--down)}html.embed .s-maintenance{color:var(--maint)}
+/* 90-bar views show only the newest 30 bars on phones. */
+@media (max-width:640px){.bars.many .bar:nth-child(-n+60){display:none}.since-long{display:none}}
+@media (min-width:641px){.since-short{display:none}}
+#ranges{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}
+#ranges button{font:inherit;font-weight:700;font-size:14px;background:#e3d79f;color:var(--ink);border:2px solid var(--line);padding:6px 12px;min-height:38px;cursor:pointer}
+#ranges button[aria-pressed=true]{background:var(--ink);color:#f8efc6}
+html.embed #ranges button{background:transparent;color:var(--ink)}
+html.embed #ranges button[aria-pressed=true]{background:var(--ink);color:var(--panel)}
+#updated{font-size:13px;color:var(--muted);margin-left:auto;align-self:center}
+</style>
+</head>
+<body>
+<div id="wall"></div>
+<div id="carpet"></div>
+<div id="ceiling"><div class="light"></div><div class="light"></div><div class="light"></div><div class="light"></div></div>
+<div id="shade"></div>
+<div id="beam"></div>
+<svg id="figure" viewBox="0 0 90 240" aria-hidden="true"><path fill="#120e03" d="M45 2c13 0 21 10 21 24 0 11-5 19-11 23 14 4 23 14 25 32l6 76c0 7-8 8-10 1l-9-62-3 62 6 76H55l-9-68-9 68H22l6-76-3-62-9 62c-2 7-10 6-10-1l6-76c2-18 11-28 25-32-6-4-11-12-11-23C26 12 32 2 45 2z"/><circle cx="37" cy="24" r="2.4" fill="#fff8c4"/><circle cx="53" cy="24" r="2.4" fill="#fff8c4"/></svg>
+<main>
+  <header><h1>MAOWCORE STATUS</h1><p id="level">LEVEL 0 · THE LOBBY</p></header>
+  <section class="card" id="banner" aria-live="polite"><span class="dot"></span><div><b id="banner-title">Checking the lights…</b><span id="banner-sub"></span></div></section>
+  <section class="card">
+    <div id="ranges" role="group" aria-label="Time range">
+      <button type="button" data-r="min">Per minute · 90 min</button>
+      <button type="button" data-r="hour">Per hour · 24 h</button>
+      <button type="button" data-r="day">Per day · 90 days</button>
+      <span id="updated"></span>
+    </div>
+    <div id="services"></div>
+  </section>
+  <section class="card"><h2>Incidents &amp; scheduled maintenance</h2><div id="incidents"></div></section>
+  <section class="card" id="atmos"><h2>Atmosphere</h2>
+    <div id="controls">
+      <button class="tog" id="t-sound" aria-pressed="false">🔊 Hum &amp; sound</button>
+      <button class="tog" id="t-reduce" aria-pressed="false">🕯 Reduce effects</button>
+      <button class="tog" id="t-scare" aria-pressed="false">☠ Jumpscares</button>
+    </div>
+    <div class="legend">
+      <span><i class="d-up"></i>Up</span><span><i class="d-degraded"></i>Partial problems</span><span><i class="d-down"></i>Down 30+ min</span><span><i class="d-maintenance"></i>Maintenance</span><span><i style="background:var(--none)"></i>No data</span>
+    </div>
+  </section>
+</main>
+<div id="tip" role="tooltip"></div>
+<div id="secret" role="status"></div>
+<div id="scare" aria-hidden="true"><svg viewBox="0 0 400 500"><path fill="#0d0a02" d="M200 10c95 0 150 80 150 190 0 130-60 290-150 290S50 330 50 200C50 90 105 10 200 10z"/><ellipse cx="140" cy="190" rx="38" ry="48" fill="#fffbd0"/><ellipse cx="260" cy="190" rx="38" ry="48" fill="#fffbd0"/><circle cx="140" cy="195" r="9"/><circle cx="260" cy="195" r="9"/><path fill="#fffbd0" d="M95 320q105 60 210 0-20 120-105 130-85-10-105-130z"/><path fill="#0d0a02" d="M120 335l18 45 18-37 20 47 24-44 24 44 20-47 18 37 18-45-80 25z"/></svg></div>
+<script>
+const $=(s)=>document.querySelector(s);
+const API='/api/status/public';
+const LABEL={operational:'Operational',degraded:'Degraded',maintenance:'Maintenance',offline:'Offline',custom:'Custom'};
+const store={get(k){try{return localStorage.getItem(k)}catch{return null}},set(k,v){try{localStorage.setItem(k,v)}catch{}}};
+const fmt=(ms)=>new Date(ms).toLocaleString([], {dateStyle:'medium',timeStyle:'short'});
+const prefs={sound:store.get('st-sound')==='1',
+  reduce:store.get('st-reduce')!=null?store.get('st-reduce')==='1':matchMedia('(prefers-reduced-motion: reduce)').matches,
+  scare:store.get('st-scare')==='1'};
+let lastActive=Date.now(),overall='operational',ping=0;
+
+function el(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e}
+
+function dayTip(d){
+  const parts=[d.date];
+  if(d.state==='none')parts.push('No data');
+  else if(d.state==='up')parts.push('No problems');
+  if(d.downMin)parts.push(`Down ${d.downMin} min`);
+  if(d.degradedMin)parts.push(`Degraded ${d.degradedMin} min`);
+  if(d.maintMin)parts.push(`Maintenance ${d.maintMin} min`);
+  return parts.join(' · ');
+}
+const STATE_TEXT={up:'No problems',degraded:'Partial problems',down:'Down',maintenance:'Maintenance',none:'No data'};
+const hm=(ms)=>new Date(ms).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+function minuteTip(d){return `${hm(d.t)} · ${STATE_TEXT[d.state]}`}
+function hourTip(d){
+  const parts=[`${hm(d.t)}–${hm(d.t+3600000)}`];
+  if(d.state==='none')parts.push('No data');else if(d.state==='up')parts.push('No problems');
+  if(d.downMin)parts.push(`Down ${d.downMin} min`);
+  if(d.degradedMin)parts.push(`Degraded ${d.degradedMin} min`);
+  if(d.maintMin)parts.push(`Maintenance ${d.maintMin} min`);
+  return parts.join(' · ');
+}
+// Which bars to show: per minute (default), per hour or per day.
+const RANGES={
+  min:{list:(s)=>s.minutes,tip:minuteTip,uptime:(s)=>s.uptimeMinutes,long:'90 min ago',short:'30 min ago',end:'Now'},
+  hour:{list:(s)=>s.hours,tip:hourTip,uptime:(s)=>s.uptimeHours,long:'24 h ago',short:'24 h ago',end:'Now'},
+  day:{list:(s)=>s.days,tip:dayTip,uptime:(s)=>s.uptime,long:'90 days ago',short:'30 days ago',end:'Today'},
+};
+let range=store.get('st-range')||'min',lastData=null;
+function paintRanges(){document.querySelectorAll('#ranges button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.r===range)))}
+document.querySelectorAll('#ranges button').forEach(b=>b.addEventListener('click',()=>{range=b.dataset.r;store.set('st-range',range);paintRanges();if(lastData)renderServices(lastData.services)}));
+paintRanges();
+function renderServices(list){
+  const box=$('#services');box.replaceChildren();
+  const R=RANGES[range]||RANGES.min;
+  for(const s of list){
+    const row=el('div','svc'),top=el('div','svc-top');
+    top.append(el('span',null,s.name),el('span','s-'+s.status,s.label||LABEL[s.status]));
+    row.append(top);
+    if(s.message)row.append(el('div','msg',s.message));
+    const items=R.list(s)||[];
+    const bars=el('div','bars'+(items.length>60?' many':''));
+    for(const d of items){
+      const b=el('button','bar'+(d.state==='none'?'':' d-'+d.state));
+      b.type='button';b.setAttribute('aria-label',R.tip(d));b.dataset.tip=R.tip(d);bars.append(b);
+    }
+    row.append(bars);
+    const up=R.uptime(s);
+    const sc=el('div','scale');
+    sc.append(el('span','since-long',R.long),el('span','since-short',R.short),el('span',null,up==null?'No data yet':up+'% uptime'),el('span',null,R.end));
+    row.append(sc);box.append(row);
+  }
+}
+function renderIncidents(list){
+  const box=$('#incidents');box.replaceChildren();
+  if(!list.length){box.append(el('div','msg','Nothing logged yet. Suspiciously quiet.'));return}
+  for(const i of list){
+    const r=el('div','inc');r.append(el('b',null,(i.type==='scheduled'?'🗓 ':'')+i.title));
+    r.append(el('time',null,fmt(i.start)+(i.end?' → '+fmt(i.end):i.type==='scheduled'?'':' · ongoing')));
+    if(i.body)r.append(el('div','msg',i.body));
+    box.append(r);
+  }
+}
+function setMood(state){
+  overall=state;
+  const lost=state==='lost',dark=lost||state==='offline';
+  document.body.classList.toggle('dark',dark&&!prefs.reduce);
+  document.body.classList.toggle('flicker',!prefs.reduce&&(state==='degraded'||state==='custom'||ping>400));
+  const night=[22,23,0,1,2,3,4,5].includes(new Date().getHours());
+  const dim=dark?.72:state==='maintenance'?.3:(state==='degraded'||state==='custom')?.2:night?.28:0;
+  document.documentElement.style.setProperty('--dim',prefs.reduce?Math.min(dim,.2):dim);
+  $('#level').textContent=lost?'SIGNAL LOST · YOU HAVE NOCLIPPED':dark?'LEVEL ! · RUN':state==='maintenance'?'LEVEL 1 · HABITABLE ZONE':(state==='degraded'||state==='custom')?'LEVEL 2 · PIPE DREAMS':night?'LEVEL 0 · AFTER HOURS':'LEVEL 0 · THE LOBBY';
+}
+async function refresh(){
+  try{
+    const r=await fetch(API,{cache:'no-store'});if(!r.ok)throw 0;
+    const d=await r.json();ping=d.ping||0;lastData=d;
+    renderServices(d.services);renderIncidents(d.incidents);
+    $('#updated').textContent=`Updated ${new Date(d.now).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'})}`;
+    const b=$('#banner');b.className='card b-'+d.overall;
+    const titles={operational:'All systems operational',degraded:'Some systems are having problems',maintenance:'Maintenance in progress',offline:'Something is down',custom:d.overallLabel||'Something is wrong'};
+    $('#banner-title').textContent=d.overallLabel||titles[d.overall];
+    $('#banner-sub').textContent=d.overallMessage||(d.ping>0?`Discord ping ${d.ping} ms · updated ${new Date(d.now).toLocaleTimeString()}`:'');
+    setMood(d.overall);
+  }catch{
+    $('#banner').className='card b-lost';$('#banner-title').textContent='Cannot reach the bot';$('#banner-sub').textContent='It may be offline. Retrying…';setMood('lost');
+  }
+}
+// Tooltips for bars: hover, keyboard focus and tap.
+const tip=$('#tip');
+function showTip(t,x,y){tip.textContent=t;tip.style.display='block';tip.style.left=Math.max(8,Math.min(x+12,innerWidth-250))+'px';tip.style.top=Math.max(8,y-44)+'px'}
+$('#services').addEventListener('pointermove',e=>{const t=e.target.dataset?.tip;if(t)showTip(t,e.clientX,e.clientY);else tip.style.display='none'});
+$('#services').addEventListener('pointerleave',()=>tip.style.display='none');
+$('#services').addEventListener('click',e=>{const t=e.target.dataset?.tip;if(t)showTip(t,e.clientX,e.clientY)});
+$('#services').addEventListener('focusin',e=>{const t=e.target.dataset?.tip;if(t){const r=e.target.getBoundingClientRect();showTip(t,r.left,r.top)}});
+addEventListener('pointermove',e=>{document.documentElement.style.setProperty('--mx',e.clientX+'px');document.documentElement.style.setProperty('--my',e.clientY+'px')});
+// Left alone for 45s: something slowly appears. Moving makes it fade.
+for(const ev of ['pointermove','keydown','scroll','pointerdown'])addEventListener(ev,()=>{lastActive=Date.now();document.body.classList.remove('watched')},{passive:true});
+setInterval(()=>{if(Date.now()-lastActive>45000&&!prefs.reduce)document.body.classList.add('watched')},5000);
+// Sound: all generated live, only after the visitor opts in.
+let ac,hum;
+function startHum(){
+  ac=ac||new (window.AudioContext||window.webkitAudioContext)();ac.resume();
+  if(hum)return;hum=ac.createGain();hum.gain.value=.018;hum.connect(ac.destination);
+  for(const f of [120,240]){const o=ac.createOscillator();o.type='sawtooth';o.frequency.value=f;o.connect(hum);o.start()}
+}
+function stopHum(){if(hum){hum.disconnect();hum=null}}
+function blip(f=700,len=.05,vol=.05,type='square'){if(!prefs.sound||!ac)return;const o=ac.createOscillator(),g=ac.createGain();o.type=type;o.frequency.value=f;g.gain.setValueAtTime(vol,ac.currentTime);g.gain.exponentialRampToValueAtTime(.0001,ac.currentTime+len);o.connect(g).connect(ac.destination);o.start();o.stop(ac.currentTime+len)}
+addEventListener('click',e=>{if(e.target.closest('button'))blip()});
+function jumpscare(){
+  if(!prefs.scare||prefs.reduce)return;
+  const s=$('#scare');s.style.display='flex';
+  if(prefs.sound&&ac){blip(90,.9,.35,'sawtooth');blip(1400,.7,.18,'sawtooth')}
+  setTimeout(()=>{s.style.display='none'},750);
+}
+setInterval(()=>{if(prefs.scare&&Date.now()-lastActive>60000&&Math.random()<.03)jumpscare()},60000);
+// Toggles
+function bind(id,key,after){
+  const b=$(id);b.setAttribute('aria-pressed',prefs[key]);
+  b.onclick=()=>{prefs[key]=!prefs[key];store.set('st-'+key,prefs[key]?'1':'0');b.setAttribute('aria-pressed',prefs[key]);after&&after()};
+}
+bind('#t-sound','sound',()=>prefs.sound?startHum():stopHum());
+bind('#t-reduce','reduce',()=>{document.body.classList.toggle('reduce',prefs.reduce);setMood(overall)});
+bind('#t-scare','scare');
+document.body.classList.toggle('reduce',prefs.reduce);
+// Secrets: type a word anywhere.
+let typed='';
+const SECRETS={noclip:()=>say('You slipped through the wall. There is no exit here either.'),
+  level:()=>say('There are more levels than this page admits.'),
+  almond:()=>say('🥛 Almond water restored. You feel slightly better.')};
+function say(t){const s=$('#secret');s.textContent=t;s.style.display='block';blip(300,.3);setTimeout(()=>s.style.display='none',4500)}
+addEventListener('keydown',e=>{typed=(typed+e.key.toLowerCase()).slice(-10);for(const k in SECRETS)if(typed.endsWith(k)){typed='';SECRETS[k]()}});
+if(!prefs.reduce&&Math.random()<.02)setTimeout(()=>say('Someone else is reading this page.'),20000);
+// Embedded in the panel: follow its theme colours and skip the room effects.
+try{
+  if(window.top!==window.self&&window.parent.document){
+    prefs.scare=false;prefs.sound=false;
+    document.documentElement.classList.add('embed');
+    const paint=()=>{
+      const pcs=getComputedStyle(window.parent.document.body),root=document.documentElement.style;
+      const map={'--panel':'--bg-elev','--ink':'--fg','--line':'--border','--muted':'--fg-muted','--none':'--bg-input-2','--up':'--success','--degraded':'--warning','--down':'--danger','--maint':'--info'};
+      for(const k in map)root.setProperty(k,pcs.getPropertyValue(map[k]));
+    };
+    paint();
+    new MutationObserver(paint).observe(window.parent.document.body,{attributes:true,attributeFilter:['data-theme']});
+  }
+}catch{/* different origin: keep the normal page */}
+// Refresh once a minute, a few seconds after the bot records its check.
+refresh();
+setTimeout(()=>{refresh();setInterval(refresh,60000)},((65-new Date().getSeconds())%60)*1000+1000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh()});
+</script>
+</body>
+</html>

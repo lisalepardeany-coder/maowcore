@@ -3,7 +3,7 @@
   const $$ = (sel) => document.querySelectorAll(sel);
 
   // ===== Theme + motion preferences (localStorage) =====
-  const VALID_THEMES = ['discord', 'linear', 'spotify', 'glass'];
+  const VALID_THEMES = ['discord', 'linear', 'spotify', 'glass', 'pizzeria', 'backrooms', 'analog', 'slasher', ...(window.maowThemePack?.ids || [])];
   let savedTheme = localStorage.getItem('maow.theme') || 'discord';
   // Migrate users from the old theme names (cosmic / synthwave / cyberpunk /
   // minimal / high-contrast / colorblind) to the new 4-theme system.
@@ -260,14 +260,15 @@
     const wsUrl = new URL(inst.url);
     wsUrl.protocol = wsUrl.protocol === 'https:' ? 'wss:' : 'ws:';
     if (inst.token) wsUrl.searchParams.set('token', inst.token);
+    try { const s = localStorage.getItem('maow.session'); if (s) wsUrl.searchParams.set('session', s); } catch { /* */ }
     try { ws = new WebSocket(wsUrl.toString()); }
     catch (e) { setStatus(false, `connect failed: ${e.message}`); setTimeout(connect, 2000); return; }
     setStatus(false, `connecting to ${inst.name}…`);
-    ws.onopen = () => { connected = true; setStatus(true, `connected to ${inst.name}`); };
-    ws.onclose = () => { connected = false; setStatus(false, 'disconnected'); setTimeout(connect, 2000); };
+    ws.onopen = () => { connected = true; setStatus(true, `connected to ${inst.name}`); dispatchEvent(new CustomEvent('maow:link', { detail: true })); };
+    ws.onclose = () => { connected = false; setStatus(false, 'disconnected'); dispatchEvent(new CustomEvent('maow:link', { detail: false })); setTimeout(connect, 2000); };
     ws.onerror = () => {};
     ws.onmessage = (e) => {
-      try { handle(JSON.parse(e.data)); }
+      try { const parsed = JSON.parse(e.data); handle(parsed); dispatchEvent(new CustomEvent('maow:state', { detail: parsed })); }
       catch (err) { console.warn('[dashboard] handler error:', err); }
     };
   }
@@ -539,6 +540,10 @@
     if (m) {
       localStorage.setItem('maow.session', decodeURIComponent(m[1]));
       history.replaceState(null, '', location.pathname);
+    } else if (/[#&]login_error=/.test(location.hash)) {
+      const why = decodeURIComponent((location.hash.match(/login_error=([^&]*)/) || [])[1] || '');
+      history.replaceState(null, '', location.pathname);
+      setTimeout(() => toast('▲ Sign-in failed', why || 'Please try again.', 'error', 8000), 250);
     } else if (/[#&]banned=1/.test(location.hash)) {
       history.replaceState(null, '', location.pathname);
       // Show the banner once the toast subsystem is initialized.
@@ -565,6 +570,9 @@
     try {
       const data = await fetchJson('/api/auth/me');
       authState.configured = !!data.configured;
+      authState.callbackUrl = data.callbackUrl || null;
+      authState.requireLogin = !!data.requireLogin;
+      authState.loginWanted = !!data.loginWanted;
       // The server returns rank at the top level of the response, not nested
       // inside user — graft it onto the user object so the rest of the app
       // can read authState.user.rank uniformly.
@@ -707,10 +715,8 @@
       return;
     }
     try {
-      const callback = `${activeInstance().url}/api/auth/discord/callback`;
       const data = await fetchJson('/api/auth/discord/start', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ redirect: callback }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
       });
       if (data.error) throw new Error(data.error);
       window.location.href = data.authUrl;
@@ -1501,6 +1507,14 @@
   // first queue if no server is selected or the selection has no active queue.
   // (The legacy name "firstQueue" survives so the many call sites don't need
   // to change.)
+  // Hooks for panel-revamp.js (quick bar, phone remote, listen room).
+  window.maowPanel = {
+    send: (action, extra) => send(action, extra),
+    queue: () => firstQueue(),
+    state: () => state,
+    guildId: () => currentServer()?.id || null,
+    toast: (...a) => toast(...a),
+  };
   function firstQueue() {
     if (!state?.queues?.length) return null;
     const server = currentServer();
@@ -1608,6 +1622,9 @@
     }
 
     const queueEl = $('queue');
+    // The live update every 2 s used to rebuild this list mid-drag and cancel
+    // the drag. Skip rebuilding while a row is being dragged.
+    if (window.__maowQueueDragging) return;
     queueEl.innerHTML = '';
     if (!q.upcoming?.length) {
       queueEl.innerHTML = '<div class="queue-empty">— cargo hold empty —</div>';
@@ -1622,17 +1639,28 @@
           `<span class="qr-pos">${String(i+1).padStart(2,' ')}.</span>` +
           ` <span class="qr-name">${escapeHtmlSafe(song.name)}</span>` +
           ` <span class="qr-dur muted">[${song.formattedDuration}]</span>` +
+          ` <button class="qr-move" data-dir="-1" title="Move up" aria-label="Move up" ${i === 0 ? 'disabled' : ''}>▲</button>` +
+          `<button class="qr-move" data-dir="1" title="Move down" aria-label="Move down" ${i === q.upcoming.length - 1 ? 'disabled' : ''}>▼</button>` +
           ` <button class="qr-remove" data-idx="${i + 1}" title="Remove from queue">✕</button>`;
         // Hover preview popover
         d.addEventListener('mouseenter', (e) => showQueuePreview(e, song));
         d.addEventListener('mouseleave', hideQueuePreview);
         // Drag-drop reordering — send queue_move (backend accepts both
         // queue_move and queue_reorder as aliases).
-        d.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', d.dataset.idx); d.style.opacity = '0.4'; });
-        d.addEventListener('dragend', () => { d.style.opacity = ''; });
-        d.addEventListener('dragover', (e) => e.preventDefault());
+        d.addEventListener('dragstart', (e) => { window.__maowQueueDragging = true; e.dataTransfer.setData('text/plain', d.dataset.idx); e.dataTransfer.effectAllowed = 'move'; d.style.opacity = '0.4'; });
+        d.addEventListener('dragend', () => { d.style.opacity = ''; window.__maowQueueDragging = false; queueEl.querySelectorAll('.drop-over').forEach((x) => x.classList.remove('drop-over')); });
+        d.addEventListener('dragover', (e) => { e.preventDefault(); d.classList.add('drop-over'); });
+        d.addEventListener('dragleave', () => d.classList.remove('drop-over'));
+        d.querySelectorAll('.qr-move').forEach((b) => b.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const from = i + 1;
+          const to = from + Number(b.dataset.dir);
+          send('queue_move', { from, to });
+        }));
         d.addEventListener('drop', (e) => {
           e.preventDefault();
+          window.__maowQueueDragging = false;
+          d.classList.remove('drop-over');
           const from = parseInt(e.dataTransfer.getData('text/plain'), 10);
           const to = parseInt(d.dataset.idx, 10);
           if (from !== to) {
@@ -1923,6 +1951,9 @@
   });
   // Mark the currently-active swatch on initial render.
   applyTheme(savedTheme);
+  window.maowApplyTheme = applyTheme;
+  window.maowApplyTheme = applyTheme;
+  window.toast = (...args) => toast(...args);
 
   // ===== Library tabs (search / history / favorites / recent searches) =====
   document.querySelectorAll('#library-tabs .tab').forEach((btn) => {
@@ -2167,6 +2198,7 @@
     } },
   ];
 
+  window.maowOpenPalette = () => openPalette();
   const openPalette = () => {
     $('palette-overlay').classList.add('open');
     $('palette-input').value = '';
@@ -2175,15 +2207,36 @@
   };
   const closePalette = () => { $('palette-overlay').classList.remove('open'); };
   let paletteSelected = 0;
+  // Every menu page is searchable automatically, plus actions other scripts
+  // register on window.maowPaletteExtra (gentle mode, profiles, themes…).
+  // Matching: every typed word must appear somewhere (in any order).
+  const paletteList = (filter) => {
+    const pages = [...document.querySelectorAll('.nav-item[data-page]')].map((el) => {
+      const group = el.closest('.nav-group')?.querySelector('.nav-group-label')?.textContent || '';
+      return {
+        glyph: el.querySelector('.nav-icon')?.textContent || '›',
+        label: `Go to ${el.querySelector('.nav-label')?.textContent || el.dataset.page}`,
+        meta: group ? group.toLowerCase() : 'page',
+        action: () => el.click(),
+      };
+    });
+    const pageLabels = new Set(pages.map((p) => p.label.toLowerCase()));
+    const all = [...pages, ...PALETTE_ACTIONS.filter((a) => !pageLabels.has(a.label.toLowerCase())), ...(window.maowPaletteExtra || [])];
+    const words = filter.toLowerCase().split(/\s+/).filter(Boolean);
+    return all.filter((a) => {
+      const hay = `${a.label} ${a.meta || ''} ${a.keywords || ''}`.toLowerCase();
+      return words.every((w) => hay.includes(w));
+    }).slice(0, 40);
+  };
   const renderPalette = (filter) => {
-    const f = filter.toLowerCase();
-    const filtered = PALETTE_ACTIONS.filter((a) => a.label.toLowerCase().includes(f));
+    const filtered = paletteList(filter);
     paletteSelected = 0;
     $('palette-results').innerHTML = filtered.map((a, i) => `
       <div class="palette-item ${i === 0 ? 'selected' : ''}" data-idx="${i}">
         <div><span class="pi-glyph">${a.glyph}</span> ${escapeHtmlSafe(a.label)}</div>
         <div class="pi-meta">${a.meta}</div>
       </div>`).join('');
+    if (!filtered.length) $('palette-results').innerHTML = '<div class="palette-empty muted small" style="padding:14px">Nothing found.</div>';
     $('palette-results').querySelectorAll('.palette-item').forEach((el, i) => {
       el.addEventListener('mouseenter', () => { selectPalette(i, filtered); });
       el.addEventListener('click', () => { filtered[i].action(); closePalette(); });
@@ -2197,11 +2250,10 @@
   $('palette-input')?.addEventListener('keydown', (e) => {
     const items = $$('.palette-item');
     if (e.key === 'Escape') return closePalette();
-    if (e.key === 'ArrowDown') { e.preventDefault(); selectPalette(Math.min(items.length - 1, paletteSelected + 1)); }
-    if (e.key === 'ArrowUp') { e.preventDefault(); selectPalette(Math.max(0, paletteSelected - 1)); }
+    if (e.key === 'ArrowDown') { e.preventDefault(); selectPalette(Math.min(items.length - 1, paletteSelected + 1)); items[paletteSelected]?.scrollIntoView({ block: 'nearest' }); }
+    if (e.key === 'ArrowUp') { e.preventDefault(); selectPalette(Math.max(0, paletteSelected - 1)); items[paletteSelected]?.scrollIntoView({ block: 'nearest' }); }
     if (e.key === 'Enter') {
-      const f = $('palette-input').value.toLowerCase();
-      const filtered = PALETTE_ACTIONS.filter((a) => a.label.toLowerCase().includes(f));
+      const filtered = paletteList($('palette-input').value);
       if (filtered[paletteSelected]) { filtered[paletteSelected].action(); closePalette(); }
     }
   });
@@ -5416,7 +5468,9 @@
     const btn = $('login-btn');
     const setup = $('login-setup');
     if (!status || !btn) return;
-    const callbackUrl = `${activeInstance().url}/api/auth/discord/callback`;
+    // The server tells us the exact redirect it will use (it must match the
+    // Developer Portal), so show that instead of guessing.
+    const callbackUrl = authState.callbackUrl || `${location.origin}/api/auth/discord/callback`;
     if (authState.user) {
       btn.disabled = true;
       btn.style.opacity = '0.5';
@@ -5441,16 +5495,33 @@
                 <button id="login-callback-copy" style="padding:6px 10px;border:1px solid var(--border);border-radius:4px;background:var(--bg-input);color:var(--fg);cursor:pointer;font-size:12px">📋 Copy</button>
               </div>
             </li>
-            <li>Open your bot's <code>.env</code> file and add:
-              <pre style="margin:6px 0;padding:10px;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;font-family:var(--font-mono);font-size:12px;overflow:auto">DISCORD_CLIENT_ID=your_client_id_here
-DISCORD_CLIENT_SECRET=your_client_secret_here
-# Optional: pre-claim ownership for your own Discord ID
-OWNER_USER_ID=your_discord_user_id</pre>
+            <li>Paste the <strong>Client Secret</strong> here. It's saved into <code>.env</code> for you, no restart needed:
+              <form id="login-secret-form" style="margin:6px 0;display:flex;flex-direction:column;gap:8px" autocomplete="off">
+                <input id="login-secret" type="password" autocomplete="off" spellcheck="false" placeholder="Client secret" style="padding:8px 10px;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--fg);font-family:var(--font-mono);font-size:12px" />
+                <label class="small" style="display:flex;gap:6px;align-items:center"><input id="login-secret-lock" type="checkbox" checked /> Also lock the panel so only signed-in people can use it</label>
+                <button type="submit" class="primary" style="align-self:flex-start">💾 Save secret</button>
+              </form>
             </li>
-            <li><strong>Restart the bot</strong>, refresh this page, and the sign-in button will go live.</li>
+            <li>Click <strong>Sign in with Discord</strong> above.</li>
           </ol>
-          <div class="muted small" style="margin-top:10px">The first user to sign in becomes the <strong>owner</strong> of this instance — set <code>OWNER_USER_ID</code> first if you want to guarantee that's you.</div>
+          <div class="muted small" style="margin-top:10px">Your Discord ID (<code>OWNER_USER_ID</code>) is already the owner. With the lock on, anyone else who signs in waits as a <strong>guest</strong> until you let them in on the Ranks page.</div>
         `;
+        $('login-secret-form')?.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const secret = $('login-secret').value.trim();
+          if (!secret) return;
+          try {
+            const r = await fetchJson('/api/auth/setup', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ secret, lock: $('login-secret-lock').checked }),
+            });
+            if (r.error) throw new Error(r.error);
+            $('login-secret').value = '';
+            toast('✓ Discord sign-in is ready', 'Now click "Sign in with Discord".', 'success', 4000);
+            await refreshAuthState();
+            renderLoginPage();
+          } catch (err) { toast('▲ Could not save', err.message, 'error', 5000); }
+        });
         $('login-callback-copy')?.addEventListener('click', async () => {
           try {
             await navigator.clipboard.writeText(callbackUrl);
@@ -5684,7 +5755,7 @@ OWNER_USER_ID=your_discord_user_id</pre>
   });
 
   // --- Ranks page ---
-  const RANK_ORDER = ['owner', 'admin', 'moderator', 'member', 'banned'];
+  const RANK_ORDER = ['owner', 'admin', 'moderator', 'member', 'guest', 'banned'];
 
   // Whitelist the rank values we'll inject as CSS class names — defends
   // against the (near-zero but real) case where a malformed rank gets into
@@ -5823,5 +5894,8 @@ OWNER_USER_ID=your_discord_user_id</pre>
     else if (activePage === 'ranks') renderRanksPage();
   };
 
-  connect();
+  // With the login lock on, wait for the sign-in screen (login-gate.js) to
+  // confirm a session before opening the live connection, so a signed-out
+  // panel doesn't reconnect-loop (and set off the themes' outage effects).
+  Promise.resolve(window.maowAuthReady).then((ok) => { if (ok !== false) connect(); });
 })();

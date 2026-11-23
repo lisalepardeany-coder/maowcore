@@ -11,6 +11,9 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/style.css" />
+<link rel="stylesheet" href="/theme-pizzeria.css" />
+<link rel="stylesheet" href="/panel-extras.css" />
+<link rel="stylesheet" href="/panel-revamp.css" />
 </head>
 <body data-theme="discord">
 
@@ -179,6 +182,10 @@
           <span class="nav-icon">⌂</span>
           <span class="nav-label">Home</span>
         </a>
+        <a class="nav-item" data-page="diagnostics">
+          <span class="nav-icon">▮</span>
+          <span class="nav-label">Status</span>
+        </a>
         <a class="nav-item" data-page="fleet">
           <span class="nav-icon">⊞</span>
           <span class="nav-label">Fleet</span>
@@ -194,6 +201,10 @@
             <a class="nav-item" data-page="library">
               <span class="nav-icon">≡</span>
               <span class="nav-label">Library</span>
+            </a>
+            <a class="nav-item" data-page="playlists">
+              <span class="nav-icon">♫</span>
+              <span class="nav-label">Playlists &amp; Radio</span>
             </a>
             <a class="nav-item" data-page="insights">
               <span class="nav-icon">◐</span>
@@ -267,9 +278,17 @@
               <span class="nav-icon">◈</span>
               <span class="nav-label">Economy</span>
             </a>
+            <a class="nav-item" data-page="soundboard">
+              <span class="nav-icon">🔊</span>
+              <span class="nav-label">Soundboard</span>
+            </a>
             <a class="nav-item" data-page="game-night">
               <span class="nav-icon">🎮</span>
               <span class="nav-label">Game night</span>
+            </a>
+            <a class="nav-item" data-page="listen">
+              <span class="nav-icon">🎧</span>
+              <span class="nav-label">Listen room</span>
             </a>
           </div>
         </div>
@@ -293,6 +312,10 @@
               <span class="nav-icon">⌬</span>
               <span class="nav-label">Server template</span>
             </a>
+            <a class="nav-item" data-page="control">
+              <span class="nav-icon">⚙</span>
+              <span class="nav-label">Control room</span>
+            </a>
             <a class="nav-item" data-page="backup">
               <span class="nav-icon">⎘</span>
               <span class="nav-label">Backup &amp; Share</span>
@@ -311,11 +334,6 @@
               <span class="nav-icon">⚙</span>
               <span class="nav-label">Settings</span>
             </a>
-            <a class="nav-item" data-page="diagnostics">
-              <span class="nav-icon">⌗</span>
-              <span class="nav-label">Diagnostics</span>
-              <span class="nav-badge" id="nav-diag-badge" hidden></span>
-            </a>
             <a class="nav-item" data-page="ranks">
               <span class="nav-icon">⚜</span>
               <span class="nav-label">Ranks</span>
@@ -328,11 +346,19 @@
               <span class="nav-icon">⌨</span>
               <span class="nav-label">Developer</span>
             </a>
+            <a class="nav-item" data-page="profiles">
+              <span class="nav-icon">🎭</span>
+              <span class="nav-label">Profiles</span>
+            </a>
+            <a class="nav-item" data-page="reminders">
+              <span class="nav-icon">⏰</span>
+              <span class="nav-label">Reminders</span>
+            </a>
           </div>
         </div>
       </nav>
       <div class="sidebar-footer">
-        <div class="muted small">v3.1.3</div>
+        <div class="muted small" id="panel-version">—</div>
       </div>
     </aside>
 
@@ -559,7 +585,7 @@
               <ul>
                 <li><code>identify</code> — read your username + avatar (no email, no servers)</li>
               </ul>
-              <div>Your Discord token is exchanged for a 30-day session cookie stored only in your browser. Sign out any time from the topbar.</div>
+              <div>Discord's token is used once and thrown away. You get a 30-day session saved only in this browser (the bot's database keeps just a scrambled copy). Sign out any time from the topbar or below.</div>
             </div>
           </div>
         </div>
@@ -648,6 +674,7 @@
             <label>
               <div class="muted small">Rank</div>
               <select id="ranks-grant-rank" style="width:100%;padding:8px 12px;border-radius:6px;background:var(--bg-input);border:1px solid var(--border);color:var(--fg)">
+                <option value="guest">⌛ guest (signed in, not let in)</option>
                 <option value="member">⊙ member</option>
                 <option value="moderator">⌖ moderator</option>
                 <option value="admin">★ admin</option>
@@ -713,6 +740,38 @@
               <div id="dev-db-result" style="margin-top:6px;max-height:480px;overflow:auto"></div>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section class="page hidden" id="page-soundboard">
+        <div class="page-head"><h2>🔊 Soundboard</h2><div class="muted small">Plays in the bot's current voice channel. Start a session with /play first. Files can be up to 15 MB.</div></div>
+        <div class="card">
+          <div class="card-head"><h3>Sounds</h3><label class="tool-btn" style="display:inline-block">⬆ Upload<input id="sb-upload" type="file" accept=".mp3,.wav,.ogg,.m4a" multiple hidden></label></div>
+          <div class="sb-grid" id="sb-grid"></div>
+        </div>
+      </section>
+
+      <section class="page hidden" id="page-control">
+        <div class="page-head"><h2>⚙ Control room</h2><div class="muted small" id="cr-info">Loading…</div></div>
+        <div class="card">
+          <div class="card-head"><h3>Bot</h3></div>
+          <div class="cr-actions">
+            <button class="tool-btn" id="cr-restart">↻ Restart bot</button>
+            <button class="tool-btn" id="cr-update">⬆ Update bot</button>
+            <button class="tool-btn" id="cr-backups">⎘ Backups</button>
+          </div>
+          <pre class="cr-log" id="cr-log" hidden></pre>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Resources</h3><div class="muted small">Since this page was opened</div></div>
+          <div class="cr-graphs">
+            <div class="cr-graph"><div class="small">System CPU <b id="cr-cpu-val">-</b></div><svg id="cr-cpu" viewBox="0 0 300 70" preserveAspectRatio="none" aria-hidden="true"><polyline></polyline></svg></div>
+            <div class="cr-graph"><div class="small">Bot RAM <b id="cr-ram-val">-</b></div><svg id="cr-ram" viewBox="0 0 300 70" preserveAspectRatio="none" aria-hidden="true"><polyline></polyline></svg></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Audit log</h3><div class="muted small">Who changed what in the panel</div></div>
+          <table class="cr-audit"><thead><tr><th>When</th><th>Who</th><th>What</th></tr></thead><tbody id="cr-audit-body"></tbody></table>
         </div>
       </section>
 
@@ -1112,6 +1171,14 @@
         <div class="card">
           <div class="card-head"><h3>Theme</h3><div class="muted small">Pick a visual style</div></div>
           <div class="theme-grid">
+            <button class="theme-swatch" data-theme="pizzeria">
+              <span class="swatch-preview" data-style="pizzeria"></span>
+              <span class="swatch-label">Pizzeria</span>
+              <span class="swatch-sub muted small">Night-shift security desk</span>
+            </button>
+            <button class="theme-swatch" data-theme="backrooms"><span class="swatch-preview" data-style="backrooms"></span><span class="swatch-label">Backrooms</span><span class="swatch-sub muted small">Yellow rooms, buzzing lights</span></button>
+            <button class="theme-swatch" data-theme="analog"><span class="swatch-preview" data-style="analog"></span><span class="swatch-label">Analog horror</span><span class="swatch-sub muted small">VHS static, lost signal</span></button>
+            <button class="theme-swatch" data-theme="slasher"><span class="swatch-preview" data-style="slasher"></span><span class="swatch-label">Slasher</span><span class="swatch-sub muted small">Blood red, film grain</span></button>
             <button class="theme-swatch" data-theme="discord">
               <span class="swatch-preview" data-style="discord"></span>
               <span class="swatch-label">Discord</span>
@@ -1138,7 +1205,7 @@
             <option value="discord">Discord</option>
             <option value="linear">Linear</option>
             <option value="spotify">Spotify</option>
-            <option value="glass">Glass</option>
+            <option value="glass">Glass</option><option value="pizzeria">Pizzeria</option><option value="backrooms">Backrooms</option><option value="analog">Analog horror</option><option value="slasher">Slasher</option>
           </select>
         </div>
 
@@ -1640,9 +1707,11 @@
 
       <section class="page hidden" id="page-diagnostics">
         <div class="page-head">
-          <h2>⌗  Diagnostics</h2>
-          <div class="muted small">Live health, boot timeline, and a categorized console of everything the bot is doing.</div>
+          <h2>▮ Status &amp; Diagnostics</h2>
+          <div class="muted small">Uptime history on top, live health and the full console below. <a href="/status" target="_blank" rel="noopener" style="color:var(--accent)">Open status page ↗</a> · <a href="/status-admin" target="_blank" rel="noopener" style="color:var(--accent)">Change status ↗</a></div>
         </div>
+
+        <iframe id="status-frame" src="/status" title="Uptime bars and status" loading="lazy" style="width:100%;height:640px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-elev);flex:none"></iframe>
 
         <!-- Event-flow diagram: visualizes the subsystems and their current health -->
         <div class="card">
@@ -1856,6 +1925,16 @@
   <div class="tour-overlay hidden" id="tour-overlay"><div class="tour-tip" id="tour-tip"></div></div>
   <button class="hidden" id="tour-skip"></button><button class="hidden" id="tour-next"></button>
 
+  <script src="/login-gate.js"></script>
+  <script src="/theme-extras.js"></script>
+  <script src="/theme-space-a.js"></script>
+  <script src="/theme-space-b.js"></script>
+  <script src="/theme-pack-c.js"></script>
+  <script src="/theme-pack.js"></script>
   <script src="/app.js"></script>
+<script src="/theme-pizzeria.js"></script>
+<script src="/panel-extras.js"></script>
+<script src="/panel-revamp.js"></script>
+<script src="/panel-plus.js"></script>
 </body>
 </html>

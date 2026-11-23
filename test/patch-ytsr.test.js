@@ -12,8 +12,10 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const PARSE_ITEM_PATH = path.join(__dirname, '..', 'node_modules', '@distube', 'ytsr', 'lib', 'parseItem.js');
+// Newer @distube/youtube no longer installs ytsr, so there is nothing to check.
+const skip = !fs.existsSync(PARSE_ITEM_PATH);
 
-test('patch-ytsr: parseItem has optional chaining on browseEndpoint', () => {
+test('patch-ytsr: parseItem has optional chaining on browseEndpoint', { skip }, () => {
   const src = fs.readFileSync(PARSE_ITEM_PATH, 'utf8');
   // Post-patch: ZERO occurrences of the unsafe access pattern.
   const unsafe = src.match(/\.browseEndpoint\.(canonicalBaseUrl|browseId)/g);
@@ -23,14 +25,14 @@ test('patch-ytsr: parseItem has optional chaining on browseEndpoint', () => {
   assert.ok(safe.length >= 4, `expected >= 4 patched sites, got ${safe.length}`);
 });
 
-test('patch-ytsr: re-running the patch is idempotent (no double "?.")', () => {
+test('patch-ytsr: re-running the patch is idempotent (no double "?.")', { skip }, () => {
   const src = fs.readFileSync(PARSE_ITEM_PATH, 'utf8');
   // Patch should never produce `.browseEndpoint??.` (which would mean we
   // accidentally re-patched a patched file).
   assert.equal(src.includes('browseEndpoint??.'), false);
 });
 
-test('patch-ytsr: parseItem actually loads after patching (syntactically valid)', () => {
+test('patch-ytsr: parseItem actually loads after patching (syntactically valid)', { skip }, () => {
   // Just require()'ing the module would execute it; we can require it without
   // triggering API calls since it only exports parse functions.
   assert.doesNotThrow(() => {

@@ -1,7 +1,7 @@
 const el = (id) => document.getElementById(id);
 
 chrome.storage.sync.get(['botUrl']).then(({ botUrl }) => {
-  el('bot-url').value = botUrl || 'http://127.0.0.1:8765';
+  el('bot-url').value = botUrl || 'http://127.0.0.1:8766';
 });
 
 el('save').addEventListener('click', async () => {

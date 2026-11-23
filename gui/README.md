@@ -11,7 +11,7 @@ queue, command logs, and lets you control everything without opening Discord.
    pip install -r requirements.txt
    ```
 3. Start the bot first (`npm start` in the project root) — it now boots a local
-   WebSocket server on `127.0.0.1:8765`.
+   WebSocket server on `127.0.0.1:8766`.
 4. Launch the panel:
    ```powershell
    python control_panel.pyw

@@ -1,0 +1,163 @@
+{
+    "_comment": "MaowCore Discord music bot + dashboard. Import in the admin area: Nests > Import Egg.",
+    "meta": {
+        "version": "PTDL_v2",
+        "update_url": null
+    },
+    "exported_at": "2026-11-23T09:23:02+00:00",
+    "name": "MaowCore",
+    "author": "lara@maowcore.local",
+    "description": "MaowCore: a Discord music bot (YouTube, Spotify, SoundCloud) with a web dashboard. The dashboard runs on this server's port; open http://<server address>:<port>/ once it says \"Logged in as\".",
+    "features": null,
+    "docker_images": {
+        "Node.js 22": "ghcr.io/parkervcp/yolks:nodejs_22",
+        "Node.js 20": "ghcr.io/parkervcp/yolks:nodejs_20"
+    },
+    "file_denylist": [],
+    "startup": "if [[ -d .git ]] && [[ \"{{AUTO_UPDATE}}\" == \"1\" ]]; then echo \"Updating from GitHub...\"; git fetch --quiet origin {{BRANCH}} && git reset --hard FETCH_HEAD && npm install --omit=dev --no-audit --no-fund; fi; if [[ -x bin/yt-dlp ]]; then ./bin/yt-dlp -U 2>&1 | tail -n 1; fi; node index.js",
+    "config": {
+        "files": "{}",
+        "startup": "{\"done\":\"Logged in as \"}",
+        "logs": "{}",
+        "stop": "^C"
+    },
+    "scripts": {
+        "installation": {
+            "script": "#!/bin/bash\n# MaowCore install script for Pterodactyl (egg-maowcore.json embeds this file).\n# Runs once in a node:22-trixie container; the server's files live in /mnt/server.\nset -e\napt-get update\napt-get install -y --no-install-recommends git curl ca-certificates\nmkdir -p /mnt/server\ncd /mnt/server\n\n# 1. Get the code: clone the repo, pull if it's already a checkout,\n#    or leave uploaded files alone.\nif [ -n \"${GIT_ADDRESS}\" ]; then\n  [[ ${GIT_ADDRESS} != *.git ]] && GIT_ADDRESS=\"${GIT_ADDRESS}.git\"\n  if [ -n \"${USERNAME}\" ] && [ -n \"${ACCESS_TOKEN}\" ]; then\n    # private repo: put the login into the URL\n    GIT_ADDRESS=\"https://${USERNAME}:${ACCESS_TOKEN}@$(echo \"${GIT_ADDRESS}\" | cut -d/ -f3-)\"\n  fi\n  if [ -d .git ]; then\n    echo \"Existing checkout found, pulling the latest code\"\n    git pull\n  elif [ -z \"$(ls -A)\" ]; then\n    echo \"Cloning ${BRANCH:-main}\"\n    git clone --single-branch --branch \"${BRANCH:-main}\" \"${GIT_ADDRESS}\" .\n  else\n    echo \"The server folder has files but no git checkout, so nothing was cloned.\"\n    echo \"Either upload the bot's files yourself, or empty the folder and reinstall.\"\n  fi\nfi\n\n# 2. Standalone yt-dlp (no Python needed). The bot finds it in ./bin by itself.\nmkdir -p bin data cookies\ncase \"$(uname -m)\" in\n  aarch64|arm64) YTDLP=yt-dlp_linux_aarch64 ;;\n  *)             YTDLP=yt-dlp_linux ;;\nesac\ncurl -fsSL \"https://github.com/yt-dlp/yt-dlp/releases/latest/download/${YTDLP}\" -o bin/yt-dlp\nchmod +x bin/yt-dlp\n./bin/yt-dlp --version\n\n# 3. Node packages, built for Linux (never copy node_modules from Windows).\nif [ -f package.json ]; then\n  rm -rf node_modules\n  npm install --omit=dev\nelse\n  echo \"No package.json yet; upload the bot and restart the server.\"\nfi\n\necho \"MaowCore install finished.\"\n",
+            "container": "node:22-trixie",
+            "entrypoint": "bash"
+        }
+    },
+    "variables": [
+        {
+            "name": "Discord bot token",
+            "description": "Developer Portal > your app > Bot > Reset Token.",
+            "env_variable": "DISCORD_TOKEN",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|max:200",
+            "field_type": "text"
+        },
+        {
+            "name": "Application ID",
+            "description": "Developer Portal > your app > General Information > Application ID.",
+            "env_variable": "CLIENT_ID",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|max:32",
+            "field_type": "text"
+        },
+        {
+            "name": "Test server ID",
+            "description": "Optional. Slash commands appear in this server instantly; leave blank for all servers (up to an hour).",
+            "env_variable": "GUILD_ID",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:32",
+            "field_type": "text"
+        },
+        {
+            "name": "Spotify client ID",
+            "description": "Optional, for Spotify links. developer.spotify.com/dashboard",
+            "env_variable": "SPOTIFY_CLIENT_ID",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:100",
+            "field_type": "text"
+        },
+        {
+            "name": "Spotify client secret",
+            "description": "Optional, for Spotify links.",
+            "env_variable": "SPOTIFY_CLIENT_SECRET",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:100",
+            "field_type": "text"
+        },
+        {
+            "name": "Genius token",
+            "description": "Optional, for /lyrics. genius.com/api-clients",
+            "env_variable": "GENIUS_TOKEN",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:200",
+            "field_type": "text"
+        },
+        {
+            "name": "Bot name",
+            "description": "Name shown in mod-log entries (\"via <name>\").",
+            "env_variable": "BOT_INSTANCE_NAME",
+            "default_value": "MaowCore",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|max:40",
+            "field_type": "text"
+        },
+        {
+            "name": "Dashboard public URL",
+            "description": "Optional. The address people use to reach the dashboard, e.g. http://node.example.com:25570 (needed for Discord sign-in).",
+            "env_variable": "PANEL_PUBLIC_URL",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:200",
+            "field_type": "text"
+        },
+        {
+            "name": "Git repo",
+            "description": "Where the install script gets the code. Leave blank to upload the files yourself.",
+            "env_variable": "GIT_ADDRESS",
+            "default_value": "https://github.com/lisalepardeany-coder/maowcore",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:200",
+            "field_type": "text"
+        },
+        {
+            "name": "Git branch",
+            "description": "Branch to install.",
+            "env_variable": "BRANCH",
+            "default_value": "main",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|max:60",
+            "field_type": "text"
+        },
+        {
+            "name": "Git username",
+            "description": "Only for a private repo.",
+            "env_variable": "USERNAME",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:60",
+            "field_type": "text"
+        },
+        {
+            "name": "Git access token",
+            "description": "Only for a private repo: a GitHub token with read access to it.",
+            "env_variable": "ACCESS_TOKEN",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:200",
+            "field_type": "text"
+        },
+        {
+            "name": "Update on start",
+            "description": "1 = get the newest code from GitHub (and its packages) every time the server starts. Files you edited on the server that are part of the code get replaced; data/, cookies/ and .env are kept.",
+            "env_variable": "AUTO_UPDATE",
+            "default_value": "1",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|boolean",
+            "field_type": "text"
+        }
+    ]
+}

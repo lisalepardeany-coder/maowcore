@@ -15,7 +15,7 @@ const settings = definePluginSettings({
     wsUrl: {
         type: OptionType.STRING,
         description: "MaowCore WebSocket URL",
-        default: "ws://127.0.0.1:8765/",
+        default: "ws://127.0.0.1:8766/",
     },
     statusSync: {
         type: OptionType.BOOLEAN,

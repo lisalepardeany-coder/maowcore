@@ -8,7 +8,7 @@ Adds a "Queue in MaowCore" entry to your right-click menu on links + selected te
 2. Enable **Developer mode** (top right)
 3. Click **Load unpacked**
 4. Select this `browser-extension/` folder
-5. Click the extension icon and set your bot URL (default `http://127.0.0.1:8765`)
+5. Click the extension icon and set your bot URL (default `http://127.0.0.1:8766`)
 
 ## Install (Firefox)
 
@@ -28,4 +28,4 @@ A desktop notification confirms each successful queue.
 
 Click the extension icon → enter your bot's URL.
 
-If you're using Docker with `CONTROL_HOST=0.0.0.0`, you can point at your LAN IP (e.g. `http://192.168.1.50:8765`) to queue from any device on your network.
+If you're using Docker with `CONTROL_HOST=0.0.0.0`, you can point at your LAN IP (e.g. `http://192.168.1.50:8766`) to queue from any device on your network.

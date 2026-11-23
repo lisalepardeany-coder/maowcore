@@ -1,0 +1,15 @@
+name = "maowcore-status"
+main = "worker.mjs"
+compatibility_date = "2026-10-01"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = true
+
+[[kv_namespaces]]
+binding = "STATUS"
+id = "PASTE_KV_ID_HERE"
+
+[triggers]
+crons = ["*/5 * * * *"]

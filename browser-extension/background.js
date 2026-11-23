@@ -1,7 +1,7 @@
 // MaowCore browser-extension background worker.
 // Adds "Queue in MaowCore" to the right-click menu on links + selected text.
 
-const DEFAULTS = { botUrl: 'http://127.0.0.1:8765' };
+const DEFAULTS = { botUrl: 'http://127.0.0.1:8766' };
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({

@@ -20,8 +20,8 @@ const findSound = (name) => {
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('sb')
-    .setDescription('Play a soundboard clip from data/sounds/')
-    .addStringOption((opt) => opt.setName('name').setDescription('Sound name').setRequired(true).setAutocomplete(true)),
+    .setDescription('Play a soundboard clip (leave the name empty for a button board)')
+    .addStringOption((opt) => opt.setName('name').setDescription('Sound name (empty = show the board)').setRequired(false).setAutocomplete(true)),
   async autocomplete(interaction) {
     const focused = interaction.options.getFocused().toLowerCase();
     const names = listSounds().filter((n) => n.toLowerCase().includes(focused));
@@ -29,6 +29,19 @@ module.exports = {
   },
   async execute(interaction) {
     const name = interaction.options.getString('name');
+    if (!name) {
+      // A board of buttons (up to 25 sounds). Clicks are handled in index.js (sb:<file>).
+      const names = listSounds();
+      if (!names.length) return interaction.reply({ content: '◌ No sounds yet. Upload some in the panel (Soundboard page).', flags: MessageFlags.Ephemeral });
+      const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+      const files = fs.readdirSync(SOUND_DIR).filter((f) => /\.(mp3|wav|ogg|m4a)$/i.test(f)).sort().slice(0, 25);
+      const rows = [];
+      for (let i = 0; i < files.length; i += 5) {
+        rows.push(new ActionRowBuilder().addComponents(files.slice(i, i + 5).map((f) => new ButtonBuilder()
+          .setCustomId(`sb:${f}`.slice(0, 100)).setLabel(path.basename(f, path.extname(f)).slice(0, 80)).setStyle(ButtonStyle.Secondary).setEmoji('🔊'))));
+      }
+      return interaction.reply({ content: `🎛 **Soundboard** — press a button while you're in voice.${names.length > 25 ? ` (Showing 25 of ${names.length}.)` : ''}`, components: rows });
+    }
     const file = findSound(name);
     if (!file) {
       return interaction.reply({ content: `◌ Sound \`${name}\` not found. Drop .mp3/.wav/.ogg files in \`data/sounds/\`.`, flags: MessageFlags.Ephemeral });

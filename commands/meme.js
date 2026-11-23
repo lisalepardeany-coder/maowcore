@@ -4,6 +4,7 @@ const { requireQueue } = require('../lib/guards');
 const escapeXml = (s) => String(s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
 
 module.exports = {
+  everywhere: true,
   data: new SlashCommandBuilder()
     .setName('meme')
     .setDescription('Generate a meme image with top/bottom text on the current album art')

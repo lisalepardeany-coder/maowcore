@@ -11,6 +11,7 @@ const energyLabel = (e) => {
 };
 
 module.exports = {
+  everywhere: true,
   data: new SlashCommandBuilder().setName('nowplaying').setDescription('Inspect the current signal'),
   async execute(interaction) {
     const queue = await requireQueue(interaction);

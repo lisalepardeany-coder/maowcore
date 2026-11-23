@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:" />
+<title>MaowCore</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <div class="brand"><span class="mark">✦</span><b>MaowCore</b><span class="muted" id="ver"></span></div>
+    <div class="status" id="status"><span class="dot"></span><span id="status-text">…</span></div>
+    <div class="actions" id="actions" hidden>
+      <button id="btn-start" class="primary">▶ Start</button>
+      <button id="btn-restart">↻ Restart</button>
+      <button id="btn-stop">■ Stop</button>
+      <button id="btn-panel" class="accent">Open panel ↗</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- First run -->
+    <section id="welcome" hidden>
+      <h1>Welcome 👋</h1>
+      <p class="muted">MaowCore runs your Discord bot and installs everything it needs. Where is your bot?</p>
+      <div class="cards">
+        <div class="card">
+          <h2>🏠 Use my existing bot</h2>
+          <p class="muted">You already have a MaowCore folder (with <code>index.js</code>).</p>
+          <div id="detected" hidden><p>Found one: <code id="detected-path"></code></p><button class="primary" id="btn-use-detected">Use this folder</button></div>
+          <button id="btn-choose-existing">Choose folder…</button>
+        </div>
+        <div class="card" id="fresh-card">
+          <h2>✨ Install it fresh</h2>
+          <p class="muted">Copies the bot into a new folder and sets up Node.js, packages, ffmpeg and yt-dlp. Good for a new PC or a USB stick.</p>
+          <button id="btn-install-fresh">Choose an empty folder…</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Main -->
+    <section id="home" hidden>
+      <div class="banner warn" id="ban-external" hidden>
+        <span>The bot is already running outside this app (the old auto-start). Let the app run it so it can keep it online.</span>
+        <button class="primary" id="btn-takeover">Let the app take over</button>
+      </div>
+      <div class="banner" id="ban-autostart" hidden>
+        <span>The old Windows auto-start script is still there. Turn it off and use “Start with Windows” below instead, so the bot doesn't start twice.</span>
+        <button id="btn-old-autostart">Turn old auto-start off</button>
+      </div>
+      <div class="banner info" id="ban-busy" hidden><span class="spin"></span><span id="busy-text"></span></div>
+      <div class="banner info" id="ban-update" hidden><span id="update-text"></span><button class="primary" id="btn-update-now">Update now</button></div>
+
+      <div class="tabs" role="tablist">
+        <button role="tab" data-tab="overview" aria-selected="true">Overview</button>
+        <button role="tab" data-tab="terminal" aria-selected="false">Terminal</button>
+        <button role="tab" data-tab="maint" aria-selected="false">Maintenance</button>
+      </div>
+
+      <div id="tab-terminal" class="tab" hidden>
+        <div class="card term-card">
+          <div class="card-head"><h2>Terminal</h2><div class="row">
+            <button data-cmd="node -v; npm -v">Versions</button>
+            <button data-cmd="Get-Content bot.err.log -Tail 30">Error log</button>
+            <button data-cmd="Get-Content bot.out.log -Tail 40">Bot log</button>
+            <button data-cmd=".\node_modules\@distube\yt-dlp\bin\yt-dlp.exe --version">yt-dlp version</button>
+            <button data-cmd="npm test">Run tests</button>
+            <button id="term-stop" class="danger-btn">■ Stop</button></div></div>
+          <pre id="term-out" tabindex="0" aria-live="polite"></pre>
+          <form id="term-form" class="term-input" autocomplete="off"><span id="term-cwd" class="muted small"></span><input id="term-line" spellcheck="false" placeholder="Type a command and press Enter (PowerShell)" /></form>
+          <p class="muted small">Runs PowerShell on this PC, in the bot folder. ↑/↓ for history · Ctrl+C or Stop to cancel · cls to clear.</p>
+        </div>
+      </div>
+
+      <div id="tab-maint" class="tab" hidden>
+        <div class="grid">
+          <div class="card">
+            <div class="card-head"><h2>Backups</h2><button class="primary" id="btn-backup-now">Back up now</button></div>
+            <div id="backup-list" class="muted">Loading…</div>
+            <p class="muted small">Settings, the database and the music library list. Restoring stops the bot for a moment.</p>
+          </div>
+          <div class="card">
+            <div class="card-head"><h2>Update the bot</h2><button class="primary" id="btn-update-bot">Update</button></div>
+            <p class="muted small">Makes a backup, updates the bot's packages and yt-dlp, then runs the tests. If anything fails, the previous version is put back automatically.</p>
+          </div>
+          <div class="card">
+            <div class="card-head"><h2>Update this app</h2><button id="btn-check-app">Check</button></div>
+            <div id="app-update-info" class="muted small"></div>
+            <p class="muted small">Looks for a newer <code>MaowCore-Portable-x.y.z.exe</code> in the bot's <code>desktop\dist</code> folder (where new builds go) <button class="link" id="btn-update-dir">or pick a folder…</button></p>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-overview" class="tab">
+      <div class="grid">
+        <div class="card">
+          <div class="card-head"><h2>Setup</h2><button id="btn-setup-all" class="primary">Set up everything</button></div>
+          <div id="checks"></div>
+          <div class="row muted small"><span>Bot folder: <code id="bot-dir"></code></span><button class="link" id="btn-open-bot">Open</button><button class="link" id="btn-change-bot">Change…</button></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h2>Bot settings</h2><button class="link" id="btn-edit-env">Edit</button></div>
+          <form id="env-form" hidden autocomplete="off">
+            <label>Bot token<input type="password" id="env-token" placeholder="From Developer Portal → Bot → Reset Token" autocomplete="off" /></label>
+            <label>Application ID<input id="env-client" placeholder="Developer Portal → General Information" inputmode="numeric" /></label>
+            <label>Your Discord user ID <span class="muted">(owner, optional)</span><input id="env-owner" inputmode="numeric" /></label>
+            <label>Panel port<input id="env-port" inputmode="numeric" placeholder="8765" /></label>
+            <p class="muted small">Saved into the bot's <code>.env</code> file on this PC. Leave the token empty to keep the current one.</p>
+            <div class="row"><button class="primary" type="submit">Save</button><button type="button" id="btn-env-cancel">Cancel</button></div>
+          </form>
+          <div id="env-summary" class="muted"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h2>Options</h2></div>
+          <label class="check"><input type="checkbox" id="opt-login" /> Start with Windows <span class="muted">(in the tray, bot starts by itself)</span></label>
+          <label class="check"><input type="checkbox" id="opt-autobot" /> Start the bot when the app opens</label>
+          <label class="check"><input type="checkbox" id="opt-tray" /> Closing the window keeps it running in the tray</label>
+          <label class="check"><input type="checkbox" id="opt-hidden" /> Start hidden in the tray (with Windows)</label>
+          <p class="muted small">App data: <code id="data-dir"></code> <button class="link" id="btn-open-data">Open</button></p>
+        </div>
+      </div>
+
+      <div class="card log-card">
+        <div class="card-head"><h2>Log</h2><div class="row"><label class="check small"><input type="checkbox" id="log-follow" checked /> follow</label><button class="link" id="btn-open-logs">Open log files</button></div></div>
+        <pre id="log" aria-live="polite"></pre>
+      </div>
+      </div>
+    </section>
+  </main>
+  <div id="toast" hidden></div>
+  <script src="app.js"></script>
+</body>
+</html>

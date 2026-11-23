@@ -10,6 +10,7 @@ package-lock.json
 .env.*
 !.env.example
 data
+cookies
 maowcore-backup-*.json
 
 # Client-side / non-runtime pieces not needed in the container

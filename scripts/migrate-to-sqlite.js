@@ -11,7 +11,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const ROOT = path.join(__dirname, '..');
-const dataDir = (file) => path.join(ROOT, 'data', file);
+// Tests use throwaway databases, which look empty. They must never migrate (and rename) real files.
+const dataDir = (file) => path.join(process.env.NODE_TEST_CONTEXT ? require('node:os').tmpdir() : ROOT, 'data', file);
 
 const readJson = (p) => {
   try { return JSON.parse(fs.readFileSync(p, 'utf8')); }

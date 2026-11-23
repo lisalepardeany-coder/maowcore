@@ -1,3 +1,4 @@
+require('./lib/hosting'); // Pterodactyl port/env fixes; must run before .env loads
 require('dotenv').config();
 const fs = require('node:fs');
 const path = require('node:path');
@@ -25,7 +26,7 @@ const { YtDlpPlugin, json: ytdlpJson } = require('@distube/yt-dlp');
 //  honored by @distube/yt-dlp itself — set in the Dockerfile.)
 const ffmpegPath = process.env.FFMPEG_PATH || require('ffmpeg-static');
 const { generateDependencyReport } = require('@discordjs/voice');
-const { getGuild } = require('./lib/config');
+const { getGuild, updateGuild } = require('./lib/config');
 const { COLORS, themedEmbed } = require('./lib/theme');
 const { fmtClock, progressBar, loopLabel } = require('./lib/format');
 const presence = require('./lib/presence');
@@ -63,7 +64,11 @@ const client = new Client({
 });
 
 const ytDlpPlugin = new YtDlpPlugin({ update: false });
-const youtubePlugin = new YouTubePlugin();
+// YouTube cookies (uploaded in the panel) get past "confirm you're not a bot".
+const ytCookies = require('./lib/yt-cookies');
+// ...or dropped as a file in the cookies/ folder (picked up now and every 30 s)
+require('./lib/cookie-drop').start(ytCookies, { consoleCommands: require('./lib/hosting').onPterodactyl });
+const youtubePlugin = new YouTubePlugin(ytCookies.forYtdl() ? { cookies: ytCookies.forYtdl() } : {});
 client.youtubePlugin = youtubePlugin;
 
 const baseFlags = {
@@ -76,8 +81,17 @@ const baseFlags = {
 
 ytDlpPlugin.getStreamURL = async (song) => {
   if (!song.url) throw new Error('Cannot get stream url from invalid song.');
+  // YouTube refuses ffmpeg's direct requests (403), so stream it through
+  // yt-dlp on our own control server instead (lib/yt-stream.js).
+  const ytStream = require('./lib/yt-stream');
+  if (ytStream.isYouTube(song.url)) {
+    return ytStream.urlFor(client.control?.port || Number(process.env.CONTROL_PORT) || 8765, song.url);
+  }
+  const cookieFile = ytCookies.filePath();   // read every time, so an upload works without a restart
   const info = await ytdlpJson(song.url, {
     ...baseFlags,
+    ...(cookieFile ? { cookies: cookieFile } : {}),
+    jsRuntimes: ytCookies.jsRuntime(),   // YouTube's stream unlock needs a JS runtime
     format:
       'bestaudio[acodec=opus]/bestaudio[ext=webm]/bestaudio[ext=m4a][abr>=128]/bestaudio/ba/ba*',
     audioQuality: 0,
@@ -86,6 +100,15 @@ ytDlpPlugin.getStreamURL = async (song) => {
 };
 
 youtubePlugin.getStreamURL = (song) => ytDlpPlugin.getStreamURL(song);
+
+// Signed-in (cookie) responses sometimes come back without a title; fill it in.
+const ytTitles = require('./lib/yt-titles');
+const origResolve = youtubePlugin.resolve.bind(youtubePlugin);
+youtubePlugin.resolve = async (url, options) => {
+  const result = await origResolve(url, options);
+  await ytTitles.fix(result);
+  return result;
+};
 
 client.distube = new DisTube(client, {
   emitNewSongOnly: true,
@@ -105,12 +128,13 @@ client.distube = new DisTube(client, {
   },
   plugins: [
     youtubePlugin,
-    new SpotifyPlugin({
+    // Playlists the Spotify API refuses (404) are read from the public embed.
+    require('./lib/spotify-embed').patchPlugin(new SpotifyPlugin({
       api: {
         clientId: process.env.SPOTIFY_CLIENT_ID,
         clientSecret: process.env.SPOTIFY_CLIENT_SECRET,
       },
-    }),
+    })),
     new SoundCloudPlugin(),
     ytDlpPlugin,
   ],
@@ -223,6 +247,17 @@ const buildControls = (queue) =>
     new ButtonBuilder().setCustomId('music:shuffle').setLabel('✦').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId('music:loop').setLabel('↻').setStyle(ButtonStyle.Secondary),
   );
+// Second row: previous, volume, favourite, song radio.
+const buildControlRows = (queue) => [
+  buildControls(queue),
+  new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('music:prev').setLabel('⏮').setStyle(ButtonStyle.Secondary).setDisabled(!queue?.previousSongs?.length),
+    new ButtonBuilder().setCustomId('music:voldown').setLabel('🔉').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('music:volup').setLabel('🔊').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('music:fav').setLabel('♥').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('music:similar').setLabel('📻 More like this').setStyle(ButtonStyle.Primary),
+  ),
+];
 
 // Idle auto-disconnect (skipped when /247 is engaged; minutes configurable per guild)
 const DEFAULT_IDLE_MIN = 5;
@@ -287,7 +322,7 @@ const startLiveUpdate = (guildId, message) => {
     try {
       await message.edit({
         embeds: [renderPlayingEmbed(queue, queue.songs[0])],
-        components: [buildControls(queue)],
+        components: buildControlRows(queue),
       });
     } catch {
       stopLiveUpdate(guildId);
@@ -318,9 +353,8 @@ client.distube
     sponsorblock.onPlay(queue, song, (text, level) => control.log(text, level));
     session.set(queue.id, queue);
     spotifyFeatures.attachFeatures(song).catch(() => {});  // best-effort
-    if (getGuild(queue.id).crossfade && !queue.filters.names.includes('crossfade_in')) {
-      try { queue.filters.add('crossfade_in'); } catch { /* ignored */ }
-    }
+    // Get the NEXT song ready now, so it starts without the ~4 s yt-dlp wait.
+    try { if (queue.songs[1]?.url) require('./lib/yt-stream').prefetch(queue.songs[1].url); } catch { /* best effort */ }
 
     // TTS song announcement — speaks "Now playing: <title>" in the text channel
     // when /announce is on. (Voice-channel TTS interleaving is too fragile with
@@ -351,6 +385,16 @@ client.distube
     if (typeof cfg.volume === 'number' && queue.volume !== cfg.volume) {
       try { queue.setVolume(cfg.volume); } catch (e) { console.warn('Failed to restore volume:', e.message); }
     }
+    // Crossfade: fade this song in, and out again just before it ends.
+    // (Ambience loops and library sound effects aren't faded.)
+    if (cfg.crossfade && !song.metadata?.ambience) {
+      // Old setups had the fade-in filter switched on; it would double up.
+      if (queue.filters.names.includes('crossfade_in')) { try { queue.filters.remove('crossfade_in'); } catch { /* */ } }
+      const fader = require('./lib/fader');
+      fader.onSongStart(queue, song, typeof cfg.volume === 'number' ? cfg.volume : fader.targetFor(queue));
+    } else {
+      require('./lib/fader').clear(queue.id);
+    }
     // Apply defaultLoopMode only on the first song of the session so user-driven
     // mid-session loop changes aren't clobbered.
     if (typeof cfg.defaultLoopMode === 'number' && (!queue.previousSongs?.length)) {
@@ -360,12 +404,14 @@ client.distube
     stopLiveUpdate(queue.id);
     const msg = await queue.textChannel?.send({
       embeds: [renderPlayingEmbed(queue, song)],
-      components: [buildControls(queue)],
+      components: buildControlRows(queue),
     }).catch((e) => { console.warn('Failed to send playSong embed:', e.message); return null; });
     if (msg) startLiveUpdate(queue.id, msg);
   })
   .on('addSong', (queue, song) => {
     clearIdleTimer(queue.id);
+    // Added right behind the playing song? Get it ready now.
+    if (queue.songs[1] === song) { try { require('./lib/yt-stream').prefetch(song.url); } catch { /* */ } }
     // Hoist dedication metadata as soon as the song lands in the queue so
     // /queue and /nowplaying see it without waiting for playSong.
     if (song.metadata?.dedication && !song.dedication) song.dedication = song.metadata.dedication;
@@ -388,6 +434,8 @@ client.distube
   .on('addList', (queue, playlist) => {
     clearIdleTimer(queue.id);
     session.set(queue.id, queue);
+    // Song radio / mood mixes post their own summary.
+    if (playlist?.metadata?.quiet) return;
     queue.textChannel?.send({
       embeds: [
         themedEmbed(
@@ -423,6 +471,7 @@ client.distube
   })
   .on('finish', (queue) => {
     stopLiveUpdate(queue.id);
+    require('./lib/fader').clear(queue.id);
     sponsorblock.clearForGuild(queue.id);
     abLoop.stop(queue.id);
     session.clear(queue.id);
@@ -443,6 +492,7 @@ client.distube
   })
   .on('disconnect', (queue) => {
     stopLiveUpdate(queue.id);
+    require('./lib/fader').clear(queue.id);
     clearIdleTimer(queue.id);
     sponsorblock.clearForGuild(queue.id);
     abLoop.stop(queue.id);
@@ -502,12 +552,85 @@ client.on(Events.InteractionCreate, async (interaction) => {
     return;
   }
 
+  // Checklist tick buttons (work in DMs too).
+  if (interaction.isButton() && interaction.customId.startsWith('chk:')) {
+    const [, id, idx] = interaction.customId.split(':');
+    const lists = require('./lib/checklists');
+    try {
+      const l = lists.toggle(interaction.user.id, id, Number(idx));
+      const done = lists.ticked(l).length >= l.items.length;
+      await interaction.update(lists.message(l));
+      if (done) fun_reward(interaction, 3);
+    } catch (e) {
+      await interaction.reply({ content: `▲ ${e.message === 'Checklist not found.' ? 'This checklist is gone, or it isn\'t yours.' : e.message}`, flags: MessageFlags.Ephemeral }).catch(() => {});
+    }
+    return;
+  }
+
+  // Soundboard buttons from /sb (no name).
+  if (interaction.isButton() && interaction.customId.startsWith('sb:')) {
+    const file = path.basename(interaction.customId.slice(3));
+    const voice = interaction.member?.voice?.channel;
+    if (!voice) return interaction.reply({ content: '◌ Join a voice channel first.', flags: MessageFlags.Ephemeral });
+    if (!fs.existsSync(path.join(__dirname, 'data', 'sounds', file))) return interaction.reply({ content: '◌ That sound was removed.', flags: MessageFlags.Ephemeral });
+    await interaction.deferUpdate().catch(() => {});
+    client.distube.play(voice, control._soundUrl(file), { member: interaction.member, metadata: { localName: `🔊 ${path.basename(file, path.extname(file))}` } })
+      .catch((e) => interaction.followUp({ content: `▲ ${e.message}`, flags: MessageFlags.Ephemeral }).catch(() => {}));
+    return;
+  }
+
+  // Ban appeals (DM button → form → mod buttons) and tickets.
+  if ((interaction.isButton() || interaction.isModalSubmit()) && /^(appeal|ticket):/.test(interaction.customId)) {
+    const tools = require('./lib/mod-tools');
+    try {
+      if (interaction.customId.startsWith('appeal:')) await tools.handleAppeal(interaction, client);
+      else await tools.handleTicket(interaction);
+    } catch (e) {
+      const reply = { content: `▲ ${e.message}`, flags: MessageFlags.Ephemeral };
+      if (interaction.deferred || interaction.replied) await interaction.editReply(reply).catch(() => {});
+      else await interaction.reply(reply).catch(() => {});
+    }
+    return;
+  }
+
+  // Reminder buttons (Snooze / Stop repeating) and the /reminders cancel menu.
+  if ((interaction.isButton() || interaction.isStringSelectMenu()) && interaction.customId.startsWith('remind:')) {
+    const [, kind, id, amount] = interaction.customId.split(':');
+    const uid = interaction.user.id;
+    try {
+      if (kind === 'cancel') {
+        const ok = reminders.cancel(interaction.values?.[0], uid);
+        const view = require('./commands/reminders').build(uid);
+        return interaction.update({ ...view, content: ok ? `✕  Cancelled. ${view.content}`.trim() : '◌ That reminder was already gone.' });
+      }
+      if (kind === 'stop') {
+        const ok = reminders.stopRepeat(id, uid);
+        return interaction.update({ components: [], content: ok ? '⏹  This reminder won\'t repeat any more.' : '◌ Already stopped.' });
+      }
+      if (kind === 'snooze') {
+        let ms = Number(amount) * 60000;
+        if (amount === 't9') {
+          const t = new Date(); t.setDate(t.getDate() + 1); t.setHours(9, 0, 0, 0);
+          ms = t.getTime() - Date.now();
+        }
+        const r = reminders.snooze(id, uid, ms);
+        if (!r) return interaction.reply({ content: '◌ Too late to snooze this one (or it isn\'t yours).', flags: MessageFlags.Ephemeral });
+        const ts = Math.floor(r.fireAt / 1000);
+        return interaction.reply({ content: `💤  Snoozed until <t:${ts}:t> (<t:${ts}:R>).`, flags: MessageFlags.Ephemeral });
+      }
+    } catch (e) {
+      return interaction.reply({ content: `▲ ${e.message}`, flags: MessageFlags.Ephemeral }).catch(() => {});
+    }
+    return;
+  }
+
   if (interaction.isButton() && interaction.customId.startsWith('music:')) {
     const queue = client.distube.getQueue(interaction.guildId);
     if (!queue) {
       return interaction.reply({ content: '◌ No active transmission.', flags: MessageFlags.Ephemeral });
     }
-    if (interaction.member.voice.channelId !== queue.voice.channelId) {
+    // In user-install chats the member has no voice state; treat as not in voice.
+    if (interaction.member?.voice?.channelId !== queue.voice.channelId) {
       return interaction.reply({
         content: '◌ Board the active voice channel first.',
         flags: MessageFlags.Ephemeral,
@@ -518,15 +641,15 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (action === 'toggle') {
         if (queue.paused) queue.resume(); else queue.pause();
         presence.refresh(client, queue);
-        return interaction.update({ components: [buildControls(queue)] });
+        return interaction.update({ components: buildControlRows(queue) });
       }
       if (action === 'skip') {
-        try { await queue.skip(); } catch { queue.stop(); }
+        try { await queue.skip(); } catch { await queue.stop().catch(() => {}); }
         return interaction.reply({ content: '⏭  Warping to next signal.', flags: MessageFlags.Ephemeral });
       }
       if (action === 'stop') {
         undo.capture(queue.id, queue);
-        queue.stop();
+        await queue.stop();
         return interaction.reply({ content: '⏹  Engines offline. (Use /undo to restore the queue within 5 min)', flags: MessageFlags.Ephemeral });
       }
       if (action === 'shuffle') {
@@ -541,8 +664,33 @@ client.on(Events.InteractionCreate, async (interaction) => {
           flags: MessageFlags.Ephemeral,
         });
       }
+      if (action === 'prev') {
+        await queue.previous();
+        return interaction.reply({ content: '⏮  Back to the previous song.', flags: MessageFlags.Ephemeral });
+      }
+      if (action === 'voldown' || action === 'volup') {
+        const v = Math.max(0, Math.min(150, (queue.volume || 50) + (action === 'volup' ? 10 : -10)));
+        queue.setVolume(v);
+        return interaction.reply({ content: `${action === 'volup' ? '🔊' : '🔉'}  Volume ${v}%`, flags: MessageFlags.Ephemeral });
+      }
+      if (action === 'fav') {
+        const song = queue.songs[0];
+        const favs = require('./lib/favorites');
+        if (favs.has(queue.id, interaction.user.id, song.url)) {
+          return interaction.reply({ content: `♥  Already in your favourites: **${song.name}**`, flags: MessageFlags.Ephemeral });
+        }
+        favs.add(queue.id, interaction.user.id, song);
+        return interaction.reply({ content: `♥  Saved to your favourites: **${song.name}**`, flags: MessageFlags.Ephemeral });
+      }
+      if (action === 'similar') {
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+        const r = await require('./lib/song-radio').addSimilar(client, queue, { count: 5, member: interaction.member });
+        return interaction.editReply(`📻  Added **${r.added}** songs like **${r.seed}**.`);
+      }
     } catch (err) {
-      return interaction.reply({ content: `▲ ${err.message || err}`, flags: MessageFlags.Ephemeral });
+      const reply = { content: `▲ ${err.message || err}`, flags: MessageFlags.Ephemeral };
+      if (interaction.replied || interaction.deferred) return interaction.followUp(reply).catch(() => {});
+      return interaction.reply(reply).catch(() => {});
     }
   }
 });
@@ -565,11 +713,23 @@ client.on(Events.GuildMemberAdd, (member) => {
   if (automod.checkRaid(member.guild)) {
     modlog.post(member.guild, { action: 'raid', target: member.user, mod: 'automod', reason: '5+ joins in <10s detected' });
   }
+  // Auto-roles (/autorole).
+  require('./lib/mod-tools').onJoin(member).catch(() => {});
   const cfg = getGuild(member.guild.id);
   if (!cfg.welcomeChannelId) return;
   const ch = member.guild.channels.cache.get(cfg.welcomeChannelId);
   ch?.send({ embeds: [welcomeEmbed(member, true)] }).catch(() => {});
 });
+
+// Small coin reward for finishing a checklist (only counts in a server).
+const fun_reward = (interaction, coins) => { if (interaction.guildId) require('./lib/fun').reward(interaction.guildId, interaction.user.id, coins, 'checklist'); };
+
+// Daily checklist DMs + one gentle nudge (/checklist).
+setInterval(() => require('./lib/checklists').tick(client).catch((e) => console.warn('[checklists]', e.message)), 60 * 1000);
+
+// Birthday wishes at 9:00 (/birthday setup).
+setInterval(() => require('./lib/mod-tools').runBirthdays(client).catch((e) => console.warn('[birthdays]', e.message)), 10 * 60 * 1000);
+client.once(Events.ClientReady, () => setTimeout(() => require('./lib/mod-tools').runBirthdays(client).catch(() => {}), 30000));
 
 // Automod message listener — runs filter checks on every message
 client.on(Events.MessageCreate, async (msg) => {
@@ -587,6 +747,16 @@ client.on(Events.GuildMemberRemove, (member) => {
 // personal temp voice channel that auto-deletes when empty.
 const tempVoiceChannels = new Set();
 
+// Status page tracking (uptime bars, maintenance, outage alerts).
+const statusMonitor = require('./lib/status-monitor');
+statusMonitor.start({ client, control, ffmpegPath });
+client.distube.on('error', () => statusMonitor.noteMusicError());
+
+// DMs the owner after a crash, repeated music failures or a long disconnect.
+const healthAlerts = require('./lib/health-alerts');
+healthAlerts.start(client);
+client.distube.on('error', (error) => healthAlerts.noteMusicError(error?.message || error));
+
 // Discord ready — pin the boot timeline step + log it through diagnostics.
 client.once(Events.ClientReady, () => {
   diag.bootOk('ready', `${client.user.tag} · ${client.guilds.cache.size} guild${client.guilds.cache.size === 1 ? '' : 's'}`);
@@ -601,7 +771,8 @@ client.on('shardReconnecting', (id)       => control.log(`↻ Shard ${id} reconn
 client.on('shardResume',       (id, evs)  => control.log(`↑ Shard ${id} resumed (${evs} events replayed)`, 'info', 'discord', { subsystem: 'discord' }));
 client.on('error',             (err)      => control.log(`▲ Discord client error: ${err?.message || err}`, 'error', 'discord', { subsystem: 'discord', meta: { stack: err?.stack } }));
 client.on('warn',              (info)     => control.log(`▲ Discord warn: ${info}`, 'warn', 'discord', { subsystem: 'discord' }));
-client.on('rateLimit',         (info)     => control.log(`⏱ Rate limited: ${info?.method} ${info?.path} (retry ${info?.timeout}ms)`, 'warn', 'discord', { subsystem: 'discord', meta: info }));
+// discord.js v14 reports rate limits on the REST manager, not the client.
+client.rest.on('rateLimited',  (info)     => control.log(`⏱ Rate limited: ${info?.method} ${info?.path} (retry ${info?.timeout}ms)`, 'warn', 'discord', { subsystem: 'discord', meta: info }));
 
 // On ready: scan for orphaned temp voice channels left over from previous runs
 // (empty voice channels in the auto-voice category whose name starts with 🎙).
@@ -617,7 +788,7 @@ client.once(Events.ClientReady, () => {
       if (ch.id === cfg.autoVoiceRoomId) continue;          // never delete the trigger
       if (ch.parentId !== parentId) continue;               // must be in same category
       if (!ch.name.startsWith('🎙 ')) continue;             // only our temp rooms
-      if (ch.members.size > 0) {                            // still in use — track it
+      if (ch.members.some((m) => !m.user.bot)) {                            // still in use — track it
         tempVoiceChannels.add(ch.id);
         continue;
       }
@@ -649,9 +820,14 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
   // Clean up empty temp channels
   if (oldState.channelId && tempVoiceChannels.has(oldState.channelId)) {
     const ch = oldState.guild.channels.cache.get(oldState.channelId);
-    if (ch && ch.members.size === 0) {
+    // Bots don't count as occupants: the music bot staying behind must not keep
+    // the room alive. Disconnect it first so its queue ends cleanly.
+    if (ch && !ch.members.some((m) => !m.user.bot)) {
       tempVoiceChannels.delete(ch.id);
-      ch.delete().catch(() => {});
+      if (ch.members.has(client.user.id)) {
+        try { client.distube.voices.leave(ch.guild.id); } catch { /* already gone */ }
+      }
+      ch.delete('Temp voice room empty').catch((e) => console.warn('[autovoice] delete failed:', e.message));
     }
   }
 });
@@ -723,8 +899,11 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
   // Fires when the user moves INTO the channel the bot is sitting in.
   if (newState.channelId && oldState.channelId !== newState.channelId) {
     const botChannel = botVoiceChannel(guild);
-    if (botChannel && botChannel.id === newState.channelId && cfg.welcomeSoundUrl) {
-      await playSoundIfIdle(botChannel, cfg.welcomeSoundUrl, 'User-join welcome');
+    // Their own /joinsound wins over the server's welcome sound.
+    const own = (cfg.joinSounds || {})[newState.id];
+    const ownUrl = own && fs.existsSync(path.join(__dirname, 'data', 'sounds', own)) ? control._soundUrl(own) : null;
+    if (botChannel && botChannel.id === newState.channelId && (ownUrl || cfg.welcomeSoundUrl)) {
+      await playSoundIfIdle(botChannel, ownUrl || cfg.welcomeSoundUrl, ownUrl ? 'Join sound' : 'User-join welcome');
     }
   }
 
@@ -859,7 +1038,44 @@ const updateStatsChannels = async () => {
   }
 };
 setInterval(updateStatsChannels, STATS_TICK_MS);
+
+// Weekly stats card (/stats weekly): Mondays from 10:00, once per week.
+const musicStats = require('./lib/music-stats');
+const postWeeklyStats = async () => {
+  const now = new Date();
+  if (now.getDay() !== 1 || now.getHours() < 10) return;
+  const week = musicStats.weekKey(now);
+  for (const guild of client.guilds.cache.values()) {
+    const ws = getGuild(guild.id).weeklyStats;
+    if (!ws?.channelId || ws.lastWeek === week) continue;
+    updateGuild(guild.id, { weeklyStats: { ...ws, lastWeek: week } });
+    const ch = guild.channels.cache.get(ws.channelId);
+    if (!ch?.send) continue;
+    const card = musicStats.card(guild.name, musicStats.forGuild(guild.id, 'week'));
+    card.title = `📊 Weekly recap · ${guild.name}`;
+    ch.send({ embeds: [card] }).catch((e) => control.log(`Weekly stats post failed in ${guild.name}: ${e.message}`, 'warn'));
+  }
+};
+setInterval(() => postWeeklyStats().catch(() => {}), 15 * 60 * 1000);
 client.once(Events.ClientReady, () => setTimeout(updateStatsChannels, 5000));  // initial update 5s after ready
+
+// A delivered reminder: the text plus Snooze buttons (and Stop for repeats).
+const reminderMessage = (r) => {
+  const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`remind:snooze:${r.id}:10`).setLabel('Snooze 10 min').setEmoji('💤').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`remind:snooze:${r.id}:60`).setLabel('1 hour').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`remind:snooze:${r.id}:t9`).setLabel('Tomorrow 9:00').setStyle(ButtonStyle.Secondary),
+  );
+  if (r.repeat) {
+    row.addComponents(new ButtonBuilder().setCustomId(`remind:stop:${r.id}`).setLabel('Stop repeating').setStyle(ButtonStyle.Danger));
+  }
+  return {
+    embeds: [themedEmbed(COLORS.NEBULA, r.profile ? `⏰  ${r.profile.emoji ? `${r.profile.emoji} ` : ''}${r.profile.name.toUpperCase()}'S REMINDER` : '⏰  REMINDER',
+      `${r.what}${r.repeat ? `\n\n🔁 Repeats ${require('./commands/remind').REPEAT_LABEL[r.repeat]}` : ''}`)],
+    components: [row],
+  };
+};
 
 // Reminder ticker — checks every 15s for due reminders. Guards against
 // re-entrancy so a slow tick can't process the same reminder twice.
@@ -870,14 +1086,21 @@ setInterval(async () => {
   try {
     const due = reminders.due();
     for (const r of due) {
-      reminders.remove(r.id);  // remove FIRST so a re-entrant tick wouldn't see it
+      // Mark FIRST (repeat → next time, one-shot → kept for Snooze) so a
+      // re-entrant tick can't deliver it twice.
+      reminders.markFired(r);
       try {
+        const payload = reminderMessage(r);
+        // If the channel is gone or the bot can't post there any more, fall
+        // back to a DM so the reminder isn't silently lost.
+        let sent = false;
         if (r.channelId) {
           const ch = await client.channels.fetch(r.channelId).catch(() => null);
-          ch?.send(`⏰ <@${r.userId}> — ${r.what}`).catch(() => {});
-        } else {
+          if (ch?.send) sent = await ch.send({ content: `⏰ <@${r.userId}>`, ...payload }).then(() => true, () => false);
+        }
+        if (!sent) {
           const user = await client.users.fetch(r.userId).catch(() => null);
-          user?.send(`⏰ Reminder: ${r.what}`).catch(() => {});
+          await user?.send(payload).catch(() => {});
         }
       } catch { /* ignored */ }
     }
@@ -908,6 +1131,10 @@ process.on('uncaughtException', (err) => {
     control.log(`▲ Uncaught exception: ${err?.message || err}`, 'error', 'system',
       { subsystem: 'system', meta: { stack: err?.stack } });
   } catch { /* control not yet ready */ }
+  try {
+    require('./lib/health-alerts').alert('uncaught', 'Unexpected error',
+      `Something threw an error nobody caught. The bot kept running.\n\`\`\`${String(err?.stack || err?.message || err).slice(0, 900)}\`\`\``);
+  } catch { /* alerts unavailable */ }
 });
 
 // Log in. A bad/expired token throws asynchronously — catch it so we don't
@@ -976,3 +1203,5 @@ const shutdown = async (signal) => {
 };
 process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('SIGTERM', () => shutdown('SIGTERM'));
+// MaowCore Portable (desktop app) asks over IPC: Windows can't deliver SIGTERM.
+process.on('message', (m) => { if (m === 'maow:shutdown') shutdown('app'); });

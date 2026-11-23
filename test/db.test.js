@@ -29,10 +29,10 @@ test('db: better-sqlite3 either loads or reports a clear error', () => {
   assert.ok(db.raw, 'raw db handle exposed');
 });
 
-test('db: schema is at v2 after init (v3.2.0 dashboard ranks + posts)', { skip: !sqliteOk }, () => {
+test('db: schema is at v5 after init (login, profiles, mod log)', { skip: !sqliteOk }, () => {
   const row = db.raw.prepare(`SELECT value FROM _meta WHERE key = 'schema_version'`).get();
   assert.ok(row, '_meta.schema_version row exists');
-  assert.equal(Number(row.value), 2);
+  assert.equal(Number(row.value), 5);
 });
 
 test('db: all expected tables exist', { skip: !sqliteOk }, () => {

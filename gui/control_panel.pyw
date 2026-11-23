@@ -80,7 +80,7 @@ def save_hotkeys(cfg):
         pass
 
 
-WS_URL = "ws://127.0.0.1:8765"
+WS_URL = "ws://127.0.0.1:8766"
 
 # Cosmic palette
 COSMIC = "#8B5CF6"
