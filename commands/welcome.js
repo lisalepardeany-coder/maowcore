@@ -7,7 +7,8 @@ module.exports = {
     .setDescription('Configure welcome / farewell embeds (admin only)')
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addSubcommand((s) => s.setName('channel').setDescription('Set the channel for welcome/farewell messages')
-      .addChannelOption((o) => o.setName('channel').setDescription('Channel').setRequired(true).addChannelTypes(ChannelType.GuildText)))
+      .addChannelOption((o) => o.setName('channel').setDescription('Channel').setRequired(true).addChannelTypes(ChannelType.GuildText))
+      .addChannelOption((o) => o.setName('farewell_channel').setDescription('Separate channel for farewells (default: the same one)').addChannelTypes(ChannelType.GuildText)))
     .addSubcommand((s) => s.setName('message').setDescription('Customize text (use {user} for the user mention, {server} for server name)')
       .addStringOption((o) => o.setName('kind').setDescription('welcome or farewell').setRequired(true)
         .addChoices({ name: 'welcome', value: 'welcome' }, { name: 'farewell', value: 'farewell' }))
@@ -19,8 +20,10 @@ module.exports = {
     const cfg = getGuild(interaction.guildId);
     if (sub === 'channel') {
       const ch = interaction.options.getChannel('channel');
-      updateGuild(interaction.guildId, { welcomeChannelId: ch.id });
-      return interaction.reply({ content: `✦  Welcome messages will post in ${ch}.`, flags: MessageFlags.Ephemeral });
+      const bye = interaction.options.getChannel('farewell_channel');
+      // no separate farewell channel = farewells go to the same channel
+      updateGuild(interaction.guildId, { welcomeChannelId: ch.id, goodbyeChannelId: bye ? bye.id : null });
+      return interaction.reply({ content: `✦  Welcome messages will post in ${ch}${bye ? `, farewells in ${bye}` : ' (farewells too)'}.`, flags: MessageFlags.Ephemeral });
     }
     if (sub === 'message') {
       const kind = interaction.options.getString('kind');
@@ -30,12 +33,13 @@ module.exports = {
       return interaction.reply({ content: `✦  ${kind} message set.`, flags: MessageFlags.Ephemeral });
     }
     if (sub === 'off') {
-      updateGuild(interaction.guildId, { welcomeChannelId: null });
+      updateGuild(interaction.guildId, { welcomeChannelId: null, goodbyeChannelId: null });
       return interaction.reply({ content: '✕  Welcome/farewell messages disabled.', flags: MessageFlags.Ephemeral });
     }
     if (sub === 'show') {
       const lines = [
         `**Channel:** ${cfg.welcomeChannelId ? `<#${cfg.welcomeChannelId}>` : '*not set*'}`,
+        `**Farewell channel:** ${cfg.goodbyeChannelId ? `<#${cfg.goodbyeChannelId}>` : (cfg.welcomeChannelId ? '*same as welcome*' : '*not set*')}`,
         `**Welcome:** ${cfg.welcomeMessage || '*default*'}`,
         `**Farewell:** ${cfg.farewellMessage || '*default*'}`,
       ];

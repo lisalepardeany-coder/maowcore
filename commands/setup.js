@@ -1097,6 +1097,11 @@ module.exports = {
         bugReportsChannelId:        chBugReports.id,
         featureRequestsChannelId:   chFeatureReq.id,
         autoVoiceRoomId:            chVoiceCreate.id,
+        // Feature channels /setup creates: connect them, but keep a channel
+        // someone already chose (with /community or /welcome) if there is one.
+        birthdayChannelId:          getGuild(guild.id).birthdayChannelId || chBirthdays.id,
+        countingChannelId:          getGuild(guild.id).countingChannelId || chCounting.id,
+        goodbyeChannelId:           getGuild(guild.id).goodbyeChannelId || chGoodbye.id,
         statsChannels:              statsIds,
         // System monitor (used by updateSystemMonitor() in index.js)
         sysMonitorChannels:         sysMonitorChannels,

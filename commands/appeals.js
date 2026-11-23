@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, MessageFlags, PermissionFlagsBits, ChannelType } = require('discord.js');
-const { getGuild, updateGuild } = require('../lib/config');
+const { updateGuild } = require('../lib/config');
 
 module.exports = {
   data: new SlashCommandBuilder()

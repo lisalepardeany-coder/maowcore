@@ -109,7 +109,7 @@ const runSql = (sql) => {
         console.log('▲ Read-only mode. Re-run with --write to execute mutating SQL.');
         return;
       }
-      const result = db.exec(sql);
+      db.exec(sql);
       console.log('OK');
     }
   } catch (e) {

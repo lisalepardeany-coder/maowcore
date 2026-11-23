@@ -1,11 +1,4 @@
-const {
-  SlashCommandBuilder,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  ComponentType,
-  MessageFlags,
-} = require('discord.js');
+const { SlashCommandBuilder } = require('discord.js');
 const { requireQueue } = require('../lib/guards');
 const { getGuild } = require('../lib/config');
 

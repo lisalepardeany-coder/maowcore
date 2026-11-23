@@ -44,7 +44,6 @@ const spotifyFeatures = require('./lib/spotify-features');
 const abLoop = require('./lib/ab-loop');
 const sleepTimer = require('./lib/sleep-timer');
 const history = require('./lib/history');
-const tts = require('./lib/tts');
 const undo = require('./lib/undo');
 const automod = require('./lib/automod');
 const modlog = require('./lib/modlog');
@@ -865,8 +864,10 @@ client.on(Events.MessageCreate, (msg) => {
 });
 client.on(Events.GuildMemberRemove, (member) => {
   const cfg = getGuild(member.guild.id);
-  if (!cfg.welcomeChannelId) return;
-  const ch = member.guild.channels.cache.get(cfg.welcomeChannelId);
+  // goodbyes go to their own channel when there is one (/setup makes 👋-goodbyes), else the welcome channel
+  const chId = (cfg.goodbyeChannelId && member.guild.channels.cache.has(cfg.goodbyeChannelId)) ? cfg.goodbyeChannelId : cfg.welcomeChannelId;
+  if (!chId) return;
+  const ch = member.guild.channels.cache.get(chId);
   ch?.send({ embeds: [welcomeEmbed(member, false)] }).catch(() => {});
 });
 

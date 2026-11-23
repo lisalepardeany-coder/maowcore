@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, MessageFlags } = require('discord.js');
+const { SlashCommandBuilder } = require('discord.js');
 const { requireQueue } = require('../lib/guards');
 
 // FFmpeg's atempo is limited to [0.5, 2.0] per filter; chain to extend if needed.

@@ -6,6 +6,37 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.5.8] — 2026-11-23
+
+Fixes from a full code-base analysis: ESLint over every file, all 117 slash
+commands validated against Discord's rules, the error logs, and every place
+that saves data.
+
+### Fixed
+
+- **Data loss after a crash or restart.** Giveaways, polls, tickets,
+  suggestions, appeals, dashboard API keys, per-user preferences and the
+  restart history were saved by overwriting their file. A restart mid-save left
+  a half-written file, the next start read it as empty, and the next save
+  erased the old data for good. New `lib/safe-json.js`: saves write a temp
+  file and swap it in (all-or-nothing) and keep the previous version as `.bak`.
+  A damaged file is moved aside (never deleted) and restored from `.bak`.
+- **`/setup` now connects the channels it creates.** The 🎂-birthdays and
+  🔢-counting channels were created but never linked to those features, so both
+  stayed off. Goodbye messages ignored 👋-goodbyes. A channel already chosen
+  with `/community` or `/welcome` is kept.
+- **Farewells can have their own channel:** `/welcome channel` has an optional
+  `farewell_channel`. `/welcome off` turns off both, and `/welcome show` lists
+  both.
+
+### Removed
+
+- Dead code left from the 3.5.0 merge: a second copy of the session-list
+  handler, two unreachable routes, and an unreachable `queue_move` branch.
+  Behaviour is unchanged.
+- Unused imports and variables in 9 files. `install-native.js` no longer
+  triggers Node's DEP0190 shell warning.
+
 ## [3.5.7] — 2026-11-23
 
 ### Fixed

@@ -34,7 +34,9 @@ const runNpmInstall = (pkg) => {
     if (!r.error && r.status === 0) return r;
     if (!r.error && r.status !== null) return r;   // ran, just failed
     // ENOENT or null status → npm.cmd wasn't directly callable. Fall back to shell.
-    return spawnSync(`npm install ${pkg} --no-save`, [], { stdio: 'inherit', shell: true });
+    // One command string and no args array: passing args together with shell:true is
+    // what Node warns about (DEP0190). The package names are fixed in this file.
+    return spawnSync(`npm install ${pkg} --no-save`, { stdio: 'inherit', shell: true });
   }
   return spawnSync('npm', ['install', pkg, '--no-save'], { stdio: 'inherit' });
 };
