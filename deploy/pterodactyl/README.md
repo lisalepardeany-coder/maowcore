@@ -6,18 +6,17 @@
 
 1. Admin area > **Nests** > **Import Egg** > choose `egg-maowcore.json`.
 2. Create a server with the **MaowCore** egg:
-   - 1 port, at least 1 GB RAM and 3 GB disk (the new dashboard's build tools take about 300 MB).
+   - 1 port, at least 1 GB RAM and 2 GB disk.
    - Fill in **Discord bot token** and **Application ID**.
    - For a private repo, also fill in **Git username** and **Git access token**.
 3. The install:
    - clones the repo;
    - downloads a Linux `yt-dlp` into `bin/`;
-   - runs `npm install`;
-   - builds the new dashboard.
+   - runs `npm install`.
 4. Start the server. It shows as running once the console prints `Logged in as`.
-5. Open the dashboard at `http://<node address>:<server port>/`. This is the main dashboard: themes, Control room and the status page at `/status.html`. The SvelteKit dashboard's pages (`/leveling`, `/radio`, ...) work too. To make the SvelteKit one the start page, set **Start page** to `new`.
+5. Open the dashboard at `http://<node address>:<server port>/`, with themes, Control room, downloads and the status page at `/status.html`.
 
-**Already have a server from an older egg?** Update the egg (Admin > Nests > MaowCore > Update egg), then on the server's **Startup** tab set **Update on start** to `1` and restart. The first start after an update builds the new dashboard, which takes a minute or two.
+**Already have a server from an older egg?** Update the egg (Admin > Nests > MaowCore > Update egg), then on the server's **Startup** tab set **Update on start** to `1` and restart.
 
 ## Tools
 
@@ -49,13 +48,11 @@ Logging in to YouTube from the console isn't possible: yt-dlp dropped its login 
 - Your data lives in `data/` in the server's files. Back that folder up before you reinstall.
 - **Update on start** is on by default. Every start makes the code exactly what's on GitHub, then runs `npm install`.
   - Code files you edited on the server get replaced, so make code changes on GitHub.
-  - `data/`, `cookies/`, `bin/`, `.env` and the built dashboard are kept.
+  - `data/`, `cookies/`, `bin/` and `.env` are kept.
   - If GitHub can't be reached, the bot starts with the code it already has.
 - The rest of each start is `deploy/pterodactyl/start.sh` in the repo:
-  - it rebuilds the dashboard when its source changed;
   - it updates yt-dlp;
   - it starts the bot.
   
   Because the script lives in the repo, you can change it without re-importing the egg.
-- If the SvelteKit dashboard's build fails (too little disk space, for example), the bot still starts, and the main dashboard is unaffected.
 - After changing `install.sh` or the variables, rebuild the egg with `node deploy/pterodactyl/build-egg.js`.

@@ -41,15 +41,6 @@ chmod +x bin/yt-dlp
 if [ -f package.json ]; then
   rm -rf node_modules
   npm install --omit=dev
-  # 4. The new dashboard (start.sh rebuilds it after updates). Not fatal: the classic one still works.
-  if [ -f dashboard/package.json ]; then
-    rm -rf dashboard/node_modules dashboard/build
-    if npm --prefix dashboard install --no-audit --no-fund && npm --prefix dashboard run build; then
-      git rev-parse HEAD:dashboard > dashboard/build/.source 2>/dev/null || true
-    else
-      echo "Dashboard build failed; the classic dashboard will be used."
-    fi
-  fi
 else
   echo "No package.json yet; upload the bot and restart the server."
 fi

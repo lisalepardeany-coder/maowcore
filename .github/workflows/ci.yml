@@ -77,10 +77,6 @@ jobs:
             exit 1
           fi
 
-      - name: Build dashboard (SvelteKit)
-        run: npm install --no-audit --no-fund && npm run build
-        working-directory: dashboard
-
       - name: Lint Python GUI syntax
         if: matrix.os == 'ubuntu-latest'
         run: |

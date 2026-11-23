@@ -21,10 +21,8 @@ MaowCore had grown in two places at once: on the home PC and here on GitHub.
 
 - **Pterodactyl:** update the egg (Admin > Nests > MaowCore > Update egg),
   make sure **Update on start** is `1` on your server, then restart.
-  The first start builds the new dashboard and takes a minute or two.
-- **Windows / MaowCore Portable:** pull or download this version, run
-  `npm install`, and optionally `npm run dashboard:install` then
-  `npm run dashboard:build` for the new dashboard.
+- **Windows / MaowCore Portable:** pull or download this version and run
+  `npm install`.
 - **Docker:** `git pull && docker compose up -d --build`.
 
 Your `data/` folder, `.env` and cookies are not touched by updating.

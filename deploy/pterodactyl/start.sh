@@ -1,24 +1,13 @@
 #!/bin/bash
 # MaowCore start script for Pterodactyl (the egg's startup runs this after updating the code).
-# Runs in /home/container. Builds the new dashboard when its source changed, updates
-# yt-dlp, then starts the bot in place of this script (so Stop's Ctrl+C reaches it).
+# Runs in /home/container. Updates yt-dlp, then starts the bot in place of this
+# script (so Stop's Ctrl+C reaches it).
 cd /home/container || exit 1
 
-# 1. The new (SvelteKit) dashboard: build it when it's missing or its source changed.
-#    If the build fails, the bot still starts and "/" shows the classic dashboard.
-if [[ -f dashboard/package.json ]]; then
-  want=$(git rev-parse HEAD:dashboard 2>/dev/null || echo unknown)
-  have=$(cat dashboard/build/.source 2>/dev/null)
-  if [[ ! -f dashboard/build/index.html || "$want" != "$have" ]]; then
-    echo "Building the dashboard (first start after an update takes a minute)..."
-    if npm --prefix dashboard install --no-audit --no-fund --loglevel=error \
-       && npm --prefix dashboard run build --silent; then
-      echo "$want" > dashboard/build/.source
-      echo "Dashboard built."
-    else
-      echo "Dashboard build failed; the classic dashboard is used instead."
-    fi
-  fi
+# 1. The SvelteKit dashboard was removed in 3.8.0. Its build output and tools
+#    (~300 MB, not tracked by git, so the update leaves them) are cleared once.
+if [[ -d dashboard && ! -f dashboard/package.json ]]; then
+  rm -rf dashboard && echo "Removed the old SvelteKit dashboard's leftover files."
 fi
 
 # 2. Temporary files on the disk instead of the panel's small in-memory /tmp:

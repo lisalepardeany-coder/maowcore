@@ -6,6 +6,25 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.8.0] — 2026-11-23
+
+### Removed
+
+- **The separate SvelteKit dashboard** (`dashboard/`, 90 files, plus
+  `DASHBOARD-REWRITE.md`). The main dashboard (themes, Control room,
+  downloads, Tidy, status page) is the only one now. It had fallen behind
+  (no downloads, cookies or Tidy), and it needed a build step on every
+  server start after an update.
+  - Old bookmarks to its pages (`/diagnostics`, `/leveling`, `/v2/...`)
+    redirect to the dashboard instead of "Not found".
+  - On Pterodactyl, `start.sh` deletes its leftover build files once (~300 MB).
+    Installs no longer build it, and the egg's "Start page" field is gone.
+  - Removed with it: `PANEL_HOME`, the `dashboard:*` npm scripts, the CI build
+    step, and the `/api/auth/sessions/revoke-all` route with its helpers. The
+    dashboard's own "sign out everywhere" stays.
+- The previous versions stay in git history (up to v3.7.2) if it's ever wanted
+  back.
+
 ## [3.7.2] — 2026-11-23
 
 ### Added

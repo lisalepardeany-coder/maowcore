@@ -1,6 +1,6 @@
 {
   "name": "discord-music-bot",
-  "version": "3.7.2",
+  "version": "3.8.0",
   "description": "Discord music bot with Spotify support",
   "main": "index.js",
   "scripts": {
@@ -10,10 +10,7 @@
     "validate": "node scripts/validate-commands.js",
     "postinstall": "node scripts/patch-ytsr.js",
     "install-native": "node scripts/install-native.js",
-    "db-shell": "node scripts/db-shell.js",
-    "dashboard:install": "npm --prefix dashboard install",
-    "dashboard:dev": "npm --prefix dashboard run dev",
-    "dashboard:build": "npm --prefix dashboard run build"
+    "db-shell": "node scripts/db-shell.js"
   },
   "dependencies": {
     "@discordjs/voice": "^0.19.2",
