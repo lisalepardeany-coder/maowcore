@@ -6,6 +6,40 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.6.0] — 2026-11-23
+
+Playlist downloads, rebuilt.
+
+### Added
+
+- **Pick the songs.** A playlist, album or Spotify link in "Install from URL"
+  opens a song picker (checkboxes, search, all/none, format) instead of a
+  yes/no pop-up. Single songs install as before.
+- **Spotify playlists, albums and tracks.** The song list comes from Spotify's
+  public embed page (no account or API key), and each song is found on YouTube
+  and downloaded from there.
+- **Downloads panel** (⬇ Downloads, bottom right) with every download's
+  progress, each song's status (waiting, downloading, done, already in the
+  library, failed with the reason, not picked), and Pause, Resume,
+  Retry failed, Cancel and Remove.
+
+### Changed
+
+- **Downloads survive restarts.** Jobs and every song's status are saved
+  (`data/download-jobs.json`, written safely). After a restart the unfinished
+  songs continue by themselves.
+- **YouTube rate limits are waited out, not given up on.** The whole queue
+  pauses (the block is per server), the panel shows when it continues, and it
+  picks up by itself about an hour later ("Try now" skips the wait). Songs hit
+  by the limit aren't counted as failed.
+- One queue for all downloads, at most 3 at a time (2 by default) with pauses
+  between songs. The settings now allow 1–3 instead of up to 50.
+- New `lib/download-queue.js` replaces the in-memory job code in
+  `control-server.js`. New routes: `GET /api/library/install-jobs/:id` (with
+  songs), `POST …/install-jobs/:id/{cancel,pause,resume,retry,remove}`,
+  `POST /api/library/downloads/continue-now`. `probe-playlist` now returns the
+  full song list, and `install-playlist` takes `pick`.
+
 ## [3.5.8] — 2026-11-23
 
 Fixes from a full code-base analysis: ESLint over every file, all 117 slash
