@@ -284,7 +284,7 @@
     <Card>
       <div class="mb-3 font-display text-lg font-bold">⚙️ Runtime</div>
       <dl class="space-y-1.5 text-sm">
-        {#each [['Bot', health.botTag ?? '—'], ['Version', `v${health.version ?? '—'}`], ['Node.js', proc.nodeVersion ?? '—'], ['Uptime', fmtDuration(proc.uptime)], ['Heap', `${fmtBytes(proc.heapUsed)} / ${fmtBytes(proc.heapLimit ?? proc.heapTotal)}`], ['Event-loop lag', proc.eventLoopLagMs != null ? `${proc.eventLoopLagMs.toFixed(2)} ms` : '—'], ['Servers / Users', `${fmtNumber(disc.guilds)} / ${fmtNumber(disc.users)}`], ['Gateway ping', $liveState.ping?.websocket != null ? `${$liveState.ping.websocket} ms` : '—']] as [k, v]}
+        {#each [['Bot', health.botTag ?? '—'], ['Version', `v${health.version ?? '—'}`], ['Node.js', proc.nodeVersion ?? '—'], ['Uptime', fmtDuration(proc.uptime)], ['Heap', `${fmtBytes(proc.heapUsed)} / ${fmtBytes(proc.heapLimit ?? proc.heapTotal)}`], ['Event-loop lag', proc.eventLoopLagMs != null ? `${proc.eventLoopLagMs.toFixed(2)} ms` : '—'], ['Servers / Users', `${fmtNumber(disc.guilds)} / ${fmtNumber(disc.users)}`], ['Ping', $liveState.ping?.websocket != null ? `${$liveState.ping.websocket} ms` : '—']] as [k, v]}
           <div class="flex justify-between gap-4 border-b border-border/50 pb-1.5"><dt class="text-muted">{k}</dt><dd class="truncate text-right font-medium">{v}</dd></div>
         {/each}
       </dl>
@@ -324,7 +324,7 @@
 <!-- ════════════════════════ VOICE & NETWORK ════════════════════════ -->
 {:else if tab === 'voice'}
   <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-    {#each [['Voice connections', disc.voiceConnections ?? 0, '🔊'], ['Active queues', disc.activeQueues ?? 0, '🎶'], ['Est. voice bandwidth', `${voiceBwKbps} kbps`, '📡'], ['Gateway ping', $liveState.ping?.websocket != null ? `${$liveState.ping.websocket} ms` : '—', '🏓']] as [label, val, icon]}
+    {#each [['Voice connections', disc.voiceConnections ?? 0, '🔊'], ['Active queues', disc.activeQueues ?? 0, '🎶'], ['Est. voice bandwidth', `${voiceBwKbps} kbps`, '📡'], ['Ping', $liveState.ping?.websocket != null ? `${$liveState.ping.websocket} ms` : '—', '🏓']] as [label, val, icon]}
       <Card padding="p-4">
         <div class="flex items-center justify-between"><span class="text-xs font-semibold uppercase tracking-wide text-muted">{label}</span><span class="opacity-70">{icon}</span></div>
         <div class="mt-1 font-display text-xl font-extrabold">{val}</div>
@@ -356,7 +356,7 @@
   <Card class="mt-6">
     <div class="mb-3 font-display text-lg font-bold">Network</div>
     <dl class="space-y-1.5 text-sm">
-      {#each [['Est. voice bandwidth', `${voiceBwKbps} kbps (≈${(voiceBwKbps / 8 / 1024).toFixed(2)} MB/s)`], ['Gateway (WS) ping', $liveState.ping?.websocket != null ? `${$liveState.ping.websocket} ms` : '—'], ['REST ping', $liveState.ping?.rest != null ? `${$liveState.ping.rest} ms` : '—'], ['Event-loop lag', proc.eventLoopLagMs != null ? `${proc.eventLoopLagMs.toFixed(2)} ms` : '—']] as [k, v]}
+      {#each [['Est. voice bandwidth', `${voiceBwKbps} kbps (≈${(voiceBwKbps / 8 / 1024).toFixed(2)} MB/s)`], ['Ping (network round trip)', $liveState.ping?.network != null ? `${$liveState.ping.network} ms` : '—'], ['Discord heartbeat', $liveState.ping?.heartbeat != null ? `${$liveState.ping.heartbeat} ms` : '— (every ~40 s)'], ['REST request (incl. overhead)', $liveState.ping?.rest != null ? `${$liveState.ping.rest} ms` : '—'], ['Event-loop lag', proc.eventLoopLagMs != null ? `${proc.eventLoopLagMs.toFixed(2)} ms` : '—']] as [k, v]}
         <div class="flex justify-between gap-4 border-b border-border/50 pb-1.5"><dt class="text-muted">{k}</dt><dd class="text-right font-medium">{v}</dd></div>
       {/each}
     </dl>

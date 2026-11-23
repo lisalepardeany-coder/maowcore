@@ -106,7 +106,14 @@ const buildSpecs = async (client, { isOwner = false } = {}) => {
         value: [
           `**Up** ${fmtDuration(process.uptime() * 1000)}`,
           `**Since** <t:${Math.floor(startedAt / 1000)}:f>`,
-          `**Gateway ping** ${Math.round(client.ws.ping)} ms`,
+          ...(() => {
+            // real network round trip to Discord + Discord's heartbeat (see lib/latency.js)
+            const p = require('../lib/latency').get();
+            return [
+              `**Ping** ${p.network != null ? `${p.network} ms` : '—'}`,
+              `**Heartbeat** ${p.heartbeat != null ? `${p.heartbeat} ms` : '— (first one within ~40 s)'}`,
+            ];
+          })(),
         ].join('\n'),
         inline: true,
       },

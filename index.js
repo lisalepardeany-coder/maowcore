@@ -78,6 +78,8 @@ const client = new Client({
 });
 // Many features each run one start-up task on ClientReady; more than Node's default 10 listeners is expected.
 client.setMaxListeners(30);
+// Ping to Discord for every display (dashboard, /botinfo, stats channels): see lib/latency.js.
+const latency = require('./lib/latency').start(client);
 
 const ytDlpPlugin = new YtDlpPlugin({ update: false });
 // YouTube cookies (uploaded in the panel) get past "confirm you're not a bot".
@@ -1269,8 +1271,7 @@ const updateSystemMonitor = async () => {
     const [load1]    = os.loadavg();           // 1-min load avg (0 on Windows — handled below)
     const loadStr    = process.platform === 'win32' ? 'N/A' : load1.toFixed(2);
     const uptimeStr  = fmtUptime(Math.floor(process.uptime()));
-    const pingMs     = Math.round(client.ws.ping);
-    const pingStr    = pingMs < 0 ? '—' : `${pingMs} ms`;
+    const pingStr    = latency.label();
 
     const values = {
       cpu:    `🖥️ CPU: ${cpuPct}%`,

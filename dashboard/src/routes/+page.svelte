@@ -81,7 +81,7 @@
 
   <!-- At-a-glance stats -->
   <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-    {#each [['Servers', guildCount, '🌐'], ['Active queues', activeQueues, '🎶'], ['Songs queued', totalQueued, '📋'], ['Gateway ping', ping != null ? `${ping} ms` : '—', '🏓']] as [label, val, icon]}
+    {#each [['Servers', guildCount, '🌐'], ['Active queues', activeQueues, '🎶'], ['Songs queued', totalQueued, '📋'], ['Ping', ping != null ? `${ping} ms` : '—', '🏓']] as [label, val, icon]}
       <div class="card p-4">
         <div class="text-2xl">{icon}</div>
         <div class="mt-1 font-display text-2xl font-extrabold tabular-nums">{val}</div>

@@ -6,6 +6,21 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.5.1] — 2026-11-23
+
+### Fixed
+
+- **Ping now shows the real value.** It used to come from either Discord's
+  heartbeat (one sample every ~41 s, `-1` until the first one, shown as
+  `0 ms` or `-1 ms`, and inflated whenever the bot was busy) or a REST request
+  through discord.js (its queue plus a fresh HTTPS handshake made it read 4-7x
+  too high), switching between the two. Now `lib/latency.js` measures the
+  network round trip to Discord's gateway every 10 s (median of the last 6),
+  plus the median of the last 5 heartbeats. Unknown shows as `—`, never a fake
+  number. Used by both dashboards, `/botinfo` (Ping + Heartbeat), the ping
+  stats channel, `/health` and the status monitor. The REST measurement is
+  kept for the diagnostics page only, once a minute instead of every 10 s.
+
 ## [3.5.0] — 2026-11-23
 
 The two lines of MaowCore are one again. Everything built on the home PC

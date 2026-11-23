@@ -20,13 +20,20 @@ test('botinfo: spec sheet builds from a fake client, panel only for the owner', 
     commands: new Map([['a', { everywhere: true }], ['b', {}]]),
     distube: { queues: { collection: new Map([['g1', { songs: [1, 2, 3], playing: true, paused: false }]]) } },
   };
+  // ping comes from lib/latency.js now (real round trip + heartbeat), not client.ws.ping
+  const latency = require('../lib/latency');
+  latency._reset();
+  latency._state.network.push(9, 10, 11);
+  latency._state.heartbeat.push(42);
   const pub = (await buildSpecs(client)).toJSON();
+  latency._reset();
   const text = JSON.stringify(pub);
   assert.match(text, /Servers\*\* 1/);
   assert.match(text, /Members\*\* 12/);
   assert.match(text, /Commands\*\* 2 \(1 portable\)/);
   assert.match(text, /Songs queued\*\* 3/);
-  assert.match(text, /42 ms/);
+  assert.match(text, /\*\*Ping\*\* 10 ms/);
+  assert.match(text, /\*\*Heartbeat\*\* 42 ms/);
   assert.ok(!pub.fields.some((f) => f.name.includes('Panel')));
   const own = (await buildSpecs(client, { isOwner: true })).toJSON();
   assert.ok(own.fields.some((f) => f.name.includes('Panel')));
