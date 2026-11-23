@@ -6,6 +6,20 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.5.3] — 2026-11-23
+
+### Fixed
+
+- **Song downloads (library install):** asking for a song in another format
+  (MP3, Opus, FLAC, WAV) after it was installed once returned the first file
+  instead of downloading the new format. The duplicate check now compares the
+  format too.
+- **Download errors say what to do.** The error shows yt-dlp's own `ERROR:`
+  line instead of the last lines of its output, plus a hint for the common
+  cases: YouTube's bot check (add cookies), yt-dlp missing (reinstall), a
+  locked video (restart to update yt-dlp), 403, ffmpeg conversion, and
+  private or removed videos.
+
 ## [3.5.2] — 2026-11-23
 
 ### Changed
