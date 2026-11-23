@@ -6,6 +6,21 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.5.7] — 2026-11-23
+
+### Fixed
+
+- **"♥ Cookies: repaired …" spammed the console.** yt-dlp writes the cookies
+  file back after every run, in its own (valid) layout, and 3.5.6 "repaired"
+  that layout each time. Now the file is only repaired when yt-dlp would
+  actually reject it.
+- **The cookies file could end up empty or scrambled.** With several yt-dlp
+  runs at once (playlists, fetching the next song early), they all wrote the
+  same file at the same moment. Each run now gets its own copy in the temp
+  folder (removed after 2 hours), and the saved file is never written by
+  yt-dlp. Verified with the real yt-dlp: it rewrites its copy, and the saved
+  file stays the same.
+
 ## [3.5.6] — 2026-11-23
 
 ### Fixed

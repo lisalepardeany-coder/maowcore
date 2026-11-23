@@ -105,7 +105,8 @@ ytDlpPlugin.getStreamURL = async (song) => {
   if (ytStream.isYouTube(song.url)) {
     return ytStream.urlFor(client.control?.port || Number(process.env.CONTROL_PORT) || 8765, song.url);
   }
-  const cookieFile = ytCookies.filePath();   // read every time, so an upload works without a restart
+  // a private copy per run (yt-dlp writes cookies back; see yt-cookies.runCopy)
+  const cookieFile = ytCookies.runCopy();
   const info = await ytdlpJson(song.url, {
     ...baseFlags,
     ...(cookieFile ? { cookies: cookieFile } : {}),
