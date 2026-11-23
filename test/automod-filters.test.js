@@ -24,11 +24,15 @@ test('word filter: whole words only, case-insensitive', () => {
   assert.equal(automod.findBannedWord('no (regex) [chars] break it', ['(regex)']), '(regex)');
 });
 
-test('anti-raid: alerts once, not on every join after the 5th', () => {
+test('anti-raid: alerts once, not on every join after the 5th', async () => {
   const config = require('../lib/config');
   const guild = { id: `raid-${Date.now()}` };
-  automod.setAutomod(guild.id, { antiRaid: true });
-  const results = Array.from({ length: 9 }, () => automod.checkRaid(guild));
-  assert.deepEqual(results, [false, false, false, false, true, false, false, false, false]);
+  automod.setAutomod(guild.id, { antiRaid: true, raidAction: 'alert' });
+  const alerts = [];
+  const modlog = { post: (_g, entry) => { if (entry.action === 'raid') alerts.push(entry); } };
+  const member = { guild, user: { id: 'u1', createdTimestamp: 0 } };
+  for (let i = 0; i < 9; i++) await automod.checkJoin(member, modlog);
+  assert.equal(alerts.length, 1);
+  assert.equal(automod.checkRaid(guild), true); // raid mode is on
   config.updateGuild(guild.id, { automod: null });
 });

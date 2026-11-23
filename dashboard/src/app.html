@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en" data-theme="neko">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="%sveltekit.assets%/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0c0710" />
+    <title>MaowCore</title>
+    <!-- Webfonts (graceful fallback to system fonts if offline). -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Baloo+2:wght@500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=Orbitron:wght@600;700;800;900&family=JetBrains+Mono:wght@400;500;700&family=Atkinson+Hyperlegible:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+    <script>
+      // Apply saved theme before first paint to avoid a flash of the default.
+      try {
+        var t = localStorage.getItem('maow.v2.theme');
+        if (t) document.documentElement.setAttribute('data-theme', t);
+      } catch (e) {}
+      // Kill the legacy dashboard's service worker + caches so it can't serve
+      // a stale old page now that the new dashboard lives at the root.
+      try {
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function (rs) {
+            rs.forEach(function (r) { r.unregister(); });
+          });
+        }
+        if (window.caches && caches.keys) {
+          caches.keys().then(function (ks) { ks.forEach(function (k) { caches.delete(k); }); });
+        }
+      } catch (e) {}
+    </script>
+    %sveltekit.head%
+  </head>
+  <body data-sveltekit-preload-data="hover">
+    <div style="display: contents">%sveltekit.body%</div>
+  </body>
+</html>

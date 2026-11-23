@@ -60,15 +60,9 @@ jobs:
       - name: Validate package.json
         run: node -e "JSON.parse(require('fs').readFileSync('package.json','utf8'))"
 
-      - name: Validate dashboard HTML can be served
-        run: |
-          node -e "
-            const fs=require('fs');
-            const html=fs.readFileSync('public/dashboard.html','utf8');
-            if (!html.includes('<title>')) { console.error('::error::dashboard.html missing <title>'); process.exit(1); }
-            if (!html.includes('app.js')) { console.error('::error::dashboard.html does not load app.js'); process.exit(1); }
-            console.log('dashboard.html OK');
-          "
+      - name: Build dashboard (SvelteKit)
+        run: npm install --no-audit --no-fund && npm run build
+        working-directory: dashboard
 
       - name: Lint Python GUI syntax
         if: matrix.os == 'ubuntu-latest'

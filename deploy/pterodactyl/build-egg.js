@@ -17,7 +17,7 @@ const egg = {
   exported_at: new Date().toISOString().replace(/\.\d+Z$/, '+00:00'),
   name: 'MaowCore',
   author: 'lara@maowcore.local',
-  description: 'MaowCore: a Discord music bot (YouTube, Spotify, SoundCloud) with a web dashboard. '
+  description: 'MaowCore: a Discord music + community bot (YouTube, Spotify, SoundCloud, leveling, modmail, giveaways, automod) with a web dashboard. '
     + 'The dashboard runs on this server\'s port; open http://<server address>:<port>/ once it says "Logged in as".',
   features: null,
   docker_images: {
@@ -26,13 +26,14 @@ const egg = {
   },
   file_denylist: [],
   // Wings swaps {{VAR}} for the variable's value; the image runs this with bash in /home/container.
-  // YouTube breaks old yt-dlp builds often, so it updates itself on every start (a few seconds, skipped if offline).
-  // Update = make the code exactly what's on GitHub (fetch + reset, so a file edited on the server can't
-  // block it the way a merge conflict would block `git pull`). data/, cookies/, bin/ and .env aren't in git,
-  // so they're kept. If GitHub can't be reached, the bot still starts with the code it has.
+  // 1. Update = make the code exactly what's on GitHub (fetch + reset, so a file edited on the server can't
+  //    block it the way a merge conflict would block `git pull`). data/, cookies/, bin/, .env and the built
+  //    dashboard aren't in git, so they're kept. If GitHub can't be reached, the bot starts with the code it has.
+  // 2. The rest lives in the repo (deploy/pterodactyl/start.sh: dashboard build, yt-dlp update, start), so it
+  //    can change without re-importing the egg. Older code without that script just starts the bot.
   startup: 'if [[ -d .git ]] && [[ "{{AUTO_UPDATE}}" == "1" ]]; then echo "Updating from GitHub..."; '
     + 'git fetch --quiet origin {{BRANCH}} && git reset --hard FETCH_HEAD && npm install --omit=dev --no-audit --no-fund; fi; '
-    + 'if [[ -x bin/yt-dlp ]]; then ./bin/yt-dlp -U 2>&1 | tail -n 1; fi; node index.js',
+    + 'if [[ -f deploy/pterodactyl/start.sh ]]; then exec bash deploy/pterodactyl/start.sh; else node index.js; fi',
   config: {
     files: '{}',
     startup: JSON.stringify({ done: 'Logged in as ' }),
@@ -51,6 +52,7 @@ const egg = {
     v('Spotify client secret', 'SPOTIFY_CLIENT_SECRET', 'Optional, for Spotify links.', '', 'nullable|string|max:100'),
     v('Genius token', 'GENIUS_TOKEN', 'Optional, for /lyrics. genius.com/api-clients', '', 'nullable|string|max:200'),
     v('Bot name', 'BOT_INSTANCE_NAME', 'Name shown in mod-log entries ("via <name>").', 'MaowCore', 'required|string|max:40'),
+    v('Start page', 'PANEL_HOME', 'Which dashboard opens at the main address: "new" or "classic" (the classic one is always at /dashboard.html).', 'new', 'required|string|in:new,classic'),
     v('Dashboard public URL', 'PANEL_PUBLIC_URL', 'Optional. The address people use to reach the dashboard, e.g. http://node.example.com:25570 (needed for Discord sign-in).', '', 'nullable|string|max:200'),
     v('Git repo', 'GIT_ADDRESS', 'Where the install script gets the code. Leave blank to upload the files yourself.', 'https://github.com/lisalepardeany-coder/maowcore', 'nullable|string|max:200'),
     v('Git branch', 'BRANCH', 'Branch to install.', 'main', 'required|string|max:60'),

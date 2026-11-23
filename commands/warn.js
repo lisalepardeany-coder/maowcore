@@ -2,6 +2,7 @@ const { SlashCommandBuilder, EmbedBuilder, MessageFlags, PermissionFlagsBits } =
 const warnings = require('../lib/warnings');
 const modlog = require('../lib/modlog');
 const tools = require('../lib/mod-tools');
+const automod = require('../lib/automod');
 const { updateGuild } = require('../lib/config');
 const { COLORS } = require('../lib/theme');
 
@@ -42,8 +43,14 @@ module.exports = {
       const reason = interaction.options.getString('reason');
       const count = warnings.add(interaction.guildId, user.id, reason, interaction.user.id);
       modlog.post(interaction.guild, { action: 'warn', target: user, mod: interaction.user, reason: `${reason} (warning ${count})` });
-      const extra = await tools.applyWarnRules(interaction.guild, user.id, count, interaction.user.tag).catch(() => null);
-      return interaction.reply(`⚠️  Warned **${user.tag}** — now has **${count}** warning${count === 1 ? '' : 's'}. Reason: ${reason}${extra ? `\n${extra}` : ''}`);
+      // Auto-escalation: the dashboard ladder, or else the /warn rules timeouts (see automod.escalate).
+      let escalated = null;
+      try {
+        const member = await interaction.guild.members.fetch(user.id).catch(() => null);
+        if (member) escalated = await automod.escalate(interaction.guild, member, count, modlog);
+      } catch { /* */ }
+      return interaction.reply(`⚠️  Warned **${user.tag}** — now has **${count}** warning${count === 1 ? '' : 's'}. Reason: ${reason}`
+        + (escalated ? `\n⚖️  Auto-escalation: **${escalated}** applied at ${count} warnings.` : ''));
     }
     if (sub === 'list') {
       const list = warnings.list(interaction.guildId, user.id);

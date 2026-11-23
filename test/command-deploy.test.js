@@ -54,6 +54,23 @@ test('buildCommandsArray filters out invalid command entries', () => {
   assert.equal(out[0].name, 'ok');
 });
 
+test('over 100 server commands: the rest go global, server-only, never in both sets', () => {
+  const { buildCommandsArray, buildGlobalArray } = require('../lib/command-deploy');
+  const commands = Array.from({ length: 107 }, (_, i) => ({ name: `c${String(i).padStart(3, '0')}` }));
+  const { client } = makeClient({ commands });
+  const portable = { data: { toJSON: () => ({ name: 'portable' }) }, execute: () => {}, everywhere: true };
+  client.commands.set('portable', portable);
+  const perServer = buildCommandsArray(client);
+  const global = buildGlobalArray(client);
+  assert.equal(perServer.length, 100);
+  assert.equal(global.length, 8); // 1 portable + 7 overflow
+  const overflow = global.filter((c) => c.name !== 'portable');
+  assert.ok(overflow.every((c) => c.contexts.length === 1 && c.contexts[0] === 0 && c.integration_types[0] === 0));
+  const names = new Set(perServer.map((c) => c.name));
+  assert.ok(global.every((c) => !names.has(c.name)));
+  assert.deepEqual(global.find((c) => c.name === 'portable').contexts, [0, 1, 2]);
+});
+
 test('commandsHash is stable and order-sensitive', () => {
   const { commandsHash } = require('../lib/command-deploy');
   const a = commandsHash([{ name: 'x' }, { name: 'y' }]);
