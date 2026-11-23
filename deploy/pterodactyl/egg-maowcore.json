@@ -4,7 +4,7 @@
         "version": "PTDL_v2",
         "update_url": null
     },
-    "exported_at": "2026-11-23T09:39:45+00:00",
+    "exported_at": "2026-11-23T11:04:56+00:00",
     "name": "MaowCore",
     "author": "lara@maowcore.local",
     "description": "MaowCore: a Discord music + community bot (YouTube, Spotify, SoundCloud, leveling, modmail, giveaways, automod) with a web dashboard. The dashboard runs on this server's port; open http://<server address>:<port>/ once it says \"Logged in as\".",
@@ -101,9 +101,9 @@
         },
         {
             "name": "Start page",
-            "description": "Which dashboard opens at the main address: \"new\" or \"classic\" (the classic one is always at /dashboard.html).",
+            "description": "Which dashboard opens at the main address: \"classic\" (themes, Control room, status page) or \"new\" (the SvelteKit one). The classic one is always at /dashboard.html.",
             "env_variable": "PANEL_HOME",
-            "default_value": "new",
+            "default_value": "classic",
             "user_viewable": true,
             "user_editable": true,
             "rules": "required|string|in:new,classic",

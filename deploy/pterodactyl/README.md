@@ -15,7 +15,7 @@
    - runs `npm install`;
    - builds the new dashboard.
 4. Start the server. It shows as running once the console prints `Logged in as`.
-5. Open the dashboard at `http://<node address>:<server port>/`. The classic dashboard is at `/dashboard.html`. To make the classic one the start page, set **Start page** to `classic`.
+5. Open the dashboard at `http://<node address>:<server port>/`. This is the main dashboard: themes, Control room and the status page at `/status.html`. The SvelteKit dashboard's pages (`/leveling`, `/radio`, ...) work too. To make the SvelteKit one the start page, set **Start page** to `new`.
 
 **Already have a server from an older egg?** Update the egg (Admin > Nests > MaowCore > Update egg), then on the server's **Startup** tab set **Update on start** to `1` and restart. The first start after an update builds the new dashboard, which takes a minute or two.
 
@@ -57,5 +57,5 @@ Logging in to YouTube from the console isn't possible: yt-dlp dropped its login 
   - it starts the bot.
   
   Because the script lives in the repo, you can change it without re-importing the egg.
-- If the dashboard build fails (too little disk space, for example), the bot still starts and `/` shows the classic dashboard.
+- If the SvelteKit dashboard's build fails (too little disk space, for example), the bot still starts, and the main dashboard is unaffected.
 - After changing `install.sh` or the variables, rebuild the egg with `node deploy/pterodactyl/build-egg.js`.

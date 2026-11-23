@@ -52,7 +52,7 @@ const egg = {
     v('Spotify client secret', 'SPOTIFY_CLIENT_SECRET', 'Optional, for Spotify links.', '', 'nullable|string|max:100'),
     v('Genius token', 'GENIUS_TOKEN', 'Optional, for /lyrics. genius.com/api-clients', '', 'nullable|string|max:200'),
     v('Bot name', 'BOT_INSTANCE_NAME', 'Name shown in mod-log entries ("via <name>").', 'MaowCore', 'required|string|max:40'),
-    v('Start page', 'PANEL_HOME', 'Which dashboard opens at the main address: "new" or "classic" (the classic one is always at /dashboard.html).', 'new', 'required|string|in:new,classic'),
+    v('Start page', 'PANEL_HOME', 'Which dashboard opens at the main address: "classic" (themes, Control room, status page) or "new" (the SvelteKit one). The classic one is always at /dashboard.html.', 'classic', 'required|string|in:new,classic'),
     v('Dashboard public URL', 'PANEL_PUBLIC_URL', 'Optional. The address people use to reach the dashboard, e.g. http://node.example.com:25570 (needed for Discord sign-in).', '', 'nullable|string|max:200'),
     v('Git repo', 'GIT_ADDRESS', 'Where the install script gets the code. Leave blank to upload the files yourself.', 'https://github.com/lisalepardeany-coder/maowcore', 'nullable|string|max:200'),
     v('Git branch', 'BRANCH', 'Branch to install.', 'main', 'required|string|max:60'),

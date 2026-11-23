@@ -821,3 +821,19 @@ button.card:hover, a.card:hover { transform: translateY(-2px); border-color: col
   94% { opacity: 1; }
   97% { opacity: 0.9; }
 }
+
+/* ============================================================================
+   PHONES: nothing wider than the screen.
+   A grid item can't shrink below its content by default (min-width: auto), so
+   one row of buttons that can't wrap made a whole page column wider than a
+   phone (Home was 423 px on a 375 px screen, Radio 528 px). Letting grid items
+   shrink fixes that on every page; the rest makes their contents fit too.
+   ========================================================================== */
+.grid > * { min-width: 0; }
+@media (max-width: 640px) {
+  /* rows of cards/buttons wrap instead of running off the edge */
+  main .card.flex.items-center { flex-wrap: wrap; }
+  /* long words and links (song titles, URLs) break instead of widening the page */
+  main { overflow-wrap: anywhere; }
+  main img, main video, main iframe { max-width: 100%; }
+}

@@ -6,6 +6,25 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.5.2] — 2026-11-23
+
+### Changed
+
+- **The main dashboard is the start page again.** `/` opens the dashboard
+  with the 100+ themes, Control room and status page. The SvelteKit dashboard
+  is now opt-in with `PANEL_HOME=new` (egg: **Start page** = `new`); its pages
+  still work at their own paths.
+
+### Fixed
+
+- **Phones: no page is wider than the screen any more.** Measured at 375 px,
+  every page of both dashboards now fits:
+  - Main dashboard: Members, Moderation, Roles, Channels (search and filter
+    row wraps), Library (tabs swipe), Reminders (calendar fits 7 days) and
+    Developer (endpoint rows).
+  - SvelteKit dashboard: grid items may shrink below their content, which
+    fixes Home (423 px wide) and Radio (528 px wide), and card rows wrap.
+
 ## [3.5.1] — 2026-11-23
 
 ### Fixed

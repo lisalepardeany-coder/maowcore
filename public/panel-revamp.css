@@ -164,3 +164,24 @@ html.maow-gentle .mr-gentle-badge { display: inline-block; }
   #mr-remote .rm-next div { padding: 6px 0; border-top: 1px solid var(--border-soft, var(--border)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .mr-listen-frame { height: 70vh; }
 }
+
+/* Phones: the pages that were wider than the screen (measured at 375 px:
+   Members +203 px, Moderation +124, Roles +101, Library +55, Developer +29,
+   Reminders +27, Channels +24). */
+.mp-cal { grid-template-columns: repeat(7, minmax(0, 1fr)); } /* plain 1fr can't shrink below its content */
+@media (max-width: 640px) {
+  /* search box + filters + buttons above the member/role/channel/mod lists: wrap into rows */
+  .mod-tools { flex-wrap: wrap; }
+  .mod-tools input[type="text"], .mod-tools select { min-width: 0; flex: 1 1 140px; }
+  /* Library tabs: swipe sideways instead of pushing the page wider */
+  .tabs { overflow-x: auto; scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tabs > * { flex-shrink: 0; }
+  /* Reminders calendar: smaller gaps so 7 days fit */
+  .mp-cal { gap: 2px; }
+  .mp-cal-d { min-height: 32px; }
+  /* Developer page endpoints: method + path on one line, the description below */
+  .dev-endpoint { grid-template-columns: 52px minmax(0, 1fr); }
+  .dev-endpoint .de-desc { grid-column: 1 / -1; }
+  .dev-endpoint .de-path { overflow-wrap: anywhere; }
+}
