@@ -6,6 +6,31 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.7.2] — 2026-11-23
+
+### Added
+
+- **Start-up safety checks** (`lib/safety-checks.js`), shown in the console
+  and the dashboard log, and DM'd to the owner:
+  - the dashboard can be reached from other computers (a hosting panel, or
+    `CONTROL_HOST=0.0.0.0`) with nothing stopping strangers (no working
+    sign-in lock, no `CONTROL_TOKEN`);
+  - `PANEL_REQUIRE_LOGIN=1` without Discord sign-in set up, which leaves the
+    lock silently off;
+  - no `OWNER_USER_ID`, so no warning DMs, no backups and no `/backup`.
+
+### Fixed
+
+- `public/app.js` contained 4 raw NUL characters (the text formatter's
+  placeholders), so git and GitHub treated the main dashboard's code as a
+  binary file and its changes couldn't be reviewed. They are now written as
+  `\u0000`, which behaves the same.
+
+### Removed
+
+- 84 unused channel variables in `/setup`. The channels are still created
+  the same way.
+
 ## [3.7.1] — 2026-11-23
 
 Found by the first CI run of the full test suite on Linux (the system the

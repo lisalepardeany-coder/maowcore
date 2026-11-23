@@ -899,6 +899,9 @@ const checkCookieExpiry = () => {
 client.once(Events.ClientReady, () => setTimeout(checkCookieExpiry, 60_000));
 setInterval(checkCookieExpiry, 6 * 3600_000).unref();
 
+// Start-up safety checks (open dashboard, broken sign-in lock, no owner): console + DM.
+client.once(Events.ClientReady, () => setTimeout(() => require('./lib/safety-checks').run(client, (t, l) => control.log(t, l, 'system', { subsystem: 'system' })), 15_000));
+
 // Offsite backups: a backup DM'd to the owner weekly (OFFSITE_BACKUP=daily|weekly|off).
 require('./lib/offsite-backup').start(client);
 

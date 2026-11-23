@@ -389,8 +389,8 @@ module.exports = {
       const { channel: chUpdates, created: updatesNew }      = await mkch(guild, { name: '🔔-updates',       parent: infoCat.id, overwrites: announcePerms, topic: 'Bot updates and changelogs.' });
       const { channel: chFaq, created: faqNew }              = await mkch(guild, { name: '❓-faq',           parent: infoCat.id, overwrites: readOnly,    topic: 'Frequently asked questions.' });
       const { channel: chRoleInfo, created: roleInfoNew }    = await mkch(guild, { name: '🎭-roles-info',    parent: infoCat.id, overwrites: readOnly,    topic: 'What each role means and how to get it.' });
-      const { channel: chPartners, created: partnersNew }    = await mkch(guild, { name: '🤝-partners',      parent: infoCat.id, overwrites: readOnly,    topic: 'Partner servers and communities.' });
-      const { channel: chSocials, created: socialsNew }      = await mkch(guild, { name: '🌐-socials',       parent: infoCat.id, overwrites: readOnly,    topic: 'Our social media links.' });
+      await mkch(guild, { name: '🤝-partners',      parent: infoCat.id, overwrites: readOnly,    topic: 'Partner servers and communities.' });
+      await mkch(guild, { name: '🌐-socials',       parent: infoCat.id, overwrites: readOnly,    topic: 'Our social media links.' });
 
       // Info embeds
       await postInfo(chRules, rulesNew, {
@@ -538,19 +538,19 @@ module.exports = {
       const { channel: announceCat } = await findOrCreateCategory(guild, '📢 Announcements', announcePerms);
 
       const { channel: chServerNews }    = await mkch(guild, { name: '📰-server-news',    parent: announceCat.id, overwrites: announcePerms, topic: 'Important server news.' });
-      const { channel: chEvents }        = await mkch(guild, { name: '🎪-events',         parent: announceCat.id, overwrites: announcePerms, topic: 'Upcoming events and competitions.' });
-      const { channel: chGiveaways }     = await mkch(guild, { name: '🎉-giveaways',      parent: announceCat.id, overwrites: announcePerms, topic: 'Server giveaways.' });
-      const { channel: chPartnerAnnounce } = await mkch(guild, { name: '🤝-partner-news', parent: announceCat.id, overwrites: announcePerms, topic: 'Partner server announcements.' });
+      await mkch(guild, { name: '🎪-events',         parent: announceCat.id, overwrites: announcePerms, topic: 'Upcoming events and competitions.' });
+      await mkch(guild, { name: '🎉-giveaways',      parent: announceCat.id, overwrites: announcePerms, topic: 'Server giveaways.' });
+      await mkch(guild, { name: '🤝-partner-news', parent: announceCat.id, overwrites: announcePerms, topic: 'Partner server announcements.' });
 
       // ── 💬 General ────────────────────────────────────────────────────────
       await progress('Building General channels…');
       const { channel: generalCat } = await findOrCreateCategory(guild, '💬 General', publicPerms);
 
-      const { channel: chGeneral }       = await mkch(guild, { name: '💬-general',        parent: generalCat.id, overwrites: publicPerms, topic: 'General chat — anything goes (within rules).' });
-      const { channel: chOffTopic }      = await mkch(guild, { name: '🎲-off-topic',      parent: generalCat.id, overwrites: publicPerms, topic: 'Completely off-topic chatter.' });
-      const { channel: chMemes }         = await mkch(guild, { name: '😂-memes',          parent: generalCat.id, overwrites: publicPerms, topic: 'Memes and funny content only.' });
-      const { channel: chMedia }         = await mkch(guild, { name: '🖼️-media',          parent: generalCat.id, overwrites: publicPerms, topic: 'Images, videos, and GIFs.' });
-      const { channel: chPolls }         = await mkch(guild, { name: '📊-polls',          parent: generalCat.id, overwrites: publicPerms, topic: 'Community polls. Staff create polls; everyone votes.' });
+      await mkch(guild, { name: '💬-general',        parent: generalCat.id, overwrites: publicPerms, topic: 'General chat — anything goes (within rules).' });
+      await mkch(guild, { name: '🎲-off-topic',      parent: generalCat.id, overwrites: publicPerms, topic: 'Completely off-topic chatter.' });
+      await mkch(guild, { name: '😂-memes',          parent: generalCat.id, overwrites: publicPerms, topic: 'Memes and funny content only.' });
+      await mkch(guild, { name: '🖼️-media',          parent: generalCat.id, overwrites: publicPerms, topic: 'Images, videos, and GIFs.' });
+      await mkch(guild, { name: '📊-polls',          parent: generalCat.id, overwrites: publicPerms, topic: 'Community polls. Staff create polls; everyone votes.' });
       const { channel: chCounting }      = await mkch(guild, { name: '🔢-counting',       parent: generalCat.id, overwrites: publicPerms, topic: 'Count as high as we can! One number per message, no double-posting.' });
       const { channel: chStarboard }     = await mkch(guild, { name: '⭐-starboard',      parent: generalCat.id, overwrites: announcePerms, topic: 'Top reacted messages auto-land here.' });
       const { channel: chSuggestions }   = await mkch(guild, { name: '💡-suggestions',    parent: generalCat.id, overwrites: publicPerms, topic: 'Server suggestions. Use the format: **Suggestion:** / **Reason:**' });
@@ -559,39 +559,39 @@ module.exports = {
       await progress('Building Gaming channels…');
       const { channel: gamingCat } = await findOrCreateCategory(guild, '🎮 Gaming', publicPerms);
 
-      const { channel: chGamingGeneral } = await mkch(guild, { name: '🎮-gaming-general',    parent: gamingCat.id, overwrites: publicPerms, topic: 'All things gaming.' });
-      const { channel: chLFG }           = await mkch(guild, { name: '🔍-looking-for-group', parent: gamingCat.id, overwrites: publicPerms, topic: 'Find people to play with. Include game name and platform.' });
-      const { channel: chGameClips }     = await mkch(guild, { name: '🎬-game-clips',        parent: gamingCat.id, overwrites: publicPerms, topic: 'Share your best gaming moments.' });
-      const { channel: chAchievements }  = await mkch(guild, { name: '🏆-achievements',      parent: gamingCat.id, overwrites: publicPerms, topic: 'Brag about your achievements and milestones.' });
-      const { channel: chGameReviews }   = await mkch(guild, { name: '📝-game-reviews',      parent: gamingCat.id, overwrites: publicPerms, topic: 'Mini reviews and recommendations. Keep spoilers tagged.' });
+      await mkch(guild, { name: '🎮-gaming-general',    parent: gamingCat.id, overwrites: publicPerms, topic: 'All things gaming.' });
+      await mkch(guild, { name: '🔍-looking-for-group', parent: gamingCat.id, overwrites: publicPerms, topic: 'Find people to play with. Include game name and platform.' });
+      await mkch(guild, { name: '🎬-game-clips',        parent: gamingCat.id, overwrites: publicPerms, topic: 'Share your best gaming moments.' });
+      await mkch(guild, { name: '🏆-achievements',      parent: gamingCat.id, overwrites: publicPerms, topic: 'Brag about your achievements and milestones.' });
+      await mkch(guild, { name: '📝-game-reviews',      parent: gamingCat.id, overwrites: publicPerms, topic: 'Mini reviews and recommendations. Keep spoilers tagged.' });
 
       // ── 🎨 Creative ───────────────────────────────────────────────────────
       await progress('Building Creative channels…');
       const { channel: creativeCat } = await findOrCreateCategory(guild, '🎨 Creative', publicPerms);
 
-      const { channel: chArt }          = await mkch(guild, { name: '🎨-art',        parent: creativeCat.id, overwrites: publicPerms, topic: 'Share your artwork. Give credit to original artists if not yours.' });
-      const { channel: chPhotography }  = await mkch(guild, { name: '📷-photography', parent: creativeCat.id, overwrites: publicPerms, topic: 'Photography and photo edits.' });
-      const { channel: chWriting }      = await mkch(guild, { name: '✍️-writing',    parent: creativeCat.id, overwrites: publicPerms, topic: 'Stories, poems, lyrics, creative writing.' });
-      const { channel: chShowcase }     = await mkch(guild, { name: '✨-showcase',   parent: creativeCat.id, overwrites: publicPerms, topic: 'Show off projects, builds, designs, and creations.' });
+      await mkch(guild, { name: '🎨-art',        parent: creativeCat.id, overwrites: publicPerms, topic: 'Share your artwork. Give credit to original artists if not yours.' });
+      await mkch(guild, { name: '📷-photography', parent: creativeCat.id, overwrites: publicPerms, topic: 'Photography and photo edits.' });
+      await mkch(guild, { name: '✍️-writing',    parent: creativeCat.id, overwrites: publicPerms, topic: 'Stories, poems, lyrics, creative writing.' });
+      await mkch(guild, { name: '✨-showcase',   parent: creativeCat.id, overwrites: publicPerms, topic: 'Show off projects, builds, designs, and creations.' });
 
       // ── 🎵 Music Lounge ───────────────────────────────────────────────────
       await progress('Building Music Lounge channels…');
       const { channel: musicLoungeCat } = await findOrCreateCategory(guild, '🎵 Music Lounge', publicPerms);
 
-      const { channel: chMusicChat }    = await mkch(guild, { name: '🎵-music-chat',       parent: musicLoungeCat.id, overwrites: publicPerms, topic: 'Talk about music, artists, albums, genres.' });
-      const { channel: chSongRequests } = await mkch(guild, { name: '🎤-song-requests',    parent: musicLoungeCat.id, overwrites: publicPerms, topic: 'Request songs for the queue. Format: Song - Artist [URL optional]' });
-      const { channel: chPlaylists }    = await mkch(guild, { name: '📋-playlist-sharing', parent: musicLoungeCat.id, overwrites: publicPerms, topic: 'Share your playlists. Include a short description.' });
-      const { channel: chRecommend }    = await mkch(guild, { name: '💿-recommendations',  parent: musicLoungeCat.id, overwrites: publicPerms, topic: 'Recommend music. Format: Artist — Album/Song · Why you love it.' });
-      const { channel: chNowPlaying }   = await mkch(guild, { name: '▶️-now-playing-chat', parent: musicLoungeCat.id, overwrites: publicPerms, topic: 'React and chat about what the bot is currently playing.' });
+      await mkch(guild, { name: '🎵-music-chat',       parent: musicLoungeCat.id, overwrites: publicPerms, topic: 'Talk about music, artists, albums, genres.' });
+      await mkch(guild, { name: '🎤-song-requests',    parent: musicLoungeCat.id, overwrites: publicPerms, topic: 'Request songs for the queue. Format: Song - Artist [URL optional]' });
+      await mkch(guild, { name: '📋-playlist-sharing', parent: musicLoungeCat.id, overwrites: publicPerms, topic: 'Share your playlists. Include a short description.' });
+      await mkch(guild, { name: '💿-recommendations',  parent: musicLoungeCat.id, overwrites: publicPerms, topic: 'Recommend music. Format: Artist — Album/Song · Why you love it.' });
+      await mkch(guild, { name: '▶️-now-playing-chat', parent: musicLoungeCat.id, overwrites: publicPerms, topic: 'React and chat about what the bot is currently playing.' });
 
       // ── 💎 VIP ────────────────────────────────────────────────────────────
       await progress('Building VIP channels…');
       const { channel: vipCat } = await findOrCreateCategory(guild, '💎 VIP', vipOnly);
 
       const { channel: chVipLounge, created: vipLoungeNew } = await mkch(guild, { name: '💎-vip-lounge',   parent: vipCat.id, overwrites: vipOnly, topic: 'Exclusive chat for VIP members.' });
-      const { channel: chVipMedia }  = await mkch(guild, { name: '🖼️-vip-media',  parent: vipCat.id, overwrites: vipOnly, topic: 'VIP media sharing.' });
-      const { channel: chVipEvents } = await mkch(guild, { name: '🎪-vip-events',  parent: vipCat.id, overwrites: vipOnly, topic: 'Early access to event announcements.' });
-      const { channel: chVipFeedback } = await mkch(guild, { name: '📬-vip-feedback', parent: vipCat.id, overwrites: vipOnly, topic: 'Direct feedback channel to the dev team.' });
+      await mkch(guild, { name: '🖼️-vip-media',  parent: vipCat.id, overwrites: vipOnly, topic: 'VIP media sharing.' });
+      await mkch(guild, { name: '🎪-vip-events',  parent: vipCat.id, overwrites: vipOnly, topic: 'Early access to event announcements.' });
+      await mkch(guild, { name: '📬-vip-feedback', parent: vipCat.id, overwrites: vipOnly, topic: 'Direct feedback channel to the dev team.' });
 
       await postInfo(chVipLounge, vipLoungeNew, {
         title: '💎 VIP Lounge', color: 0x00CED1,
@@ -603,11 +603,11 @@ module.exports = {
       const { channel: devCat } = await findOrCreateCategory(guild, '🛠️ Development', publicPerms);
 
       const { channel: chDevGeneral, created: devGenNew }   = await mkch(guild, { name: '🛠️-dev-general',    parent: devCat.id, overwrites: publicPerms, topic: 'General development discussion.' });
-      const { channel: chDevHelp }                          = await mkch(guild, { name: '🆘-dev-help',        parent: devCat.id, overwrites: publicPerms, topic: 'Need help with the codebase? Ask here. Include code snippets.' });
-      const { channel: chCodeReview }                       = await mkch(guild, { name: '🔍-code-review',     parent: devCat.id, overwrites: publicPerms, topic: 'Post code for review. Link your branch or paste a snippet.' });
+      await mkch(guild, { name: '🆘-dev-help',        parent: devCat.id, overwrites: publicPerms, topic: 'Need help with the codebase? Ask here. Include code snippets.' });
+      await mkch(guild, { name: '🔍-code-review',     parent: devCat.id, overwrites: publicPerms, topic: 'Post code for review. Link your branch or paste a snippet.' });
       const { channel: chRoadmap, created: roadmapNew }     = await mkch(guild, { name: '🗺️-roadmap',        parent: devCat.id, overwrites: readOnly,    topic: 'Current development roadmap and priorities.' });
       const { channel: chChangelog, created: changelogNew } = await mkch(guild, { name: '📋-changelogs',      parent: devCat.id, overwrites: announcePerms, topic: 'Version changelogs posted here.' });
-      const { channel: chBetaChannel }                      = await mkch(guild, { name: '🧪-beta-channel',    parent: devCat.id, overwrites: betaPerms,    topic: 'Beta features discussion — NDA: keep unreleased features confidential.' });
+      await mkch(guild, { name: '🧪-beta-channel',    parent: devCat.id, overwrites: betaPerms,    topic: 'Beta features discussion — NDA: keep unreleased features confidential.' });
       const { channel: chContribGuide, created: contribNew } = await mkch(guild, { name: '🤝-contributing',  parent: devCat.id, overwrites: readOnly,    topic: 'How to contribute to MaowCore.' });
 
       await postInfo(chDevGeneral, devGenNew, {
@@ -686,7 +686,7 @@ module.exports = {
       const { channel: chBugReports, created: bugNew }       = await mkch(guild, { name: '🐛-bug-reports',      parent: bugCat.id, overwrites: publicPerms, topic: 'Report bugs using the pinned template.' });
       const { channel: chFeatureReq, created: featNew }      = await mkch(guild, { name: '💡-feature-requests', parent: bugCat.id, overwrites: publicPerms, topic: 'Suggest new features using the pinned template.' });
       const { channel: chKnownIssues, created: knownNew }    = await mkch(guild, { name: '⚠️-known-issues',     parent: bugCat.id, overwrites: readOnly,    topic: 'Currently known bugs and workarounds.' });
-      const { channel: chBugTracking }                       = await mkch(guild, { name: '📊-bug-tracking',     parent: bugCat.id, overwrites: staffOnly,   topic: 'Staff bug triage and tracking. (Staff only)' });
+      await mkch(guild, { name: '📊-bug-tracking',     parent: bugCat.id, overwrites: staffOnly,   topic: 'Staff bug triage and tracking. (Staff only)' });
 
       await postInfo(chBugReports, bugNew, {
         title: '🐛 Bug Report Template', color: 0xE74C3C,
@@ -787,9 +787,9 @@ module.exports = {
       const { channel: supportCat } = await findOrCreateCategory(guild, '🎫 Support', publicPerms);
 
       const { channel: chSupportGeneral, created: sgNew } = await mkch(guild, { name: '🎫-support-general', parent: supportCat.id, overwrites: publicPerms, topic: 'Get help. Include OS, Node version, and error messages.' });
-      const { channel: chTutorials, created: tutNew }     = await mkch(guild, { name: '📹-tutorials',       parent: supportCat.id, overwrites: readOnly,    topic: 'Written guides and tutorial links.' });
+      await mkch(guild, { name: '📹-tutorials',       parent: supportCat.id, overwrites: readOnly,    topic: 'Written guides and tutorial links.' });
       const { channel: chTroubleshooting, created: tsNew } = await mkch(guild, { name: '🔧-troubleshooting', parent: supportCat.id, overwrites: readOnly,   topic: 'Common issues and how to fix them.' });
-      const { channel: chClosedTickets }                   = await mkch(guild, { name: '🗃️-closed-tickets',  parent: supportCat.id, overwrites: staffOnly,   topic: 'Archived resolved support threads. (Staff only)' });
+      await mkch(guild, { name: '🗃️-closed-tickets',  parent: supportCat.id, overwrites: staffOnly,   topic: 'Archived resolved support threads. (Staff only)' });
 
       await postInfo(chSupportGeneral, sgNew, {
         title: '🎫 Support', color: 0x57F287,
@@ -814,10 +814,10 @@ module.exports = {
       const { channel: localeCat } = await findOrCreateCategory(guild, '🌍 Localization', publicPerms);
 
       const { channel: chLocaleGeneral, created: lgNew } = await mkch(guild, { name: '🌍-translation-general', parent: localeCat.id, overwrites: publicPerms, topic: 'Discussion for translators of MaowCore.' });
-      const { channel: chLocaleEN }  = await mkch(guild, { name: '🇬🇧-english',  parent: localeCat.id, overwrites: publicPerms, topic: 'English language string review.' });
-      const { channel: chLocaleES }  = await mkch(guild, { name: '🇪🇸-español',  parent: localeCat.id, overwrites: publicPerms, topic: 'Spanish translation.' });
-      const { channel: chLocaleFR }  = await mkch(guild, { name: '🇫🇷-français', parent: localeCat.id, overwrites: publicPerms, topic: 'French translation.' });
-      const { channel: chLocaleDE }  = await mkch(guild, { name: '🇩🇪-deutsch',  parent: localeCat.id, overwrites: publicPerms, topic: 'German translation.' });
+      await mkch(guild, { name: '🇬🇧-english',  parent: localeCat.id, overwrites: publicPerms, topic: 'English language string review.' });
+      await mkch(guild, { name: '🇪🇸-español',  parent: localeCat.id, overwrites: publicPerms, topic: 'Spanish translation.' });
+      await mkch(guild, { name: '🇫🇷-français', parent: localeCat.id, overwrites: publicPerms, topic: 'French translation.' });
+      await mkch(guild, { name: '🇩🇪-deutsch',  parent: localeCat.id, overwrites: publicPerms, topic: 'German translation.' });
 
       await postInfo(chLocaleGeneral, lgNew, {
         title: '🌍 Localization', color: 0x2ECC71,
@@ -828,19 +828,19 @@ module.exports = {
       await progress('Building Bot Command channels…');
       const { channel: botCat } = await findOrCreateCategory(guild, '🤖 Bot Commands', publicPerms);
 
-      const { channel: chBotGeneral }  = await mkch(guild, { name: '🤖-bot-commands',   parent: botCat.id, overwrites: publicPerms, topic: 'General bot commands.' });
-      const { channel: chBotMusic }    = await mkch(guild, { name: '🎵-music-commands', parent: botCat.id, overwrites: publicPerms, topic: 'MaowCore music commands — /play, /skip, /queue etc.' });
-      const { channel: chBotEconomy }  = await mkch(guild, { name: '💰-economy',        parent: botCat.id, overwrites: publicPerms, topic: 'Economy and levelling commands.' });
-      const { channel: chBotGames }    = await mkch(guild, { name: '🎮-bot-games',      parent: botCat.id, overwrites: publicPerms, topic: 'Bot mini-games — /quiz, /trivia etc.' });
+      await mkch(guild, { name: '🤖-bot-commands',   parent: botCat.id, overwrites: publicPerms, topic: 'General bot commands.' });
+      await mkch(guild, { name: '🎵-music-commands', parent: botCat.id, overwrites: publicPerms, topic: 'MaowCore music commands — /play, /skip, /queue etc.' });
+      await mkch(guild, { name: '💰-economy',        parent: botCat.id, overwrites: publicPerms, topic: 'Economy and levelling commands.' });
+      await mkch(guild, { name: '🎮-bot-games',      parent: botCat.id, overwrites: publicPerms, topic: 'Bot mini-games — /quiz, /trivia etc.' });
 
       // ── ✦ MaowCore Bot ────────────────────────────────────────────────────
       await progress('Building MaowCore channels…');
       const { channel: maowCat } = await findOrCreateCategory(guild, '✦ MaowCore', publicPerms);
 
       const { channel: chMusic }   = await mkch(guild, { name: '🎵-music',            parent: maowCat.id, overwrites: publicPerms,   topic: '/play · /skip · /queue · /volume · /nowplaying' });
-      const { channel: chFeed }    = await mkch(guild, { name: '◆-now-transmitting',  parent: maowCat.id, overwrites: announcePerms, topic: 'Now-playing feed (auto-posted by the bot).' });
+      await mkch(guild, { name: '◆-now-transmitting',  parent: maowCat.id, overwrites: announcePerms, topic: 'Now-playing feed (auto-posted by the bot).' });
       const { channel: chModlog }  = await mkch(guild, { name: '⌬-modlog',            parent: maowCat.id, overwrites: staffOnly,     topic: 'Moderation action log.' });
-      const { channel: chBotUpdatesLocal } = await mkch(guild, { name: '🔔-bot-status', parent: maowCat.id, overwrites: announcePerms, topic: 'Bot online/offline status and restart notices.' });
+      await mkch(guild, { name: '🔔-bot-status', parent: maowCat.id, overwrites: announcePerms, topic: 'Bot online/offline status and restart notices.' });
 
       // ── 🖥️ System Monitor ─────────────────────────────────────────────────
       // These are VOICE channels whose names are rewritten every 5 min by
@@ -869,12 +869,12 @@ module.exports = {
       const { channel: techCat } = await findOrCreateCategory(guild, '💻 Tech Talk', publicPerms);
 
       const { channel: chTechGeneral, created: tgNew }   = await mkch(guild, { name: '💻-tech-general',      parent: techCat.id, overwrites: publicPerms, topic: 'General technology discussion.' });
-      const { channel: chAiDiscuss }                     = await mkch(guild, { name: '🤖-ai-discussion',     parent: techCat.id, overwrites: publicPerms, topic: 'AI, ML, and LLM discussion.' });
-      const { channel: chTechNews }                      = await mkch(guild, { name: '📰-tech-news',         parent: techCat.id, overwrites: publicPerms, topic: 'Share interesting tech news and articles.' });
-      const { channel: chOpenSource }                    = await mkch(guild, { name: '📦-open-source',       parent: techCat.id, overwrites: publicPerms, topic: 'Open source project discoveries and discussion.' });
-      const { channel: chSecurityTalk }                  = await mkch(guild, { name: '🛡️-security-talk',    parent: techCat.id, overwrites: publicPerms, topic: 'Cybersecurity news, tips, and discussion.' });
-      const { channel: chCodeGolf }                      = await mkch(guild, { name: '⛳-code-golf',         parent: techCat.id, overwrites: publicPerms, topic: 'Fun coding challenges — shortest/cleverest solution wins.' });
-      const { channel: chDevShowcase }                   = await mkch(guild, { name: '🚀-dev-showcase',      parent: techCat.id, overwrites: publicPerms, topic: 'Show off personal projects and side projects.' });
+      await mkch(guild, { name: '🤖-ai-discussion',     parent: techCat.id, overwrites: publicPerms, topic: 'AI, ML, and LLM discussion.' });
+      await mkch(guild, { name: '📰-tech-news',         parent: techCat.id, overwrites: publicPerms, topic: 'Share interesting tech news and articles.' });
+      await mkch(guild, { name: '📦-open-source',       parent: techCat.id, overwrites: publicPerms, topic: 'Open source project discoveries and discussion.' });
+      await mkch(guild, { name: '🛡️-security-talk',    parent: techCat.id, overwrites: publicPerms, topic: 'Cybersecurity news, tips, and discussion.' });
+      await mkch(guild, { name: '⛳-code-golf',         parent: techCat.id, overwrites: publicPerms, topic: 'Fun coding challenges — shortest/cleverest solution wins.' });
+      await mkch(guild, { name: '🚀-dev-showcase',      parent: techCat.id, overwrites: publicPerms, topic: 'Show off personal projects and side projects.' });
 
       await postInfo(chTechGeneral, tgNew, {
         title: '💻 Tech Talk', color: 0x5865F2,
@@ -886,11 +886,11 @@ module.exports = {
       const { channel: learnCat } = await findOrCreateCategory(guild, '🎓 Learning Hub', publicPerms);
 
       const { channel: chResources, created: resNew }    = await mkch(guild, { name: '📚-resources',         parent: learnCat.id, overwrites: publicPerms, topic: 'Useful links, docs, and learning resources.' });
-      const { channel: chTipsAndTricks }                 = await mkch(guild, { name: '💡-tips-and-tricks',   parent: learnCat.id, overwrites: publicPerms, topic: 'Quick dev tips and tricks. Drop one and move on.' });
-      const { channel: chCodingChallenges }              = await mkch(guild, { name: '🎯-coding-challenges', parent: learnCat.id, overwrites: publicPerms, topic: 'Weekly coding challenges. Solutions welcome after 48h.' });
-      const { channel: chBookClub }                      = await mkch(guild, { name: '📖-book-club',         parent: learnCat.id, overwrites: publicPerms, topic: 'Tech book and article recommendations.' });
+      await mkch(guild, { name: '💡-tips-and-tricks',   parent: learnCat.id, overwrites: publicPerms, topic: 'Quick dev tips and tricks. Drop one and move on.' });
+      await mkch(guild, { name: '🎯-coding-challenges', parent: learnCat.id, overwrites: publicPerms, topic: 'Weekly coding challenges. Solutions welcome after 48h.' });
+      await mkch(guild, { name: '📖-book-club',         parent: learnCat.id, overwrites: publicPerms, topic: 'Tech book and article recommendations.' });
       const { channel: chUsefulLinks, created: ulNew }   = await mkch(guild, { name: '🔗-useful-links',      parent: learnCat.id, overwrites: readOnly,    topic: 'Curated list of useful developer links.' });
-      const { channel: chVideoResources }                = await mkch(guild, { name: '📹-video-resources',   parent: learnCat.id, overwrites: publicPerms, topic: 'YouTube videos, courses, and tutorials worth watching.' });
+      await mkch(guild, { name: '📹-video-resources',   parent: learnCat.id, overwrites: publicPerms, topic: 'YouTube videos, courses, and tutorials worth watching.' });
 
       await postInfo(chResources, resNew, {
         title: '📚 Resources', color: 0x3498DB,
@@ -915,11 +915,11 @@ module.exports = {
       const { channel: eventsCat } = await findOrCreateCategory(guild, '🎪 Events & Competitions', publicPerms);
 
       const { channel: chEventCalendar, created: ecNew } = await mkch(guild, { name: '🗓️-event-calendar',      parent: eventsCat.id, overwrites: readOnly,    topic: 'Upcoming event schedule.' });
-      const { channel: chGameNightPlan }                 = await mkch(guild, { name: '🎮-game-night',           parent: eventsCat.id, overwrites: publicPerms, topic: 'Game night planning and coordination.' });
-      const { channel: chTournamentBrackets }            = await mkch(guild, { name: '🏆-tournament-brackets',  parent: eventsCat.id, overwrites: announcePerms, topic: 'Tournament brackets and results.' });
-      const { channel: chEventPhotos }                   = await mkch(guild, { name: '📸-event-photos',         parent: eventsCat.id, overwrites: publicPerms, topic: 'Screenshots and photos from events.' });
-      const { channel: chEventArchive }                  = await mkch(guild, { name: '🗃️-event-archive',        parent: eventsCat.id, overwrites: readOnly,    topic: 'Archived past events.' });
-      const { channel: chHackathon }                     = await mkch(guild, { name: '⌨️-hackathon',            parent: eventsCat.id, overwrites: publicPerms, topic: 'Hackathon planning, teams, and submissions.' });
+      await mkch(guild, { name: '🎮-game-night',           parent: eventsCat.id, overwrites: publicPerms, topic: 'Game night planning and coordination.' });
+      await mkch(guild, { name: '🏆-tournament-brackets',  parent: eventsCat.id, overwrites: announcePerms, topic: 'Tournament brackets and results.' });
+      await mkch(guild, { name: '📸-event-photos',         parent: eventsCat.id, overwrites: publicPerms, topic: 'Screenshots and photos from events.' });
+      await mkch(guild, { name: '🗃️-event-archive',        parent: eventsCat.id, overwrites: readOnly,    topic: 'Archived past events.' });
+      await mkch(guild, { name: '⌨️-hackathon',            parent: eventsCat.id, overwrites: publicPerms, topic: 'Hackathon planning, teams, and submissions.' });
 
       await postInfo(chEventCalendar, ecNew, {
         title: '🗓️ Event Calendar', color: 0xFFD700,
@@ -932,9 +932,9 @@ module.exports = {
       const { channel: socialCat } = await findOrCreateCategory(guild, '📱 Social Links', readOnly);
 
       const { channel: chSocialHub, created: shNew }   = await mkch(guild, { name: '🌐-social-hub',   parent: socialCat.id, overwrites: readOnly, topic: 'All our social media links in one place.' });
-      const { channel: chTwitter }                     = await mkch(guild, { name: '🐦-twitter-x',    parent: socialCat.id, overwrites: readOnly, topic: 'Follow us on Twitter/X.' });
-      const { channel: chYoutube }                     = await mkch(guild, { name: '📺-youtube',      parent: socialCat.id, overwrites: readOnly, topic: 'YouTube channel and video updates.' });
-      const { channel: chTwitch }                      = await mkch(guild, { name: '🟣-twitch',       parent: socialCat.id, overwrites: readOnly, topic: 'Twitch streaming schedule and links.' });
+      await mkch(guild, { name: '🐦-twitter-x',    parent: socialCat.id, overwrites: readOnly, topic: 'Follow us on Twitter/X.' });
+      await mkch(guild, { name: '📺-youtube',      parent: socialCat.id, overwrites: readOnly, topic: 'YouTube channel and video updates.' });
+      await mkch(guild, { name: '🟣-twitch',       parent: socialCat.id, overwrites: readOnly, topic: 'Twitch streaming schedule and links.' });
 
       await postInfo(chSocialHub, shNew, {
         title: '🌐 Social Links', color: 0xFF4500,
@@ -951,27 +951,27 @@ module.exports = {
       // ── 🎨 Creative (extra channels) ──────────────────────────────────────
       await progress('Expanding Creative channels…');
       // These go under the already-created creativeCat
-      const { channel: chVideoEditing }   = await mkch(guild, { name: '🎬-video-editing',   parent: creativeCat.id, overwrites: publicPerms, topic: 'Video editing work, tips, and sharing.' });
-      const { channel: chMusicProduction } = await mkch(guild, { name: '🎛️-music-production', parent: creativeCat.id, overwrites: publicPerms, topic: 'Beats, DAW work, production tips.' });
-      const { channel: ch3dModeling }     = await mkch(guild, { name: '🖥️-3d-and-design',   parent: creativeCat.id, overwrites: publicPerms, topic: 'Blender, 3D models, UI/UX design.' });
+      await mkch(guild, { name: '🎬-video-editing',   parent: creativeCat.id, overwrites: publicPerms, topic: 'Video editing work, tips, and sharing.' });
+      await mkch(guild, { name: '🎛️-music-production', parent: creativeCat.id, overwrites: publicPerms, topic: 'Beats, DAW work, production tips.' });
+      await mkch(guild, { name: '🖥️-3d-and-design',   parent: creativeCat.id, overwrites: publicPerms, topic: 'Blender, 3D models, UI/UX design.' });
 
       // ── 🎵 Music Lounge (extra channels) ──────────────────────────────────
       await progress('Expanding Music Lounge channels…');
-      const { channel: chRadioStations }  = await mkch(guild, { name: '📻-radio-stations',  parent: musicLoungeCat.id, overwrites: publicPerms, topic: 'Share radio stream URLs compatible with /play.' });
-      const { channel: chInstruments }    = await mkch(guild, { name: '🎸-instruments',     parent: musicLoungeCat.id, overwrites: publicPerms, topic: 'Talk about instruments, gear, and playing.' });
-      const { channel: chConcerts }       = await mkch(guild, { name: '🎭-concert-talk',    parent: musicLoungeCat.id, overwrites: publicPerms, topic: 'Concert experiences, upcoming shows, reviews.' });
+      await mkch(guild, { name: '📻-radio-stations',  parent: musicLoungeCat.id, overwrites: publicPerms, topic: 'Share radio stream URLs compatible with /play.' });
+      await mkch(guild, { name: '🎸-instruments',     parent: musicLoungeCat.id, overwrites: publicPerms, topic: 'Talk about instruments, gear, and playing.' });
+      await mkch(guild, { name: '🎭-concert-talk',    parent: musicLoungeCat.id, overwrites: publicPerms, topic: 'Concert experiences, upcoming shows, reviews.' });
 
       // ── 🌍 Localization (extra language channels) ──────────────────────────
       await progress('Expanding Localization channels…');
-      const { channel: chLocaleJA }  = await mkch(guild, { name: '🇯🇵-japanese',   parent: localeCat.id, overwrites: publicPerms, topic: 'Japanese translation.' });
-      const { channel: chLocalePT }  = await mkch(guild, { name: '🇵🇹-português',  parent: localeCat.id, overwrites: publicPerms, topic: 'Portuguese translation.' });
-      const { channel: chLocaleRU }  = await mkch(guild, { name: '🇷🇺-русский',    parent: localeCat.id, overwrites: publicPerms, topic: 'Russian translation.' });
+      await mkch(guild, { name: '🇯🇵-japanese',   parent: localeCat.id, overwrites: publicPerms, topic: 'Japanese translation.' });
+      await mkch(guild, { name: '🇵🇹-português',  parent: localeCat.id, overwrites: publicPerms, topic: 'Portuguese translation.' });
+      await mkch(guild, { name: '🇷🇺-русский',    parent: localeCat.id, overwrites: publicPerms, topic: 'Russian translation.' });
 
       // ── 🛠️ Development (extra channels) ──────────────────────────────────
       await progress('Expanding Development channels…');
-      const { channel: chSecurityAdvisories } = await mkch(guild, { name: '🔐-security-advisories', parent: devCat.id, overwrites: devOnly, topic: 'Security vulnerability reports and advisories. (Dev only)' });
-      const { channel: chPerformance }         = await mkch(guild, { name: '📊-performance',        parent: devCat.id, overwrites: publicPerms, topic: 'Performance benchmarks, profiling, and optimisation.' });
-      const { channel: chArchitecture }        = await mkch(guild, { name: '🏗️-architecture',       parent: devCat.id, overwrites: publicPerms, topic: 'Architecture decisions, system design discussion.' });
+      await mkch(guild, { name: '🔐-security-advisories', parent: devCat.id, overwrites: devOnly, topic: 'Security vulnerability reports and advisories. (Dev only)' });
+      await mkch(guild, { name: '📊-performance',        parent: devCat.id, overwrites: publicPerms, topic: 'Performance benchmarks, profiling, and optimisation.' });
+      await mkch(guild, { name: '🏗️-architecture',       parent: devCat.id, overwrites: publicPerms, topic: 'Architecture decisions, system design discussion.' });
 
       // ── 🏆 Hall of Fame ───────────────────────────────────────────────────
       await progress('Building Hall of Fame channels…');
@@ -1007,23 +1007,23 @@ module.exports = {
       await progress('Building Staff channels…');
       const { channel: staffCat } = await findOrCreateCategory(guild, '🛡️ Staff', staffOnly);
 
-      const { channel: chStaffGeneral }  = await mkch(guild, { name: '💼-staff-general',      parent: staffCat.id, overwrites: staffOnly,  topic: 'General staff discussion.' });
-      const { channel: chStaffAnnounce } = await mkch(guild, { name: '📣-staff-announcements', parent: staffCat.id, overwrites: staffOnly,  topic: 'Staff-only announcements.' });
-      const { channel: chModActions }    = await mkch(guild, { name: '⚖️-mod-actions',         parent: staffCat.id, overwrites: staffOnly,  topic: 'Log all mod actions here before executing.' });
+      await mkch(guild, { name: '💼-staff-general',      parent: staffCat.id, overwrites: staffOnly,  topic: 'General staff discussion.' });
+      await mkch(guild, { name: '📣-staff-announcements', parent: staffCat.id, overwrites: staffOnly,  topic: 'Staff-only announcements.' });
+      await mkch(guild, { name: '⚖️-mod-actions',         parent: staffCat.id, overwrites: staffOnly,  topic: 'Log all mod actions here before executing.' });
       const { channel: chReports }       = await mkch(guild, { name: '🚨-reports',             parent: staffCat.id, overwrites: staffOnly,  topic: 'User reports submitted via /report or DM.' });
       const { channel: chAppeals }       = await mkch(guild, { name: '📬-appeals',             parent: staffCat.id, overwrites: staffOnly,  topic: 'Ban/mute appeal tracking.' });
-      const { channel: chStaffApps }     = await mkch(guild, { name: '📝-staff-applications',  parent: staffCat.id, overwrites: staffOnly,  topic: 'Staff application submissions.' });
-      const { channel: chTicketLogs }    = await mkch(guild, { name: '🎫-ticket-logs',         parent: staffCat.id, overwrites: staffOnly,  topic: 'Resolved support tickets.' });
+      await mkch(guild, { name: '📝-staff-applications',  parent: staffCat.id, overwrites: staffOnly,  topic: 'Staff application submissions.' });
+      await mkch(guild, { name: '🎫-ticket-logs',         parent: staffCat.id, overwrites: staffOnly,  topic: 'Resolved support tickets.' });
       const { channel: chStaffLogs }     = await mkch(guild, { name: '📋-staff-logs',          parent: staffCat.id, overwrites: staffOnly,  topic: 'Automated bot mod-log and audit entries.' });
-      const { channel: chPartnerReqs }   = await mkch(guild, { name: '🤝-partner-requests',    parent: staffCat.id, overwrites: staffOnly,  topic: 'Incoming partnership requests.' });
-      const { channel: chAdminLounge }   = await mkch(guild, { name: '👑-admin-lounge',        parent: staffCat.id, overwrites: adminOnly,  topic: 'Admin+ only discussion.' });
-      const { channel: chAdminLogs }     = await mkch(guild, { name: '🔐-admin-logs',          parent: staffCat.id, overwrites: adminOnly,  topic: 'Sensitive admin action log.' });
+      await mkch(guild, { name: '🤝-partner-requests',    parent: staffCat.id, overwrites: staffOnly,  topic: 'Incoming partnership requests.' });
+      await mkch(guild, { name: '👑-admin-lounge',        parent: staffCat.id, overwrites: adminOnly,  topic: 'Admin+ only discussion.' });
+      await mkch(guild, { name: '🔐-admin-logs',          parent: staffCat.id, overwrites: adminOnly,  topic: 'Sensitive admin action log.' });
 
       // ── 🛡️ Staff extra channels (expansion — staffCat now in scope) ────────
       await progress('Expanding Staff channels…');
-      const { channel: chEmergency }   = await mkch(guild, { name: '⚡-emergency',         parent: staffCat.id, overwrites: adminOnly, topic: 'Urgent issues requiring immediate admin attention.' });
-      const { channel: chBotRestarts } = await mkch(guild, { name: '🔄-bot-restarts',     parent: staffCat.id, overwrites: staffOnly, topic: 'Bot restart and crash log.' });
-      const { channel: chAnalytics }   = await mkch(guild, { name: '📊-server-analytics', parent: staffCat.id, overwrites: staffOnly, topic: 'Server growth stats and analytics.' });
+      await mkch(guild, { name: '⚡-emergency',         parent: staffCat.id, overwrites: adminOnly, topic: 'Urgent issues requiring immediate admin attention.' });
+      await mkch(guild, { name: '🔄-bot-restarts',     parent: staffCat.id, overwrites: staffOnly, topic: 'Bot restart and crash log.' });
+      await mkch(guild, { name: '📊-server-analytics', parent: staffCat.id, overwrites: staffOnly, topic: 'Server growth stats and analytics.' });
 
       // ── 🎙️ Voice ──────────────────────────────────────────────────────────
       await progress('Building Voice channels…');

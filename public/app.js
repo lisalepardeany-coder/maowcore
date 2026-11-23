@@ -5431,7 +5431,7 @@
     const codeSpans = [];
     s = s.replace(/`([^`\n]+)`/g, (m, content) => {
       codeSpans.push(content);
-      return ` CODE${codeSpans.length - 1} `;
+      return `\u0000CODE${codeSpans.length - 1}\u0000`;
     });
     // Bold (must run before italic so `**x**` doesn't get eaten as `*x*`).
     s = s.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
@@ -5446,7 +5446,7 @@
       return `\n<ul>${items}</ul>`;
     });
     // Restore code spans last so nothing inside them was corrupted.
-    s = s.replace(/ CODE(\d+) /g, (m, i) => `<code>${codeSpans[Number(i)]}</code>`);
+    s = s.replace(/\u0000CODE(\d+)\u0000/g, (m, i) => `<code>${codeSpans[Number(i)]}</code>`);
     return s;
   }
 
