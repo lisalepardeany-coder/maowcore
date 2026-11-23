@@ -11,7 +11,9 @@ const resolveCd = (cwd, arg, home) => {
   const a = String(arg || '').trim().replace(/^["']|["']$/g, '');
   if (!a || a === '~') return home || cwd;
   if (a === '-') return null;   // handled by the caller (previous folder)
-  return path.resolve(cwd, a.replace(/^~(?=$|[\\/])/, home || '~'));
+  // Windows path rules on purpose: this terminal is part of the Windows-only desktop
+  // app (PowerShell), and path.win32 gives the same answer on any OS (CI runs on Linux too).
+  return path.win32.resolve(cwd, a.replace(/^~(?=$|[\\/])/, home || '~'));
 };
 
 // Pure (tested): "C:\a\b\c\d" → "…\c\d" for the prompt.

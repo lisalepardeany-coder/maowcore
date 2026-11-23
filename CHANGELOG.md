@@ -6,6 +6,26 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.7.1] — 2026-11-23
+
+Found by the first CI run of the full test suite on Linux (the system the
+Pterodactyl server runs).
+
+### Fixed
+
+- **Soundboard uploads on Linux:** sound file names are now cut down to the
+  file name with both `/` and `\` as separators. `path.basename` only knows `\`
+  on Windows, so on Linux a name like `..\..\evil.mp3` became `.._.._evil.mp3`
+  and was refused. Still safe either way, but now it behaves the same on
+  every OS.
+- The desktop app's terminal uses Windows path rules explicitly
+  (`path.win32`): it's Windows-only, and its test now passes on Linux CI.
+
+### Changed
+
+- CI: failing tests are shown as an annotation on the run's summary page.
+  The GitHub actions are updated to v5 (Node 20 deprecation warning).
+
 ## [3.7.0] — 2026-11-23
 
 ### Added
