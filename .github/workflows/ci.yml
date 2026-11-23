@@ -18,10 +18,10 @@ jobs:
         node: ['22.x']
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Node ${{ matrix.node }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: ${{ matrix.node }}
 
@@ -64,9 +64,18 @@ jobs:
       - name: Validate slash commands
         run: npm run validate
 
-      # The full test suite (before v3.6.1 CI only checked that files load)
+      # The full test suite (before v3.7.0 CI only checked that files load).
+      # Failing tests are also posted as an annotation, so they show on the run's
+      # summary page instead of being buried in ~1800 log lines.
       - name: Run tests
-        run: npm test
+        shell: bash
+        run: |
+          set -o pipefail
+          if ! npm test 2>&1 | tee test-output.txt; then
+            msg=$(grep -E "^\s*not ok" -A 30 test-output.txt | grep -vE "^\s*(duration_ms|type:|\.\.\.|---)" | head -150 | sed -e 's/%/%25/g' | sed -e ':a;N;$!ba;s/\n/%0A/g')
+            echo "::error title=Failing tests::${msg}"
+            exit 1
+          fi
 
       - name: Build dashboard (SvelteKit)
         run: npm install --no-audit --no-fund && npm run build
