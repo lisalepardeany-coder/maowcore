@@ -1,12 +1,13 @@
 {
   "name": "discord-music-bot",
-  "version": "3.6.0",
+  "version": "3.7.0",
   "description": "Discord music bot with Spotify support",
   "main": "index.js",
   "scripts": {
     "start": "node --max-old-space-size=4096 --expose-gc index.js",
     "deploy": "node deploy-commands.js",
     "test": "node --test test/*.test.js",
+    "validate": "node scripts/validate-commands.js",
     "postinstall": "node scripts/patch-ytsr.js",
     "install-native": "node scripts/install-native.js",
     "db-shell": "node scripts/db-shell.js",

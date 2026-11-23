@@ -35,7 +35,8 @@ const realSpawn = cp.spawn;
 cp.spawn = (_bin, args, opts) => realSpawn(process.execPath, [script, ...args], opts);
 
 const q = require('../lib/download-queue');
-const until = async (fn, ms = 8000) => { const t = Date.now(); while (!fn()) { if (Date.now() - t > ms) throw new Error('timed out'); await new Promise((r) => setTimeout(r, 25)); } };
+// generous: the full suite runs test files in parallel, which slows the fake yt-dlp down
+const until = async (fn, ms = 20000) => { const t = Date.now(); while (!fn()) { if (Date.now() - t > ms) throw new Error(`timed out; queue: ${JSON.stringify(q._state().jobs.map((j) => ({ s: j.status, items: j.items.map((i) => i.status) })))}`); await new Promise((r) => setTimeout(r, 25)); } };
 const fresh = () => { q._reset(); fs.rmSync(q.FILE, { force: true }); for (const f of fs.readdirSync(process.env.LIBRARY_DIR)) fs.rmSync(path.join(process.env.LIBRARY_DIR, f), { force: true, recursive: true }); delete require.cache[require.resolve('../lib/library')]; };
 
 test('downloads: picked songs only, finishes as done, saved to disk', async () => {
@@ -71,6 +72,9 @@ test('downloads: YouTube rate limit → the queue waits (songs not failed), cont
   q.start({});
   const job = await q.create('https://www.youtube.com/playlist?list=PL');
   await until(() => q.get(job.id).status === 'waiting');
+  // the other song that was already downloading fails with the limit too: let it finish first
+  // (if it finished after "Try now", the queue would rightly pause again)
+  await until(() => !q.get(job.id).items.some((i) => i.status === 'downloading'));
   const j = q.get(job.id);
   assert.equal(j.counts.failed, 0);
   assert.ok(j.resumeAt > Date.now() + 30 * 60 * 1000, 'waits about an hour');
@@ -113,6 +117,33 @@ test('downloads: Spotify songs become YouTube searches', () => {
   assert.equal(q.searchFor({ artists: 'Daft Punk', name: 'One More Time' }), 'ytsearch1:Daft Punk - One More Time audio');
   assert.deepEqual(q.spotifyId('https://open.spotify.com/intl-de/album/4m2880jivSbbyEGAKfITCa?si=x'), { type: 'album', id: '4m2880jivSbbyEGAKfITCa' });
   assert.equal(q.sourceOf('https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M'), 'spotify');
+});
+
+test('downloads: finished songs know their library entry (▶ Play), and finish listeners fire', async () => {
+  fresh(); setMode({});
+  q.start({});
+  const seen = [];
+  q.onFinish((s, job) => seen.push({ id: s.id, notify: job.notify }));
+  const job = await q.create('https://www.youtube.com/playlist?list=PL', { notify: { channelId: 'c1' } });
+  await until(() => q.get(job.id).status === 'done');
+  assert.equal(q.entryIds(job.id).length, 3);
+  assert.deepEqual(seen.find((x) => x.id === job.id).notify, { channelId: 'c1' });
+});
+
+test('subscriptions: a sync queues only songs it doesn\'t have, and remembers finished ones', async () => {
+  fresh(); setMode({});
+  q.start({});
+  delete require.cache[require.resolve('../lib/playlist-subscriptions')];
+  const subs = require('../lib/playlist-subscriptions');
+  for (const s of subs.list()) subs.remove(s.id);
+  const sub = subs.add({ url: 'https://www.youtube.com/playlist?list=PL', name: 'Sub' });
+  const first = await subs.sync(sub.id);
+  assert.equal(first.queued, 3);
+  await until(() => !q.activeForSub(sub.id));
+  assert.equal(subs.get(sub.id).installedUrls.length, 3);
+  const second = await subs.sync(sub.id);
+  assert.equal(second.queued, 0); // nothing new
+  subs.remove(sub.id);
 });
 
 test.after(() => { q._reset(); cp.spawn = realSpawn; });

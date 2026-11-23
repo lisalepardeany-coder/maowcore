@@ -6,6 +6,51 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.7.0] — 2026-11-23
+
+### Added
+
+- **Playlist subscriptions use the download queue.** New songs in a
+  subscribed YouTube, SoundCloud, Bandcamp **or Spotify** playlist download by
+  themselves, survive restarts and wait out rate limits. A song that failed is
+  tried again on the next sync.
+- **▶ Play** on a finished download queues all its songs in voice: in the
+  bot's current channel, or the one you're in.
+- **Warnings by DM to the owner:** YouTube cookies expire within 3 days (or
+  have expired), the server is rate-limited by YouTube, and a big download
+  (10+ songs) has finished.
+- **`/download <link> [format]`:** download a song, playlist, album or Spotify
+  link from Discord. For playlists the bot posts in the channel when done.
+- **Library tidy-up** (🧹 Tidy library on the Library page and in the
+  downloads panel). It shows space used per format and finds duplicates: same
+  link, same title, or the same song under another title ("(Official Audio)",
+  "[Lyrics]"…, with matching length). Each group keeps the copy you got first,
+  and the rest can be removed. It can also delete stray files.
+- **Starboard:** messages with enough ⭐ are reposted in the starboard channel,
+  with the star count kept up to date. `/setup`'s ⭐-starboard is connected.
+  `/starboard channel | stars | selfstar | off | show`.
+- **Offsite backups:** the bot DMs its owner a backup of its data weekly
+  (`OFFSITE_BACKUP=daily|weekly|off`, also in the egg). It covers settings,
+  the database, playlists and the library list. Restore with
+  `node scripts/restore-backup.js <file>` (the current files are kept aside).
+- **Checks on every push:** GitHub now runs the full test suite and
+  `npm run validate` (every slash command against Discord's rules, including
+  the 100-per-set limit) on Linux and Windows.
+
+### Security
+
+- **`/backup` handed out too much to too many people.** It was open to anyone
+  with Manage Server on any server the bot is in, and gave out the whole data
+  folder: every server's data plus the owner's YouTube cookies. It's now
+  owner-only (`OWNER_USER_ID`). Backups never contain cookies, sign-in
+  sessions or API keys, and the database is copied consistently (SQLite
+  online backup).
+
+### Fixed
+
+- Playlist subscriptions no longer lose their list if their file is damaged
+  (safe-json).
+
 ## [3.6.0] — 2026-11-23
 
 Playlist downloads, rebuilt.

@@ -1102,6 +1102,7 @@ module.exports = {
         birthdayChannelId:          getGuild(guild.id).birthdayChannelId || chBirthdays.id,
         countingChannelId:          getGuild(guild.id).countingChannelId || chCounting.id,
         goodbyeChannelId:           getGuild(guild.id).goodbyeChannelId || chGoodbye.id,
+        starboardChannelId:         getGuild(guild.id).starboardChannelId || chStarboard.id,
         statsChannels:              statsIds,
         // System monitor (used by updateSystemMonitor() in index.js)
         sysMonitorChannels:         sysMonitorChannels,

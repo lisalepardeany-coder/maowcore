@@ -190,6 +190,19 @@
     box.addEventListener('keydown', (e) => { if (e.key === 'Enter') maybe(e); }, true);
     const c = $('cfg-concurrency');
     if (c) { c.max = '3'; c.title = 'YouTube blocks servers that download too much at once: 1–3, 2 is safest.'; }
+    // quick buttons under "Install from URL": open the downloads panel / tidy the library
+    const row = $('install-row');
+    if (row && !row.querySelector('.mdl-quick')) {
+      const q = document.createElement('div');
+      q.className = 'mdl-quick';
+      q.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-top:8px';
+      q.innerHTML = '<button type="button" class="mdl-btn" data-q="dl">⬇ Downloads</button><button type="button" class="mdl-btn" data-q="tidy">🧹 Tidy library</button>';
+      q.addEventListener('click', (e) => {
+        const k = e.target.closest('[data-q]')?.dataset.q;
+        if (k === 'dl') openPanel(); else if (k === 'tidy') openTidy();
+      });
+      row.querySelector('.install-inputs')?.after(q);
+    }
   };
 
   // ---------------------------------------------------------------- panel
@@ -197,7 +210,7 @@
   fab.id = 'mdl-fab'; fab.type = 'button';
   const panel = document.createElement('div');
   panel.id = 'mdl-panel';
-  panel.innerHTML = '<div class="ph">⬇ Downloads <button class="mdl-btn x" type="button" aria-label="Close">✕</button></div><div class="pb"></div>';
+  panel.innerHTML = '<div class="ph">⬇ Downloads <button class="mdl-btn" type="button" data-tidy title="Space used and duplicate songs">🧹 Tidy</button><button class="mdl-btn x" type="button" aria-label="Close">✕</button></div><div class="pb"></div>';
   document.body.append(fab, panel);
   const body = panel.querySelector('.pb');
   const openDetails = new Set();
@@ -220,6 +233,7 @@
     if (active) acts.push('<button class="mdl-btn" data-act="pause">Pause</button>');
     if (j.status === 'paused') acts.push('<button class="mdl-btn primary" data-act="resume">Resume</button>');
     if (c.failed || (c.cancelled && !active)) acts.push(`<button class="mdl-btn" data-act="retry">Retry ${(c.failed || 0) + (j.status === 'cancelled' ? c.cancelled || 0 : 0)} failed</button>`);
+    if ((c.done || 0) + (c.skipped || 0) > 0) acts.unshift('<button class="mdl-btn primary" data-act="play" title="Queue these songs in your voice channel">▶ Play</button>');
     if (active || j.status === 'paused') acts.push('<button class="mdl-btn danger" data-act="cancel">Cancel</button>');
     else acts.push('<button class="mdl-btn" data-act="remove">Remove</button>');
     acts.push(`<button class="mdl-btn" data-act="songs">${openDetails.has(j.id) ? 'Hide songs' : 'Songs'}</button>`);
@@ -272,11 +286,75 @@
     }
     if (act === 'cancel' && !confirm('Cancel this download? Songs already downloaded stay in your library.')) return;
     b.disabled = true;
-    try { await api(`/api/library/install-jobs/${encodeURIComponent(id)}/${act}`, {}); }
-    catch (err) { alert(err.message); }
+    try {
+      const d = await api(`/api/library/install-jobs/${encodeURIComponent(id)}/${act}`, {});
+      if (act === 'play') { b.textContent = `▶ ${d.queued} queued in ${d.channel}`; setTimeout(refresh, 4000); return; }
+    } catch (err) { alert(err.message); }
     if (act === 'remove') { openDetails.delete(id); details.delete(id); }
     refresh();
   });
+
+  // ---------------------------------------------------------------- tidy-up
+  // Space used + duplicate songs (same link, same title, or the same song under
+  // "(Official Audio)"-style titles). Each group keeps the copy you got first.
+  const fmtSize = (b) => (b >= 1073741824 ? `${(b / 1073741824).toFixed(2)} GB` : `${(b / 1048576).toFixed(1)} MB`);
+  const openTidy = async () => {
+    const modal = document.createElement('div');
+    modal.className = 'mdl-modal';
+    modal.innerHTML = '<div class="mdl-card" role="dialog" aria-modal="true" aria-label="Tidy library"><div class="mdl-head"><h3>🧹 Tidy library</h3></div><div class="mdl-msg">Looking through the library…</div></div>';
+    document.body.appendChild(modal);
+    const close = () => modal.remove();
+    modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+    let r;
+    try { r = (await api('/api/library/cleanup/scan')).report; }
+    catch (e) { modal.querySelector('.mdl-msg').outerHTML = `<div class="mdl-msg err">${esc(e.message)}</div>`; return; }
+    const remove = new Set();
+    for (const d of r.dupes) for (const s of d.songs) if (s.id !== d.keep) remove.add(s.id);
+    const card = modal.querySelector('.mdl-card');
+    const formats = Object.entries(r.breakdown || {}).sort((a, b) => b[1].bytes - a[1].bytes).map(([ext, v]) => `${esc(ext)} ${v.count} · ${fmtSize(v.bytes)}`).join(' · ');
+    const KIND = { sourceUrl: 'same link', name: 'same title', similar: 'same song, different title' };
+    const savedBytes = () => r.dupes.flatMap((d) => d.songs).filter((s) => remove.has(s.id)).reduce((a, s) => a + (s.size || 0), 0);
+    card.innerHTML = `
+      <div class="mdl-head"><h3>🧹 Tidy library</h3>
+        <div class="mdl-sub">${r.totalSongs} songs · ${fmtSize(r.totalBytes || 0)}${formats ? ` · ${formats}` : ''}${r.orphans.length ? ` · ${r.orphans.length} stray file${r.orphans.length === 1 ? '' : 's'}` : ''}</div></div>
+      <div class="mdl-list">${r.dupes.length ? r.dupes.map((d) => `
+        <div style="padding:8px 4px;border-bottom:1px solid var(--border,#3f4147)">
+          <div class="mdl-sub" style="margin:0 6px 4px">${esc(KIND[d.kind] || d.kind)}</div>
+          ${d.songs.map((s) => `<label class="mdl-song"><input type="checkbox" data-id="${esc(s.id)}"${remove.has(s.id) ? ' checked' : ''}><span class="t">${esc(s.name)}</span><span class="d">${s.id === d.keep ? 'keep · ' : ''}${esc((s.file || '').split('.').pop())} · ${fmtSize(s.size || 0)}</span></label>`).join('')}
+        </div>`).join('') : '<div class="mdl-empty">No duplicates found. 🎉</div>'}</div>
+      <div class="mdl-foot"><span class="mdl-count"></span>
+        ${r.orphans.length ? '<button class="mdl-btn" data-a="orphans">Delete stray files</button>' : ''}
+        <button class="mdl-btn" data-a="close">Close</button>${r.dupes.length ? '<button class="mdl-btn danger" data-a="go">Remove</button>' : ''}</div>`;
+    const countEl = card.querySelector('.mdl-count');
+    const go = card.querySelector('[data-a=go]');
+    const renderCount = () => {
+      countEl.textContent = r.dupes.length ? `Ticked songs are removed · frees ${fmtSize(savedBytes())}` : '';
+      if (go) { go.textContent = `Remove ${remove.size} song${remove.size === 1 ? '' : 's'}`; go.disabled = !remove.size; }
+    };
+    card.querySelector('.mdl-list').addEventListener('change', (e) => {
+      const id = e.target.dataset.id; if (!id) return;
+      if (e.target.checked) remove.add(id); else remove.delete(id);
+      renderCount();
+    });
+    card.querySelector('[data-a=close]').onclick = close;
+    card.querySelector('[data-a=orphans]')?.addEventListener('click', async (e) => {
+      if (!confirm(`Delete ${r.orphans.length} stray file(s)? They're in the library folder but not in the library.`)) return;
+      e.target.disabled = true;
+      try { await api('/api/library/cleanup/delete-orphans', { files: r.orphans.map((o) => o.file) }); e.target.textContent = 'Deleted'; }
+      catch (err) { alert(err.message); e.target.disabled = false; }
+    });
+    go?.addEventListener('click', async () => {
+      if (!confirm(`Remove ${remove.size} song(s) from the library? This deletes the files.`)) return;
+      go.disabled = true; go.textContent = 'Removing…';
+      try {
+        const d = await api('/api/library/cleanup/delete-songs', { ids: [...remove] });
+        close();
+        alert(`Removed ${d.results.filter((x) => x.ok).length} duplicate song(s).`);
+      } catch (err) { alert(err.message); renderCount(); }
+    });
+    renderCount();
+  };
+  panel.querySelector('[data-tidy]').onclick = openTidy;
 
   // Poll: often while something is happening or the panel is open, rarely otherwise.
   const tick = () => {

@@ -60,6 +60,14 @@ jobs:
       - name: Validate package.json
         run: node -e "JSON.parse(require('fs').readFileSync('package.json','utf8'))"
 
+      # Every slash command against Discord's rules (one bad command breaks all of them)
+      - name: Validate slash commands
+        run: npm run validate
+
+      # The full test suite (before v3.6.1 CI only checked that files load)
+      - name: Run tests
+        run: npm test
+
       - name: Build dashboard (SvelteKit)
         run: npm install --no-audit --no-fund && npm run build
         working-directory: dashboard

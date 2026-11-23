@@ -4,7 +4,7 @@
         "version": "PTDL_v2",
         "update_url": null
     },
-    "exported_at": "2026-11-23T11:04:56+00:00",
+    "exported_at": "2026-11-23T15:18:24+00:00",
     "name": "MaowCore",
     "author": "lara@maowcore.local",
     "description": "MaowCore: a Discord music + community bot (YouTube, Spotify, SoundCloud, leveling, modmail, giveaways, automod) with a web dashboard. The dashboard runs on this server's port; open http://<server address>:<port>/ once it says \"Logged in as\".",
@@ -107,6 +107,16 @@
             "user_viewable": true,
             "user_editable": true,
             "rules": "required|string|in:new,classic",
+            "field_type": "text"
+        },
+        {
+            "name": "Backup DMs",
+            "description": "How often the bot DMs its owner (OWNER_USER_ID in .env) a backup of its data: weekly, daily or off. No songs, cookies or logins are included.",
+            "env_variable": "OFFSITE_BACKUP",
+            "default_value": "weekly",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|in:weekly,daily,off",
             "field_type": "text"
         },
         {

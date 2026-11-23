@@ -885,6 +885,36 @@ const healthAlerts = require('./lib/health-alerts');
 healthAlerts.start(client);
 client.distube.on('error', (error) => healthAlerts.noteMusicError(error?.message || error));
 
+// YouTube cookies about to run out: warn the owner (once a day) before downloads
+// and playback start failing with "Sign in to confirm you're not a bot".
+const checkCookieExpiry = () => {
+  const e = ytCookies.expiry();
+  if (!e || e.daysLeft > 3) return;
+  const day = new Date().toISOString().slice(0, 10);
+  healthAlerts.alert(`cookies:${day}`, e.daysLeft < 0 ? 'YouTube cookies have expired' : 'YouTube cookies expire soon',
+    `${e.daysLeft < 0 ? 'The sign-in in your YouTube cookies ran out' : `The sign-in in your YouTube cookies runs out <t:${Math.floor(e.at / 1000)}:R>`}.\n`
+    + 'Export a fresh cookies.txt from youtube.com and drop it in the cookies/ folder (or upload it in the Control room).',
+    { color: 0xf59e0b, icon: '🍪' });
+};
+client.once(Events.ClientReady, () => setTimeout(checkCookieExpiry, 60_000));
+setInterval(checkCookieExpiry, 6 * 3600_000).unref();
+
+// Offsite backups: a backup DM'd to the owner weekly (OFFSITE_BACKUP=daily|weekly|off).
+require('./lib/offsite-backup').start(client);
+
+// /download: post in the channel it was started from when the download is finished.
+require('./lib/download-queue').onFinish((s, job) => {
+  if (!job.notify?.channelId) return;
+  const ch = client.channels.cache.get(job.notify.channelId);
+  if (!ch?.send) return;
+  const c = s.counts;
+  ch.send({
+    content: `${job.notify.userId ? `<@${job.notify.userId}> ` : ''}${c.failed && !c.done && !c.skipped ? '✕' : '✓'} Download finished: **${s.name}**: `
+      + `${c.done} new, ${c.skipped} already in the library${c.failed ? `, ${c.failed} failed (retry them in ⬇ Downloads)` : ''}.`,
+    allowedMentions: { users: job.notify.userId ? [job.notify.userId] : [] },
+  }).catch(() => {});
+});
+
 // Discord ready — pin the boot timeline step + log it through diagnostics.
 client.once(Events.ClientReady, () => {
   diag.bootOk('ready', `${client.user.tag} · ${client.guilds.cache.size} guild${client.guilds.cache.size === 1 ? '' : 's'}`);
@@ -1138,6 +1168,10 @@ const handleReaction = async (reaction, user, grant) => {
 };
 client.on(Events.MessageReactionAdd,    (r, u) => handleReaction(r, u, true));
 client.on(Events.MessageReactionRemove, (r, u) => handleReaction(r, u, false));
+// ⭐ starboard (lib/starboard.js): enough stars → reposted in the starboard channel
+const starboard = require('./lib/starboard');
+client.on(Events.MessageReactionAdd,    (r) => { if (r.emoji?.name === '⭐') starboard.handle(r); });
+client.on(Events.MessageReactionRemove, (r) => { if (r.emoji?.name === '⭐') starboard.handle(r); });
 
 // Bot self-introduction when joining a new server
 const { deployToGuild, forgetGuild } = require('./lib/command-deploy');
