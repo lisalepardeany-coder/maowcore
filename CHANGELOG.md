@@ -6,6 +6,22 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.5.6] — 2026-11-23
+
+### Fixed
+
+- **A damaged cookies file broke every download and stream** with
+  `does not look like a Netscape format cookies file`. yt-dlp needs the first
+  line to be the Netscape header and every cookie line to be 7 tab-separated
+  fields. Phones, the panel's file editor and copy-paste break that with a
+  byte-order mark, Windows line endings, blank lines, a missing header, or
+  spaces instead of tabs. The bot now repairs the file before using it (the
+  original is kept as `youtube-cookies.txt.bak`). A file it can't repair is
+  left out with a warning instead of passed to yt-dlp, because no cookies
+  beats a broken file. Uploads and the `cookies/` folder are repaired the
+  same way.
+- The error hint for a damaged cookies file no longer says "add cookies".
+
 ## [3.5.5] — 2026-11-23
 
 ### Fixed
