@@ -6,6 +6,14 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.9.1] — 2026-11-24
+
+### Changed
+- `/botinfo` tells a root owner "◆ You: Permanent bot owner", so you can
+  check it with a command. The panel address is only shown in a private reply
+  (`/botinfo private:True`) and uses `PANEL_PUBLIC_URL` on a server, instead
+  of the useless `http://0.0.0.0:…`.
+
 ## [3.9.0] — 2026-11-24
 
 ### Added

@@ -36,6 +36,15 @@ test('botinfo: spec sheet builds from a fake client, panel only for the owner', 
   assert.match(text, /\*\*Heartbeat\*\* 42 ms/);
   assert.ok(!pub.fields.some((f) => f.name.includes('Panel')));
   const own = (await buildSpecs(client, { isOwner: true })).toJSON();
-  assert.ok(own.fields.some((f) => f.name.includes('Panel')));
+  assert.ok(own.fields.some((f) => f.name.includes('You') && /owner/i.test(f.value)), 'owners are told they are');
+  const panelOf = (e) => e.fields.find((f) => f.name.includes('Panel')).value;
+  assert.ok(!/http/.test(panelOf(own)), 'no address in a public reply');
   assert.ok(own.fields.every((f) => f.value.length <= 1024), 'every field fits Discord limits');
+
+  const before = process.env.PANEL_PUBLIC_URL;
+  process.env.PANEL_PUBLIC_URL = 'http://example.test:25570/';
+  try {
+    const priv = (await buildSpecs(client, { isOwner: true, isPrivate: true })).toJSON();
+    assert.strictEqual(panelOf(priv), 'http://example.test:25570/');
+  } finally { if (before === undefined) delete process.env.PANEL_PUBLIC_URL; else process.env.PANEL_PUBLIC_URL = before; }
 });

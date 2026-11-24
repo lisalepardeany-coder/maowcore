@@ -67,7 +67,7 @@ const sampleCpu = (ms = 250) => new Promise((resolve) => {
   }, ms);
 });
 
-const buildSpecs = async (client, { isOwner = false } = {}) => {
+const buildSpecs = async (client, { isOwner = false, isPrivate = false } = {}) => {
   const [tools, cpuPct] = await Promise.all([getToolVersions(), sampleCpu()]);
   const mem = process.memoryUsage();
   const guilds = client.guilds.cache;
@@ -179,7 +179,14 @@ const buildSpecs = async (client, { isOwner = false } = {}) => {
 
   // The panel only exists on the host machine, so only the owner gets the link.
   if (isOwner) {
-    embed.addFields({ name: '◇ Panel', value: `http://${process.env.CONTROL_HOST || '127.0.0.1'}:${Number(process.env.CONTROL_PORT) || 8765}/`, inline: false });
+    // On a panel server CONTROL_HOST is 0.0.0.0 (listen everywhere), not an
+    // address anyone can open, so the public URL wins when it's set.
+    const host = !process.env.CONTROL_HOST || process.env.CONTROL_HOST === '0.0.0.0' ? '127.0.0.1' : process.env.CONTROL_HOST;
+    const panel = String(process.env.PANEL_PUBLIC_URL || '').trim().replace(/\/$/, '')
+      || `http://${host}:${Number(process.env.CONTROL_PORT) || 8765}`;
+    embed.addFields({ name: '◆ You', value: 'Permanent bot owner (OWNER_USER_ID)', inline: false });
+    // The address only in a private reply: a public one shows it to the whole channel.
+    embed.addFields({ name: '◇ Panel', value: isPrivate ? `${panel}/` : 'Run `/botinfo private:True` to see the address.', inline: false });
   }
   return embed;
 };
@@ -198,6 +205,7 @@ module.exports = {
     await interaction.deferReply(isPrivate ? { flags: MessageFlags.Ephemeral } : {});
     const embed = await buildSpecs(interaction.client, {
       isOwner: require('../lib/owners').isOwner(interaction.user.id),
+      isPrivate,
     });
     return interaction.editReply({ embeds: [embed] });
   },
