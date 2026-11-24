@@ -3,7 +3,7 @@
   const $$ = (sel) => document.querySelectorAll(sel);
 
   // ===== Theme + motion preferences (localStorage) =====
-  const VALID_THEMES = ['discord', 'linear', 'spotify', 'glass', 'pizzeria', 'backrooms', 'analog', 'slasher', ...(window.maowThemePack?.ids || [])];
+  const VALID_THEMES = ['neon', 'discord', 'linear', 'spotify', 'glass', 'pizzeria', 'backrooms', 'analog', 'slasher', ...(window.maowThemePack?.ids || [])];
   let savedTheme = localStorage.getItem('maow.theme') || 'discord';
   // Migrate users from the old theme names (cosmic / synthwave / cyberpunk /
   // minimal / high-contrast / colorblind) to the new 4-theme system.
@@ -1408,6 +1408,11 @@
 
   // ===== Handlers =====
   function handle(msg) {
+    // A command from this tab failed on the bot (e.g. a song that can't be played).
+    if (msg.type === 'cmd_error') {
+      toast('▲ That didn\'t work', msg.error || 'The bot couldn\'t do that.', 'error', 6000);
+      return;
+    }
     if (msg.type === 'log') {
       appendLog($('ov-log'), msg, 80);
       appendLog($('console-output'), msg);

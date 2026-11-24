@@ -146,4 +146,56 @@ test('subscriptions: a sync queues only songs it doesn\'t have, and remembers fi
   subs.remove(sub.id);
 });
 
+test('subscriptions: a song deleted from the library is downloaded again on the next sync', async () => {
+  fresh(); setMode({});
+  q.start({});
+  delete require.cache[require.resolve('../lib/playlist-subscriptions')];
+  const subs = require('../lib/playlist-subscriptions');
+  const library = require('../lib/library');
+  for (const s of subs.list()) subs.remove(s.id);
+  const sub = subs.add({ url: 'https://www.youtube.com/playlist?list=PL', name: 'Sub' });
+  await subs.sync(sub.id);
+  await until(() => !q.activeForSub(sub.id));
+  const gone = library.list().find((s) => /v2/.test(s.sourceUrl));
+  assert.ok(gone, 'v2 was downloaded');
+  library.remove(gone.id);
+  const again = await subs.sync(sub.id);
+  assert.equal(again.queued, 1, 'only the deleted song comes back');
+  await until(() => !q.activeForSub(sub.id));
+  assert.ok(library.list().some((s) => /v2/.test(s.sourceUrl)), 'v2 is back');
+  assert.equal((await subs.sync(sub.id)).queued, 0, 'then nothing is missing');
+  subs.remove(sub.id);
+});
+
+test('library: a song whose file vanished doesn\'t count as installed', async () => {
+  fresh(); setMode({});
+  q.start({});
+  const library = require('../lib/library');
+  const job = await q.create('https://www.youtube.com/playlist?list=PL', { pick: [0] });
+  await until(() => q.get(job.id).status === 'done');
+  const e = library.list()[0];
+  assert.ok(library.findBySourceUrl(e.sourceUrl));
+  fs.rmSync(path.join(library.LIB_DIR, e.file));   // file lost, entry still listed
+  assert.equal(library.findBySourceUrl(e.sourceUrl), null);
+});
+
+test('library: deleted songs are left out of saved playlists and flagged in queues', () => {
+  fresh();
+  const library = require('../lib/library');
+  const kept = library.add('Keep.mp3', Buffer.alloc(64, 1));
+  const lost = library.add('Lost.mp3', Buffer.alloc(64, 1));
+  const url = (e) => `http://127.0.0.1:8765/library/${encodeURIComponent(e.file)}`;
+  assert.equal(library.fileOfUrl(url(lost)), lost.file);
+  assert.equal(library.fileOfUrl('https://www.youtube.com/watch?v=x'), null);
+  const seen = [];
+  const off = library.onRemove((e) => seen.push(e.id));
+  library.remove(lost.id);
+  off();
+  assert.deepEqual(seen, [lost.id], 'the queue gets told');
+  assert.equal(library.isPlayableUrl(url(kept)), true);
+  assert.equal(library.isPlayableUrl(url(lost)), false);
+  assert.equal(library.isPlayableUrl('https://www.youtube.com/watch?v=x'), true);
+  library.remove(kept.id);
+});
+
 test.after(() => { q._reset(); cp.spawn = realSpawn; });

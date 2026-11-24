@@ -353,9 +353,14 @@ const startLiveUpdate = (guildId, message) => {
 
 // DisTube events
 client.distube
+  // A new queue starts with this server's saved autoplay choice.
+  .on('initQueue', (queue) => {
+    if (getGuild(queue.id).autoplay && !queue.autoplay) queue.toggleAutoplay();
+  })
   .on('playSong', async (queue, song) => {
     clearIdleTimer(queue.id);
     abLoop.stop(queue.id);  // clear any prior A-B loop when a new song starts
+    require('./lib/vote-skip').clear(queue.id);  // skip votes are per song
     // Hoist dedication from DisTube metadata onto the song itself. This is
     // race-free vs. the older "attach to queue.songs[last] after play()" trick
     // — metadata sticks to the exact track DisTube spawned, even if other
@@ -692,8 +697,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return interaction.update({ components: buildControlRows(queue) });
       }
       if (action === 'skip') {
-        try { await queue.skip(); } catch { await queue.stop().catch(() => {}); }
-        return interaction.reply({ content: '⏭  Warping to next signal.', flags: MessageFlags.Ephemeral });
+        // Same rules as /skip: DJs skip, everyone else votes.
+        const r = await require('./lib/vote-skip').request(interaction, queue, getGuild(interaction.guildId));
+        const { ephemeral, ...reply } = r;
+        return interaction.reply(ephemeral || !r.components ? { ...reply, flags: MessageFlags.Ephemeral } : reply);
       }
       if (action === 'stop') {
         undo.capture(queue.id, queue);

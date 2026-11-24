@@ -1,0 +1,309 @@
+/* ============================================================
+   Slim layout for every theme + the Neon Sunset look.
+
+   Part 1 (body.nx): the slim layout every theme gets: hub rail, tabs,
+   open panels, stat strip, round controls, song pill, karaoke lyrics,
+   phone bar. It only uses each theme's own colours (--accent, --fg,
+   --bg-elev ...), so it fits dark and light themes alike.
+   neon.js puts .nx on <body> for every theme.
+
+   Part 2 (body.nx[data-theme="neon"]): what makes Neon look like Neon:
+   sunset backdrop + horizon grid, slanted display titles, scanlines.
+   ============================================================ */
+
+/* ---------- Shared tokens. :where() = zero weight, so a theme that sets
+   its own --nx-* value always wins. ---------- */
+:where(body.nx) {
+  --nx-grad:  linear-gradient(90deg, var(--accent), var(--accent-hover));
+  --nx-line:  linear-gradient(90deg, var(--accent), transparent 70%);
+  --nx-on:    #fff;                                   /* text on accent */
+  --nx-hi:    var(--info, var(--accent));             /* second highlight */
+  --nx-glow:  color-mix(in srgb, var(--accent) 40%, transparent);
+  --nx-glass: color-mix(in srgb, var(--fg) 3.5%, transparent);
+  --nx-hair:  color-mix(in srgb, var(--fg) 9%, transparent);
+  --nx-tint:  color-mix(in srgb, var(--accent) 9%, transparent);
+  --nx-display: var(--font);
+  --nx-pop:   var(--bg-elev-2, var(--bg-elev));
+}
+/* Layout sizes are not a theme choice: full weight, so a theme's own
+   sidebar width (Discord sets 232px) can't leave an empty column. */
+body.nx { --sidebar-w: 84px; --sidebar-w-collapsed: 84px; }
+
+/* =====================================================================
+   PART 1: slim layout (all themes)
+   ===================================================================== */
+
+/* ---------- Type ---------- */
+body.nx .page-head h1, body.nx .page-head h2 { font-family: var(--nx-display) !important; }
+body.nx h3, body.nx .card-head h3 {
+  font-size: 11px !important; font-weight: 700 !important;
+  letter-spacing: .2em !important; text-transform: uppercase; color: var(--fg-muted) !important;
+}
+
+/* ---------- Top bar ---------- */
+body.nx .topbar { border-bottom: 0 !important; box-shadow: none !important; position: relative; }
+body.nx .topbar::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--nx-line); opacity: .8; }
+body.nx .brand-mark { background: var(--nx-grad) !important; color: var(--nx-on) !important; border-radius: 10px !important; box-shadow: 0 0 18px var(--nx-glow) !important; }
+body.nx .brand-name { font-family: var(--nx-display) !important; font-size: 19px !important; letter-spacing: .03em; }
+body.nx .topbar select, body.nx .topbar-instance, body.nx .topbar-diag, body.nx .topbar-login, body.nx .topbar .icon-btn {
+  background: var(--nx-glass) !important; border: 1px solid var(--border) !important; border-radius: 999px !important;
+}
+body.nx #dash-lang, body.nx #palette-trigger .kbd { display: none !important; }
+body.nx #palette-trigger::before { content: '⌕'; font-size: 17px; }
+
+/* Song pill. neon.js moves the progress line into the text column, so it
+   always sits right under the text, whether or not cover / 2nd line show. */
+body.nx .topbar-np {
+  background: var(--nx-tint) !important; border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent) !important;
+  border-radius: 999px !important; padding: 5px 18px 5px 7px !important;
+}
+body.nx .topbar-np-title { font-size: 12.5px !important; line-height: 1.25 !important; }
+body.nx .topbar-np-sub { font-size: 10px !important; line-height: 1.2 !important; opacity: .75; }
+body.nx .topbar-np-text .topbar-np-progress {
+  position: static !important; display: block; width: 100% !important; margin-top: 4px;
+  height: 2px !important; border-radius: 2px !important; background: var(--nx-hair) !important;
+}
+body.nx .topbar-np-progress-fill { background: var(--nx-grad) !important; border-radius: 2px; }
+
+/* ---------- Sidebar → slim hub rail ---------- */
+body.nx .sidebar { width: var(--sidebar-w) !important; min-width: var(--sidebar-w) !important; border-right: 0 !important; box-shadow: inset -1px 0 0 var(--nx-hair); }
+body.nx .sidebar .nav, body.nx .sidebar-footer { display: none !important; }
+#nx-rail { display: none; }
+body.nx #nx-rail { display: flex; flex-direction: column; gap: 6px; padding: 14px 10px; height: 100%; }
+#nx-rail button {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 10px 4px; border-radius: 12px; color: var(--fg-dim); transition: color .15s, background .15s;
+}
+#nx-rail button .nx-ico { font-size: 19px; line-height: 1; }
+#nx-rail button .nx-lbl { font-size: 9.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+#nx-rail button:hover { color: var(--fg); background: var(--nx-glass); }
+#nx-rail button.on { color: var(--fg); background: var(--accent-soft); }
+#nx-rail button.on::before {
+  content: ''; position: absolute; left: -10px; top: 18%; bottom: 18%; width: 3px; border-radius: 3px;
+  background: var(--nx-grad); box-shadow: 0 0 12px var(--nx-glow);
+}
+#nx-rail button.on .nx-ico { color: var(--accent); text-shadow: 0 0 12px var(--nx-glow); }
+#nx-rail .nx-spacer { flex: 1; }
+#nx-rail .nx-ver { font: 10px var(--font-mono); color: var(--fg-dim); text-align: center; opacity: .7; }
+
+/* ---------- Hub tabs ---------- */
+#nx-tabs { display: none; }
+body.nx #nx-tabs {
+  display: flex; gap: 4px; align-items: center; overflow-x: auto; scrollbar-width: none;
+  margin: 0 0 18px; padding: 4px; width: max-content; max-width: 100%;
+  background: var(--nx-glass); border: 1px solid var(--border-soft); border-radius: 999px;
+}
+body.nx #nx-tabs::-webkit-scrollbar { display: none; }
+body.nx #nx-tabs.solo { display: none; }
+#nx-tabs button { white-space: nowrap; padding: 7px 16px; border-radius: 999px; font-size: 12.5px; font-weight: 600; color: var(--fg-muted); transition: background .15s; }
+#nx-tabs button:hover { color: var(--fg); background: var(--nx-glass); }
+#nx-tabs button.on { color: var(--nx-on); background: var(--nx-grad); box-shadow: 0 0 16px var(--nx-glow); }
+
+/* ---------- Main area + page headers ---------- */
+body.nx .main { padding: 26px 34px 60px !important; position: relative; }
+body.nx .page { max-width: 1280px; }
+body.nx .page-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 18px !important; border: 0 !important; padding: 0 !important; }
+body.nx .page-head h1, body.nx .page-head h2 { font-size: 30px !important; line-height: 1.05 !important; margin: 0 !important; }
+body.nx .nx-hint { display: none !important; }
+.nx-info { display: none; }
+body.nx .nx-info {
+  display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%;
+  font-size: 12px; color: var(--fg-dim); border: 1px solid var(--border); cursor: help; position: relative;
+}
+body.nx .nx-info:hover, body.nx .nx-info:focus { color: var(--fg); border-color: var(--accent); }
+body.nx .nx-info .nx-tip {
+  display: none; position: absolute; left: 30px; top: -6px; z-index: 50; width: max-content; max-width: 340px;
+  padding: 10px 12px; border-radius: 10px; font-size: 12.5px; line-height: 1.45; color: var(--fg);
+  background: var(--nx-pop); border: 1px solid var(--border); box-shadow: var(--shadow-pop); text-transform: none; letter-spacing: 0;
+}
+body.nx .nx-info:hover .nx-tip, body.nx .nx-info:focus .nx-tip { display: block; }
+
+/* ---------- Cards → open panels ---------- */
+body.nx .card, body.nx .stat, body.nx .panel, body.nx .ms-block {
+  background: var(--nx-glass) !important; border: 0 !important; box-shadow: none !important;
+  border-radius: 14px !important; position: relative;
+}
+body.nx .card::before { content: ''; position: absolute; left: 16px; right: 40%; top: 0; height: 1px; background: var(--nx-line); opacity: .7; }
+body.nx .card-head { border: 0 !important; padding-bottom: 4px !important; }
+body.nx .card > p.muted:first-of-type, body.nx .card > .muted.small:first-of-type { display: none; }
+body.nx .row-2, body.nx .grid-2 { gap: 18px !important; }
+
+/* ---------- Now playing ---------- */
+body.nx .now-playing {
+  position: relative; overflow: hidden; border: 0 !important; box-shadow: none !important; border-radius: 22px !important;
+  background: linear-gradient(115deg, color-mix(in srgb, var(--accent) 15%, transparent), var(--nx-glass) 60%) !important;
+  padding: 26px !important; gap: 30px !important;
+}
+body.nx .np-art { border-radius: 16px !important; box-shadow: 0 18px 46px var(--nx-glow), 0 0 0 1px var(--nx-hair) !important; }
+body.nx .np-eyebrow { color: var(--nx-hi) !important; font-weight: 700 !important; letter-spacing: .3em !important; font-size: 11px !important; }
+body.nx .np-title-big { font-family: var(--nx-display) !important; font-size: clamp(26px, 3.4vw, 44px) !important; line-height: 1.05 !important; }
+body.nx .np-meta { font-size: 12.5px !important; }
+body.nx .np-progress { font-family: var(--font-mono); color: var(--fg-muted); }
+body.nx .control {
+  width: 42px !important; height: 42px !important; border-radius: 50% !important;
+  background: var(--nx-glass) !important; border: 1px solid var(--nx-hair) !important;
+  transition: transform .12s, background .15s, box-shadow .15s;
+}
+body.nx .control:hover { background: var(--accent-soft) !important; box-shadow: 0 0 14px var(--nx-glow); transform: translateY(-1px); }
+body.nx .control[data-action="pause-toggle"] {
+  width: 54px !important; height: 54px !important; background: var(--nx-grad) !important; color: var(--nx-on) !important;
+  border: 0 !important; box-shadow: 0 0 22px var(--nx-glow);
+}
+body.nx #autoplay-btn { opacity: .55; }
+body.nx #autoplay-btn.on { opacity: 1; background: color-mix(in srgb, var(--nx-hi) 16%, transparent) !important; border-color: var(--nx-hi) !important; box-shadow: 0 0 14px color-mix(in srgb, var(--nx-hi) 45%, transparent); }
+body.nx input[type="range"] { accent-color: var(--accent); }
+body.nx .play-row input, body.nx input[type="text"], body.nx input[type="search"], body.nx input[type="number"], body.nx textarea, body.nx select {
+  background: var(--bg-input) !important; border: 1px solid var(--border) !important; border-radius: 12px !important;
+}
+body.nx input:focus, body.nx textarea:focus, body.nx select:focus { outline: none; border-color: var(--accent) !important; box-shadow: 0 0 0 3px var(--accent-soft); }
+body.nx .primary, body.nx button.primary {
+  background: var(--nx-grad) !important; color: var(--nx-on) !important; font-weight: 700 !important; border: 0 !important;
+  border-radius: 12px !important; box-shadow: 0 0 16px var(--nx-glow);
+}
+body.nx .danger { border-radius: 12px !important; }
+
+/* ---------- Synced lyrics: karaoke ---------- */
+body.nx #w-lyrics-box { max-height: 320px; overflow-y: auto; scroll-behavior: smooth; padding: 6px 4px 40px; scrollbar-width: none;
+  mask-image: linear-gradient(180deg, transparent 0, #000 18%, #000 75%, transparent 100%);
+  -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 18%, #000 75%, transparent 100%); }
+body.nx #w-lyrics-box .ly-line {
+  font-size: 18px; font-weight: 700; line-height: 1.35; padding: 5px 0; color: color-mix(in srgb, var(--fg) 30%, transparent);
+  transition: color .25s, transform .25s, text-shadow .25s; transform-origin: left;
+}
+body.nx #w-lyrics-box .ly-line.on { background: transparent !important; color: var(--fg); transform: scale(1.06); text-shadow: 0 0 16px var(--nx-glow); }
+
+/* ---------- Stats: one strip ---------- */
+body.nx .stats-strip { display: flex !important; gap: 0 !important; padding: 6px 0 !important; margin: 18px 0 !important; background: var(--nx-glass); border-radius: 14px; }
+body.nx .stats-strip .stat { flex: 1; background: transparent !important; padding: 10px 20px !important; border-radius: 0 !important; }
+body.nx .stats-strip .stat + .stat { box-shadow: inset 1px 0 0 var(--nx-hair) !important; }
+body.nx .stat-label { font-size: 10px !important; letter-spacing: .2em !important; color: var(--fg-dim) !important; }
+body.nx .stat-value { font-family: var(--nx-display) !important; font-size: 24px !important; }
+body.nx #ov-ping { color: var(--nx-hi) !important; }
+
+/* ---------- Queue, log, small chrome ---------- */
+body.nx .queue-item, body.nx .queue > div:not(.queue-empty) { border-radius: 10px !important; border: 0 !important; background: transparent !important; }
+body.nx .queue-item:hover, body.nx .queue > div:not(.queue-empty):hover { background: var(--nx-tint) !important; }
+body.nx .log { background: color-mix(in srgb, var(--bg) 60%, transparent) !important; border: 0 !important; border-radius: 12px !important; }
+body.nx .tab, body.nx .tabs button { border-radius: 999px !important; }
+body.nx .tab.active { background: var(--accent-soft) !important; color: var(--fg) !important; box-shadow: inset 0 0 0 1px var(--accent); }
+body.nx .switch input:checked + span { background: var(--accent) !important; }
+body.nx .toast { border-left: 3px solid var(--accent) !important; }
+body.nx #page-home > .home-tools { position: absolute; top: 28px; right: 34px; margin: 0 !important; gap: 6px; z-index: 2; }
+body.nx #page-home > .home-tools .tool-btn { background: transparent !important; border: 1px solid var(--border) !important; border-radius: 999px !important; font-size: 12px; color: var(--fg-muted); opacity: .75; }
+body.nx #page-home > .home-tools .tool-btn:hover { opacity: 1; color: var(--fg); border-color: var(--accent) !important; }
+
+/* ---------- Phone ---------- */
+@media (max-width: 768px) {
+  body.nx { --sidebar-w: 0px; --sidebar-w-collapsed: 0px; }
+  body.nx .sidebar, body.nx #mr-tabs, body.nx #page-home > .home-tools, body.nx #sidebar-toggle, body.nx .topbar select,
+  body.nx .topbar-instance, body.nx .topbar-diag, body.nx .server-select, body.nx .brand-name { display: none !important; }
+  body.nx #nx-rail {
+    position: fixed; left: 10px; right: 10px; bottom: calc(10px + env(safe-area-inset-bottom)); top: auto; height: auto; z-index: 60;
+    flex-direction: row; justify-content: space-around; gap: 0; padding: 6px;
+    background: color-mix(in srgb, var(--bg-elev) 88%, transparent); backdrop-filter: blur(18px); border-radius: 20px;
+    box-shadow: var(--shadow-pop), 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent);
+  }
+  body.nx #nx-rail .nx-spacer, body.nx #nx-rail .nx-ver { display: none; }
+  body.nx #nx-rail button { flex: 1; padding: 8px 2px; }
+  body.nx #nx-rail button.on::before { left: 25%; right: 25%; top: auto; bottom: -6px; width: auto; height: 3px; }
+  body.nx .main { padding: 16px 16px 110px !important; }
+  /* Themes with a status strip (#pz-hud): stack it just above the section bar. */
+  body.nx #pz-hud { bottom: calc(86px + env(safe-area-inset-bottom)) !important; }
+  body.nx.pz-on .main { padding-bottom: 200px !important; }
+  body.nx #nx-tabs { width: 100%; border-radius: 14px; }
+  body.nx #mr-remote { background: linear-gradient(160deg, color-mix(in srgb, var(--accent) 15%, transparent), var(--nx-glass)) !important; border: 0 !important; border-radius: 22px !important; }
+  body.nx #mr-remote .rm-title { font-family: var(--nx-display) !important; font-size: 24px !important; line-height: 1.1; }
+  body.nx #mr-remote .rm-art { border-radius: 16px !important; box-shadow: 0 14px 36px var(--nx-glow); }
+  body.nx #mr-remote .rm-bar i { background: var(--nx-grad) !important; }
+  body.nx #mr-remote .rm-btns button { border-radius: 16px !important; background: var(--nx-glass) !important; border: 1px solid var(--border) !important; }
+  body.nx #mr-remote .rm-btns .big, body.nx #mr-remote .rm-play button { background: var(--nx-grad) !important; color: var(--nx-on) !important; border: 0 !important; box-shadow: 0 0 18px var(--nx-glow); }
+  body.nx .now-playing { padding: 18px !important; border-radius: 18px !important; }
+  body.nx .stats-strip { flex-wrap: wrap; }
+  body.nx .stats-strip .stat { flex: 1 1 50%; padding: 8px 14px !important; }
+  body.nx .stats-strip .stat:nth-child(3) { box-shadow: none !important; }
+  body.nx .page-head h1, body.nx .page-head h2 { font-size: 26px !important; }
+}
+
+/* Per-theme flavour for the classic themes (pack themes get theirs from theme-pack.js). */
+body.nx[data-theme="linear"]  { --nx-grad: var(--fg); --nx-on: var(--bg); --nx-glow: transparent; }
+body.nx[data-theme="spotify"] { --nx-on: #000; }
+body.nx[data-theme="glass"] .card, body.nx[data-theme="glass"] .stats-strip, body.nx[data-theme="glass"] .now-playing { backdrop-filter: blur(16px) saturate(1.3); }
+
+/* =====================================================================
+   PART 2: the Neon Sunset look
+   ===================================================================== */
+[data-theme="neon"] {
+  --bg: #0b0612; --bg-elev: #160c24; --bg-elev-2: #1d1030; --bg-hover: rgba(255, 46, 136, .10);
+  --bg-input: rgba(10, 4, 20, .65); --bg-input-2: rgba(255, 255, 255, .07);
+  --fg: #fff4fa; --fg-muted: #c8b3d6; --fg-dim: #8b769c;
+  --accent: #ff2e88; --accent-hover: #ff5aa2; --accent-soft: rgba(255, 46, 136, .14);
+  --success: #3dffb0; --danger: #ff4d6d; --warning: #ffd26b; --info: #2ee6ff;
+  --border: rgba(255, 255, 255, .10); --border-soft: rgba(255, 255, 255, .05);
+  --shadow-card: none; --shadow-pop: 0 20px 60px rgba(0, 0, 0, .6), 0 0 0 1px rgba(255, 46, 136, .25);
+  --radius: 10px; --radius-lg: 14px;
+  --font: 'Inter', system-ui, sans-serif;
+  --topbar-h: 60px;
+  --nx-grad: linear-gradient(90deg, #ff2e88 0%, #ff8a3d 55%, #ffd26b 100%);
+  --nx-line: linear-gradient(90deg, rgba(255,46,136,.9), rgba(255,138,61,.6) 40%, rgba(46,230,255,0) 100%);
+  --nx-on: #1a0620; --nx-hi: #2ee6ff; --nx-glow: rgba(255, 46, 136, .45);
+  --nx-glass: rgba(255, 255, 255, .03); --nx-tint: rgba(255, 46, 136, .08); --nx-pop: #170b26;
+  --nx-display: 'Anton', 'Impact', 'Arial Narrow Bold', sans-serif;
+}
+body.nx[data-theme="neon"] { background: var(--bg) !important; }
+body.nx[data-theme="neon"]::before {
+  content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(60% 45% at 78% 0%, rgba(255, 46, 136, .28), transparent 70%),
+    radial-gradient(45% 35% at 100% 18%, rgba(255, 138, 61, .20), transparent 70%),
+    radial-gradient(50% 50% at 0% 100%, rgba(138, 61, 255, .22), transparent 70%),
+    linear-gradient(180deg, #120821 0%, #0b0612 55%, #07040d 100%);
+}
+body.nx[data-theme="neon"]::after {
+  content: ''; position: fixed; left: -20%; right: -20%; bottom: -10vh; height: 45vh; z-index: 0; pointer-events: none;
+  background:
+    repeating-linear-gradient(90deg, rgba(255, 46, 136, .16) 0 1px, transparent 1px 80px),
+    repeating-linear-gradient(0deg, rgba(255, 46, 136, .16) 0 1px, transparent 1px 60px);
+  transform: perspective(380px) rotateX(62deg); transform-origin: bottom;
+  mask-image: linear-gradient(0deg, #000 10%, transparent 85%); -webkit-mask-image: linear-gradient(0deg, #000 10%, transparent 85%);
+  opacity: .55;
+}
+body.nx[data-theme="neon"] .app { position: relative; z-index: 1; background: transparent !important; }
+body.nx[data-theme="neon"] .main { background: transparent !important; }
+body.nx[data-theme="neon"] .bg-ambient { opacity: .18 !important; filter: blur(80px) saturate(1.4); }
+body.nx[data-theme="neon"] .topbar { background: rgba(11, 6, 18, .55) !important; backdrop-filter: blur(18px) saturate(1.3); }
+body.nx[data-theme="neon"] .sidebar { background: rgba(8, 4, 14, .5) !important; backdrop-filter: blur(14px); }
+body.nx[data-theme="neon"] h1, body.nx[data-theme="neon"] h2 { font-weight: 400 !important; letter-spacing: .02em; text-transform: uppercase; transform: skewX(-6deg); transform-origin: left; }
+body.nx[data-theme="neon"] .page-head h1, body.nx[data-theme="neon"] .page-head h2 { font-size: 34px !important; }
+body.nx[data-theme="neon"] .brand-mark { transform: skewX(-8deg); }
+body.nx[data-theme="neon"] .brand-name {
+  font-size: 22px !important; text-transform: uppercase; letter-spacing: .04em; display: inline-block; transform: skewX(-8deg);
+  background: var(--nx-grad); -webkit-background-clip: text; background-clip: text; color: transparent !important;
+}
+body.nx[data-theme="neon"] #nx-rail button.on { color: #fff; background: linear-gradient(180deg, rgba(255,46,136,.22), rgba(255,138,61,.08)); }
+body.nx[data-theme="neon"] .now-playing { background: linear-gradient(115deg, rgba(255, 46, 136, .16), rgba(138, 61, 255, .10) 45%, rgba(46, 230, 255, .04)) !important; }
+body.nx[data-theme="neon"] .now-playing::before { content: ''; position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(0deg, rgba(255,255,255,.025) 0 1px, transparent 1px 4px); }
+body.nx[data-theme="neon"] .now-playing::after {
+  content: ''; position: absolute; right: -80px; top: -120px; width: 380px; height: 380px; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle, rgba(255, 210, 107, .35), rgba(255, 138, 61, .18) 40%, transparent 70%);
+}
+body.nx[data-theme="neon"] .np-art { transform: rotate(-2deg); }
+body.nx[data-theme="neon"] .np-eyebrow { text-shadow: 0 0 10px rgba(46, 230, 255, .7); }
+body.nx[data-theme="neon"] .np-title-big {
+  font-weight: 400 !important; text-transform: uppercase; font-size: clamp(30px, 4vw, 54px) !important; line-height: .98 !important;
+  transform: skewX(-7deg); transform-origin: left;
+  background: linear-gradient(180deg, #fff 30%, #ffc2dd 100%); -webkit-background-clip: text; background-clip: text; color: transparent !important;
+  filter: drop-shadow(0 0 18px rgba(255, 46, 136, .45));
+}
+body.nx[data-theme="neon"] .stat-value { font-weight: 400 !important; font-size: 26px !important; letter-spacing: .02em; }
+body.nx[data-theme="neon"] #ov-ping { text-shadow: 0 0 12px rgba(46, 230, 255, .5); }
+body.nx[data-theme="neon"] #w-lyrics-box .ly-line.on { color: #fff; text-shadow: 0 0 18px rgba(255, 46, 136, .85), 0 0 2px #ff8a3d; }
+body.nx[data-theme="neon"] .palette { background: #140a22 !important; border: 1px solid rgba(255, 46, 136, .3) !important; }
+body.nx[data-theme="neon"] .toast { background: #170b26 !important; }
+@media (max-width: 768px) {
+  body.nx[data-theme="neon"] .np-art { transform: none; }
+  body.nx[data-theme="neon"] #mr-remote .rm-title { font-weight: 400 !important; text-transform: uppercase; font-size: 26px !important; transform: skewX(-6deg); transform-origin: left; filter: drop-shadow(0 0 12px rgba(255,46,136,.45)); }
+  body.nx[data-theme="neon"] .page-head h1, body.nx[data-theme="neon"] .page-head h2 { font-size: 28px !important; }
+}
+
+/* Theme picker swatch */
+.swatch-preview[data-style="neon"] { background: linear-gradient(135deg, #ff2e88, #ff8a3d 55%, #2a0d45) !important; }

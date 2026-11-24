@@ -467,6 +467,7 @@
   }
   // The panel's built-in themes, so the picker can list everything in one place.
   const BASE = [
+    { id: 'neon', name: 'Neon Sunset', sub: 'Slim, futuristic, the default', cat: 'Classic' },
     { id: 'discord', name: 'Discord', sub: 'Native, blurple', cat: 'Classic' },
     { id: 'linear', name: 'Linear', sub: 'Minimal, focused', cat: 'Classic' },
     { id: 'spotify', name: 'Spotify', sub: 'Music-first, green', cat: 'Classic' },
@@ -494,7 +495,7 @@
 --fg:${fg};--fg-muted:${mix(fg, 78, elev)};--fg-dim:${mix(fg, 64, elev)};--accent:${accent};--accent-hover:${mix(accent, 80, '#000')};--accent-soft:${mix(accent, 18, 'transparent')};
 --success:${ok[0]};--danger:${ok[1]};--warning:${ok[2]};--info:${accent};--border:${border};--border-soft:${mix(fg, 11, 'transparent')};
 --shadow-card:0 2px 0 rgba(0,0,0,${t.light ? '.18' : '.55'});--shadow-pop:0 14px 40px rgba(0,0,0,${t.light ? '.35' : '.75'});--radius:2px;--radius-lg:3px;
-${t.font === 'mono' ? `--font:${mono};--font-mono:${mono};` : ''}color-scheme:${t.light ? 'light' : 'dark'}}
+${t.font === 'mono' ? `--font:${mono};--font-mono:${mono};` : ''}--nx-on:${on};--nx-display:${t.head === 'serif' || t.font === 'serif' ? serif : t.font === 'mono' ? mono : 'var(--font)'};color-scheme:${t.light ? 'light' : 'dark'}}
 ${s} select,${s} input,${s} textarea{color-scheme:${t.light ? 'light' : 'dark'}}
 body${s}{background:${t.bgcss};background-attachment:fixed}
 ${s} .bg-ambient{display:none}${s} .main{background:transparent}

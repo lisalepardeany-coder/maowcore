@@ -6,6 +6,39 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.10.0] — 2026-11-24
+
+### Added
+- **Neon Sunset** theme, the new default: sunset backdrop, horizon grid,
+  slanted display titles. Pick any other theme in Settings as before.
+- **Slim layout for every theme** (`public/neon.css`, `public/neon.js`): the
+  32 sidebar links become 6 sections (Home, Music, Server, Crew, Auto, System)
+  with tabs per section; open panels instead of boxes; one stat strip; page
+  descriptions folded into an ⓘ; a bottom section bar on phones. Each theme
+  keeps its colours and fonts, and text on the accent colour is picked
+  automatically so it stays readable in all 123 themes.
+- 📻 autoplay button on the dashboard player; synced lyrics shown karaoke-style.
+- Skip votes get a "Vote to skip (1/3)" button.
+
+### Fixed
+- Uploaded library songs, soundboard clips and ambience failed with
+  `HTTP Error 401: Unauthorized` on servers with a dashboard token (automatic
+  on panel servers since 3.8.1): the bot was locked out of its own files.
+  Requests from the bot itself are let through; everyone else still needs the token.
+- A failed dashboard command now shows an error to the person who clicked,
+  instead of a "Playing now" toast for something that didn't play.
+- Deleting a library song now also takes it out of every queue (skipping it if
+  it's playing), and saved playlists leave deleted songs out, so the bot no
+  longer tries and skips songs that are gone.
+- Playlist sync re-downloads songs you deleted (it used to remember them
+  forever), and songs whose file went missing no longer count as "already
+  installed". A paused sync download now says it's blocking the next sync.
+- The ⏭ button under the now-playing message ignored the DJ role; it now uses
+  the same rules as `/skip`. Only people in the voice channel can vote, votes
+  are per song, and someone alone in voice can always skip.
+- Autoplay is remembered per server instead of resetting with every queue.
+- The dashboard's new files load before sign-in on token-protected servers.
+
 ## [3.9.5] — 2026-11-24
 
 ### Changed
