@@ -6,6 +6,12 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.9.3] — 2026-11-24
+
+### Changed
+- `/botinfo` says "You're a permanent owner of this bot." instead of showing
+  the setting's name (OWNER_USER_ID).
+
 ## [3.9.2] — 2026-11-24
 
 ### Changed

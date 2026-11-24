@@ -186,7 +186,7 @@ const buildSpecs = async (client, { isOwner = false, isPrivate = false } = {}) =
       || `http://${host}:${Number(process.env.CONTROL_PORT) || 8765}`;
     // <@id> mentions show as names inside an embed and never ping anyone.
     const all = require('../lib/owners').ids().map((id) => `<@${id}>`).join(', ');
-    embed.addFields({ name: '◆ You', value: `Permanent bot owner (OWNER_USER_ID)\n**Owners:** ${all}`, inline: false });
+    embed.addFields({ name: '◆ You', value: `You're a permanent owner of this bot.\n**Owners:** ${all}`, inline: false });
     // The address only in a private reply: a public one shows it to the whole channel.
     embed.addFields({ name: '◇ Panel', value: isPrivate ? `${panel}/` : 'Run `/botinfo private:True` to see the address.', inline: false });
   }
