@@ -139,6 +139,34 @@ body.nx .np-eyebrow { color: var(--nx-hi) !important; font-weight: 700 !importan
 body.nx .np-title-big { font-family: var(--nx-display) !important; font-size: clamp(26px, 3.4vw, 44px) !important; line-height: 1.05 !important; }
 body.nx .np-meta { font-size: 12.5px !important; }
 body.nx .np-progress { font-family: var(--font-mono); color: var(--fg-muted); }
+
+/* Seek bar: drag or click to jump. --fill is set by app.js. */
+.np-seek { display: flex !important; align-items: center; gap: 12px; font: 12px var(--font-mono); color: var(--fg-muted); max-width: 640px; }
+.np-seek-cur, .np-seek-dur { min-width: 52px; font-variant-numeric: tabular-nums; }
+.np-seek-dur { text-align: right; }
+#np-seek {
+  -webkit-appearance: none; appearance: none; flex: 1; height: 22px; margin: 0; background: transparent; cursor: pointer;
+}
+#np-seek::-webkit-slider-runnable-track {
+  height: 5px; border-radius: 5px;
+  background: linear-gradient(90deg, var(--accent) var(--fill, 0%), color-mix(in srgb, var(--fg) 14%, transparent) var(--fill, 0%));
+}
+#np-seek::-moz-range-track { height: 5px; border-radius: 5px; background: color-mix(in srgb, var(--fg) 14%, transparent); }
+#np-seek::-moz-range-progress { height: 5px; border-radius: 5px; background: var(--accent); }
+#np-seek::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 15px; height: 15px; margin-top: -5px; border-radius: 50%;
+  background: var(--fg); box-shadow: 0 0 0 3px var(--accent), 0 0 12px var(--accent); transition: transform .12s;
+}
+#np-seek::-moz-range-thumb { width: 13px; height: 13px; border: 0; border-radius: 50%; background: var(--fg); box-shadow: 0 0 0 3px var(--accent); }
+#np-seek:hover::-webkit-slider-thumb, #np-seek:active::-webkit-slider-thumb { transform: scale(1.25); }
+#np-seek:hover::-webkit-slider-runnable-track { height: 7px; }
+#np-seek:hover::-webkit-slider-thumb { margin-top: -4px; }
+#np-seek:focus-visible { outline: none; }
+#np-seek:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px var(--accent), 0 0 0 6px var(--accent-soft); }
+.np-seek-live #np-seek { cursor: default; opacity: .5; }
+body.nx[data-theme="neon"] #np-seek::-webkit-slider-runnable-track {
+  background: linear-gradient(90deg, #ff2e88, #ff8a3d var(--fill, 0%), rgba(255, 255, 255, .12) var(--fill, 0%));
+}
 body.nx .control {
   width: 42px !important; height: 42px !important; border-radius: 50% !important;
   background: var(--nx-glass) !important; border: 1px solid var(--nx-hair) !important;

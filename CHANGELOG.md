@@ -6,6 +6,20 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.11.0] — 2026-11-24
+
+### Added
+- **Seek bar** on the Home player: drag or click the time bar to jump
+  anywhere in the song, plus ⟲ −10 s / ⟳ +10 s buttons. Live streams show LIVE.
+- **Listen room plays the music**: "🎧 Listen here" streams what the bot is
+  playing to your browser (MP3, from where the bot is now), with volume and
+  stop. It follows song changes, pauses and jumps, and re-syncs if it drifts
+  more than 6 s. Up to 25 browser listeners at once
+  (`/api/listen/audio`, `lib/listen-stream.js`).
+
+### Fixed
+- The listen room showed long songs as "345:02" instead of 5:45:02.
+
 ## [3.10.0] — 2026-11-24
 
 ### Added

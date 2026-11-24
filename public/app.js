@@ -1557,6 +1557,68 @@
     }
   }
 
+  // ===== Seek bar (Home player) =====
+  // A real slider instead of the old text bar: drag or click to jump, the time
+  // follows the thumb while dragging, and the jump is sent when you let go.
+  // Live updates don't move the thumb while you're holding it.
+  const seekUI = (() => {
+    let built = null;
+    let dragging = false;
+    const build = () => {
+      const box = $('np-progress');
+      if (!box) return null;
+      box.textContent = '';
+      box.classList.add('np-seek');
+      box.innerHTML = '<span class="np-seek-cur">0:00</span>'
+        + '<input type="range" id="np-seek" min="0" max="1" step="1" value="0" aria-label="Song position" />'
+        + '<span class="np-seek-dur">—</span>';
+      const input = box.querySelector('input');
+      const cur = box.querySelector('.np-seek-cur');
+      const paint = () => input.style.setProperty('--fill', `${(Number(input.value) / Math.max(1, Number(input.max))) * 100}%`);
+      input.addEventListener('pointerdown', () => { dragging = true; });
+      input.addEventListener('input', () => { dragging = true; cur.textContent = fmtClock(Number(input.value)); paint(); });
+      input.addEventListener('change', () => {
+        send('seek', { value: Math.floor(Number(input.value)) });
+        // Give the bot a moment to jump before live updates take over again.
+        setTimeout(() => { dragging = false; }, 1200);
+      });
+      input.addEventListener('keydown', (e) => { if (e.key === 'Escape') { dragging = false; input.blur(); } });
+      return { box, input, cur, dur: box.querySelector('.np-seek-dur'), paint };
+    };
+    return {
+      show(song) {
+        built = (built && built.box.isConnected) ? built : build();
+        if (!built) return;
+        const total = Number(song?.duration) || 0;
+        const live = !total;                         // radio / live streams can't seek
+        built.input.disabled = live;
+        built.box.classList.toggle('np-seek-live', live);
+        built.dur.textContent = live ? 'LIVE' : (song.formattedDuration || fmtClock(total));
+        if (dragging) return;
+        built.input.max = String(Math.max(1, total));
+        built.input.value = String(Math.min(total, Math.max(0, song.currentTime || 0)));
+        built.cur.textContent = fmtClock(song.currentTime || 0);
+        built.paint();
+      },
+      clear() {
+        built = (built && built.box.isConnected) ? built : build();
+        if (!built) return;
+        built.input.disabled = true;
+        built.input.value = '0';
+        built.cur.textContent = '—';
+        built.dur.textContent = '—';
+        built.paint();
+      },
+      // ±seconds from where the song is now (the −10 s / +10 s buttons).
+      nudge(by) {
+        const s = firstQueue()?.currentSong;
+        if (!s?.duration) return;
+        const to = Math.max(0, Math.min(s.duration - 1, Math.floor((s.currentTime || 0) + by)));
+        send('seek', { value: to });
+      },
+    };
+  })();
+
   function renderPlayer() {
     const q = firstQueue();
     const dock = $('mini-dock');
@@ -1564,7 +1626,7 @@
     if (!q?.currentSong) {
       $('np-title').textContent = '— no signal —';
       $('np-meta').textContent = '';
-      $('np-progress').textContent = '—';
+      seekUI.clear();
       $('np-thumb').removeAttribute('src');
       $('queue').innerHTML = '<div class="queue-empty">— cargo hold empty —</div>';
       if (dock) dock.classList.remove('visible');
@@ -1585,7 +1647,7 @@
     if (q.autoplay) parts.push('autoplay on');
     if (q.voiceChannelName) parts.push(`in #${q.voiceChannelName}`);
     $('np-meta').textContent = (q.paused ? '⏸  PAUSED   ·   ' : '') + parts.join('   ·   ');
-    $('np-progress').textContent = `${fmtClock(s.currentTime)}  ${progressBar(s.currentTime || 0, s.duration || 0)}  ${s.formattedDuration}`;
+    seekUI.show(s);
     if (s.thumbnail) { $('np-thumb').src = s.thumbnail; } else { $('np-thumb').removeAttribute('src'); }
     if (vis) vis.classList.toggle('paused', !!q.paused);
     setAmbient(s.thumbnail);
@@ -1875,6 +1937,8 @@
       const q = firstQueue();
       if (a === 'pause-toggle' && q) return send(q.paused ? 'resume' : 'pause');
       if (a === 'loop' && q) return send('loop', { value: (q.repeatMode + 1) % 3 });
+      if (a === 'back10') return seekUI.nudge(-10);
+      if (a === 'fwd10') return seekUI.nudge(10);
       send(a);
     });
   });

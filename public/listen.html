@@ -35,6 +35,15 @@
   .msg.err { color: #f87171; } .msg.ok { color: #22c55e; }
   .center { text-align: center; padding: 30px 14px; }
   .pill { display: inline-block; font-size: 11px; padding: 1px 8px; border-radius: 99px; background: color-mix(in srgb, var(--accent) 25%, transparent); margin: 2px 2px 0 0; }
+  .player { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .player .vol { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 140px; }
+  .player .vol input { flex: 1; padding: 0; accent-color: var(--accent); }
+  .player button.on { background: #ef4444; }
+  .player .state { flex-basis: 100%; }
+  .eq { display: inline-flex; gap: 2px; align-items: flex-end; height: 12px; margin-right: 4px; vertical-align: -1px; }
+  .eq i { width: 3px; background: var(--accent); border-radius: 2px; animation: eq .9s ease-in-out infinite; }
+  .eq i:nth-child(2) { animation-delay: .2s; } .eq i:nth-child(3) { animation-delay: .4s; }
+  @keyframes eq { 0%, 100% { height: 3px; } 50% { height: 12px; } }
   [data-embed] .wrap { padding-top: 10px; }
   [data-embed] header { display: none; }
 </style>
@@ -42,6 +51,13 @@
 <body>
 <div class="wrap">
   <header><img id="srv-icon" alt="" /><div><h1 id="srv-name">Listen room</h1><div class="sub" id="you"></div></div></header>
+  <!-- Outside #app: that part is redrawn every few seconds, this must keep playing. -->
+  <div class="card player" id="player" hidden>
+    <button id="listen-btn" type="button">🎧 Listen here</button>
+    <label class="vol">🔈<input id="listen-vol" type="range" min="0" max="100" value="70" aria-label="Volume" /></label>
+    <div class="muted state" id="listen-state">Hear the music in your browser, in sync with the bot.</div>
+    <audio id="listen-audio" preload="none"></audio>
+  </div>
   <div id="app"><div class="card center muted">Loading…</div></div>
 </div>
 <script>
@@ -52,7 +68,11 @@
   if (m) { try { localStorage.setItem(KEY, decodeURIComponent(m[1])); } catch {} history.replaceState(null, '', location.pathname + location.search); }
   const session = () => { try { return localStorage.getItem(KEY) || ''; } catch { return ''; } };
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const clock = (s) => { s = Math.max(0, Math.floor(s || 0)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+  const clock = (s) => {
+    s = Math.max(0, Math.floor(s || 0));
+    const h = Math.floor(s / 3600); const m = Math.floor((s % 3600) / 60); const sec = String(s % 60).padStart(2, '0');
+    return h ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`;
+  };
   const api = async (path, body) => {
     const headers = { 'X-Maow-Session': session() };
     if (body) headers['Content-Type'] = 'application/json';
@@ -114,11 +134,64 @@
     };
   };
 
+  // ===== Listen in the browser =====
+  // The bot streams what it plays (/api/listen/audio) from where it is now.
+  // We note where the stream started; if what you hear drifts from the bot by
+  // more than a few seconds (or the song changes, or it was paused), we reload.
+  const player = document.getElementById('player');
+  const audio = document.getElementById('listen-audio');
+  const btn = document.getElementById('listen-btn');
+  const vol = document.getElementById('listen-vol');
+  const note = document.getElementById('listen-state');
+  const DRIFT_S = 6;
+  let listening = false; let startAt = 0; let songKey = null; let stale = false; let retryAt = 0;
+  try { vol.value = localStorage.getItem('maow.listen.vol') || vol.value; } catch {}
+  audio.volume = vol.value / 100;
+  vol.oninput = () => { audio.volume = vol.value / 100; try { localStorage.setItem('maow.listen.vol', vol.value); } catch {} };
+  const say = (html) => { note.innerHTML = html; };
+  const start = (s) => {
+    startAt = s.currentTime || 0;
+    songKey = s.nowPlaying?.url || s.nowPlaying?.name || null;
+    stale = false;
+    audio.src = `/api/listen/audio?session=${encodeURIComponent(session())}&t=${Date.now()}`;
+    audio.play().catch(() => say('Your browser blocked the sound: press 🎧 Listen here again.'));
+    say('Connecting…');
+  };
+  const stopAudio = () => { audio.pause(); audio.removeAttribute('src'); audio.load(); };
+  audio.addEventListener('playing', () => say('<span class="eq"><i></i><i></i><i></i></span> Playing in your browser, in sync with the bot.'));
+  audio.addEventListener('waiting', () => { if (listening) say('Loading…'); });
+  audio.addEventListener('error', () => {
+    if (!listening || !audio.getAttribute('src')) return;
+    say('Couldn\'t play this song in the browser. Trying again shortly…');
+    stale = true; retryAt = Date.now() + 8000;
+  });
+  btn.onclick = () => {
+    listening = !listening;
+    btn.textContent = listening ? '■ Stop listening' : '🎧 Listen here';
+    btn.classList.toggle('on', listening);
+    if (!listening) { stopAudio(); say('Stopped. The bot keeps playing in voice.'); return; }
+    if (lastState?.nowPlaying && !lastState.paused) start(lastState); else say('Waiting for music…');
+  };
+  let lastState = null;
+  const follow = (s) => {
+    lastState = s;
+    player.hidden = false;
+    if (!listening) return;
+    const key = s.nowPlaying?.url || s.nowPlaying?.name || null;
+    if (!s.nowPlaying) { if (audio.getAttribute('src')) stopAudio(); songKey = null; return say('Waiting for music…'); }
+    if (s.paused) { if (!audio.paused) audio.pause(); stale = true; return say('⏸ Paused by the bot.'); }
+    if (stale && Date.now() < retryAt) return;
+    const heard = startAt + (audio.currentTime || 0);
+    const live = !s.nowPlaying.duration;
+    const drift = !live && !audio.paused && Math.abs(heard - (s.currentTime || 0)) > DRIFT_S;
+    if (key !== songKey || stale || !audio.getAttribute('src') || drift) start(s);
+  };
+
   const tick = async () => {
     if (typing) return;
-    try { render(await api('/api/listen/state')); }
+    try { const s = await api('/api/listen/state'); render(s); follow(s); }
     catch (e) {
-      if (e.signin) return showSignIn();
+      if (e.signin) { player.hidden = true; return showSignIn(); }
       app.innerHTML = `<div class="card center muted">${esc(e.message)}</div>`;
     }
   };

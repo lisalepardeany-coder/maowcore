@@ -51,6 +51,20 @@ test('a deleted library song leaves the queue (and is skipped if it\'s playing)'
   assert.deepEqual(queue.songs.map((x) => x.url), [u('keep.mp3'), 'https://youtu.be/x']);
 });
 
+test('listen-room audio: a signed-in session in the address opens it, nothing else does', () => {
+  const auth = require('../lib/dashboard-auth');
+  const real = auth.lookup;
+  auth.lookup = (t) => (t === 'good' ? { userId: '1', tag: 'x' } : null);
+  try {
+    const at = (q) => ({ ...req('203.0.113.9'), url: `/api/listen/audio${q}` });
+    assert.equal(server._checkAuth(at('?session=good'), fakeRes(), '/api/listen/audio'), true);
+    assert.equal(server._checkAuth(at('?session=bad'), fakeRes(), '/api/listen/audio'), false);
+    assert.equal(server._checkAuth(at(''), fakeRes(), '/api/listen/audio'), false);
+    // The address trick is only for the audio, not the rest of the API.
+    assert.equal(server._checkAuth({ ...req('203.0.113.9'), url: '/api/stats?session=good' }, fakeRes(), '/api/stats'), false);
+  } finally { auth.lookup = real; }
+});
+
 test('the dashboard\'s new files load before sign-in', () => {
   for (const p of ['/neon.css', '/neon.js']) assert.equal(server._checkAuth(req('203.0.113.9'), fakeRes(), p), true, p);
 });
