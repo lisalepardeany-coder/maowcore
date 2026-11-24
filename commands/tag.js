@@ -29,7 +29,7 @@ module.exports = {
     const sub = interaction.options.getSubcommand();
     const tags = getTags(interaction.guildId);
     if (sub === 'add') {
-      if (!interaction.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
+      if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageMessages)) {
         return interaction.reply({ content: '◌ Mods only.', flags: MessageFlags.Ephemeral });
       }
       const name = interaction.options.getString('name').toLowerCase().trim();
@@ -38,7 +38,7 @@ module.exports = {
       return interaction.reply({ content: `✦  Tag **${name}** saved.`, flags: MessageFlags.Ephemeral });
     }
     if (sub === 'remove') {
-      if (!interaction.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
+      if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageMessages)) {
         return interaction.reply({ content: '◌ Mods only.', flags: MessageFlags.Ephemeral });
       }
       const name = interaction.options.getString('name').toLowerCase();

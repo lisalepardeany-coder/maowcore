@@ -197,7 +197,7 @@ module.exports = {
     const isPrivate = interaction.options.getBoolean('private') || false;
     await interaction.deferReply(isPrivate ? { flags: MessageFlags.Ephemeral } : {});
     const embed = await buildSpecs(interaction.client, {
-      isOwner: interaction.user.id === process.env.OWNER_USER_ID,
+      isOwner: require('../lib/owners').isOwner(interaction.user.id),
     });
     return interaction.editReply({ embeds: [embed] });
   },

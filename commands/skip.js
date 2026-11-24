@@ -10,7 +10,7 @@ const isDJ = (member, cfg) => {
   return member.roles?.cache?.has(cfg.djRoleId);
 };
 
-const isAdmin = (member) => member.permissions?.has('ManageGuild');
+const isAdmin = (interaction) => interaction.memberPermissions?.has('ManageGuild');
 
 module.exports = {
   data: new SlashCommandBuilder().setName('skip').setDescription('Warp to the next signal (vote-skip if DJ role is set)'),
@@ -24,7 +24,7 @@ module.exports = {
     const member = interaction.member;
     const requester = queue.songs[0]?.user;
     const isRequester = requester && member.user.id === requester.id;
-    if (isAdmin(member) || isDJ(member, cfg) || isRequester || !cfg.djRoleId) {
+    if (isAdmin(interaction) || isDJ(member, cfg) || isRequester || !cfg.djRoleId) {
       try {
         const next = await queue.skip();
         return interaction.reply(`⏭  Warping to next signal — **${next.name}**`);

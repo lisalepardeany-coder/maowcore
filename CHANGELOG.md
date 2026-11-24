@@ -6,6 +6,19 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.9.0] — 2026-11-24
+
+### Added
+- Several permanent bot owners: `OWNER_USER_ID` takes a list
+  (`OWNER_USER_ID=id1,id2`). Root owners are always "owner" on the dashboard;
+  nobody can demote or ban them on the Ranks page. In every server the bot is
+  in they pass the bot's own permission checks (Manage Server, mod tools,
+  tags, vote-skip, /backup, cross-server /announceupdate). Backup DMs and
+  health alerts go to the first ID. New file: `lib/owners.js`.
+- Commands that Discord itself limits to admins (setDefaultMemberPermissions)
+  still need that permission in the server: Discord hides them before the
+  bot sees anything.
+
 ## [3.8.2] — 2026-11-24
 
 ### Fixed

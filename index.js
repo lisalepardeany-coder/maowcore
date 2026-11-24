@@ -21,6 +21,7 @@ const {
   ChannelType,
   PermissionFlagsBits,
   AuditLogEvent,
+  PermissionsBitField,
 } = require('discord.js');
 const { DisTube } = require('distube');
 const { SpotifyPlugin } = require('@distube/spotify');
@@ -565,7 +566,15 @@ client.on(Events.InteractionCreate, async (interaction) => {
     // to be pre-registered, so runtime-defined names like /bops can't be invoked.)
     const command = client.commands.get(stripPrefix(interaction.commandName));
     if (!command) return;
-    const who = interaction.user?.username || interaction.user?.tag || 'unknown';
+    // Root owners (OWNER_USER_ID) pass the bot's own permission checks in every
+    // server: commands read interaction.memberPermissions, so give them all.
+    // Discord's own limits still apply (what the BOT may do in that server).
+    if (interaction.inGuild() && require('./lib/owners').isOwner(interaction.user?.id)) {
+      Object.defineProperty(interaction, 'memberPermissions', {
+        value: new PermissionsBitField(PermissionsBitField.All).freeze(), configurable: true,
+      });
+    }
+    const who =interaction.user?.username || interaction.user?.tag || 'unknown';
     const guildName = interaction.guild?.name || 'DM';
     const startedAt = Date.now();
     control.log(`/${interaction.commandName} — ${who} in ${guildName}`,

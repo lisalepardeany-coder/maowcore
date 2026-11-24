@@ -138,9 +138,9 @@ module.exports = {
     }
 
     // ── All servers (owner only) ─────────────────────────────────────────────
-    const ownerId = process.env.OWNER_USER_ID;
-    if (!ownerId) return interaction.editReply('▲  Cross-server broadcast needs `OWNER_USER_ID` set in `.env`.');
-    if (interaction.user.id !== ownerId) return interaction.editReply('▲  Only the bot owner can broadcast to all servers.');
+    const owners = require('../lib/owners');
+    if (!owners.primary()) return interaction.editReply('▲  Cross-server broadcast needs `OWNER_USER_ID` set in `.env`.');
+    if (!owners.isOwner(interaction.user.id)) return interaction.editReply('▲  Only the bot owner can broadcast to all servers.');
 
     const guilds = [...interaction.client.guilds.cache.values()];
     let posted = 0, failed = 0;

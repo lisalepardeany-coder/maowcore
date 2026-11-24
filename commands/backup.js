@@ -13,8 +13,7 @@ module.exports = {
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addBooleanOption((o) => o.setName('dm').setDescription('Send it to your DMs instead (default: here, only you see it)')),
   async execute(interaction) {
-    const owner = process.env.OWNER_USER_ID;
-    if (!owner || interaction.user.id !== owner) {
+    if (!require('../lib/owners').isOwner(interaction.user.id)) {
       return interaction.reply({
         content: '◌ Only the bot owner can make backups: they contain every server\'s data.',
         flags: MessageFlags.Ephemeral,
@@ -24,7 +23,7 @@ module.exports = {
     const offsite = require('../lib/offsite-backup');
     try {
       if (interaction.options.getBoolean('dm')) {
-        const r = await offsite.sendNow(interaction.client);
+        const r = await offsite.sendNow(interaction.client, interaction.user.id);
         return interaction.editReply(r.ok ? `🗄 Sent to your DMs (${(r.bytes / 1024).toFixed(0)} KB).` : `✕ ${r.error}`);
       }
       const { buffer, count } = await offsite.pack();

@@ -4,7 +4,7 @@
         "version": "PTDL_v2",
         "update_url": null
     },
-    "exported_at": "2026-11-24T16:00:21+00:00",
+    "exported_at": "2026-11-24T16:16:10+00:00",
     "name": "MaowCore",
     "author": "lara@maowcore.local",
     "description": "MaowCore: a Discord music + community bot (YouTube, Spotify, SoundCloud, leveling, modmail, giveaways, automod) with a web dashboard. The dashboard runs on this server's port; open http://<server address>:<port>/ once it says \"Logged in as\".",
@@ -100,13 +100,13 @@
             "field_type": "text"
         },
         {
-            "name": "Owner user ID",
-            "description": "Your own Discord user ID (Discord: Settings > Advanced > Developer Mode, then right-click your name > Copy User ID). Owner-only commands, backup DMs and health alerts go to this account.",
+            "name": "Owner user IDs",
+            "description": "Permanent bot owners: your Discord user ID (Settings > Advanced > Developer Mode, then right-click your name > Copy User ID), or several separated by commas. They are always owner on the dashboard and pass the bot's permission checks in every server. Backup DMs and health alerts go to the first one.",
             "env_variable": "OWNER_USER_ID",
             "default_value": "",
             "user_viewable": true,
             "user_editable": true,
-            "rules": "nullable|string|max:32",
+            "rules": "nullable|string|max:200",
             "field_type": "text"
         },
         {
