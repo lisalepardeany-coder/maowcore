@@ -6,6 +6,14 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.11.3] — 2026-11-24
+
+### Fixed
+- The saved welcome sound failed with `Invalid URL` (3.11.2 gave DisTube a
+  file path; it only takes URLs). It now plays through the bot's own server at
+  `/welcome-cache/<file>` (bot-only without a token), which works on Linux and
+  Windows. A test now runs DisTube's real stream class and ffmpeg on it.
+
 ## [3.11.2] — 2026-11-24
 
 ### Fixed
