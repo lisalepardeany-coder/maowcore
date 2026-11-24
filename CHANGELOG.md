@@ -6,6 +6,14 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.8.2] — 2026-11-24
+
+### Fixed
+- Dashboard stuck on "Communications are down. Reconnecting…" when signed in
+  with Discord on a bot that has a dashboard token (every panel server since
+  3.8.1). The live connection only took the token; it now accepts a Discord
+  sign-in too, the same as every other dashboard request.
+
 ## [3.8.1] — 2026-11-24
 
 ### Security
