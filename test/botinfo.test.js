@@ -35,7 +35,11 @@ test('botinfo: spec sheet builds from a fake client, panel only for the owner', 
   assert.match(text, /\*\*Ping\*\* 10 ms/);
   assert.match(text, /\*\*Heartbeat\*\* 42 ms/);
   assert.ok(!pub.fields.some((f) => f.name.includes('Panel')));
+  const ownersBefore = process.env.OWNER_USER_ID;
+  process.env.OWNER_USER_ID = '168281178309132288,481051702850617346';
   const own = (await buildSpecs(client, { isOwner: true })).toJSON();
+  if (ownersBefore === undefined) delete process.env.OWNER_USER_ID; else process.env.OWNER_USER_ID = ownersBefore;
+  assert.match(JSON.stringify(own), /<@168281178309132288>, <@481051702850617346>/, 'both owners are listed');
   assert.ok(own.fields.some((f) => f.name.includes('You') && /owner/i.test(f.value)), 'owners are told they are');
   const panelOf = (e) => e.fields.find((f) => f.name.includes('Panel')).value;
   assert.ok(!/http/.test(panelOf(own)), 'no address in a public reply');

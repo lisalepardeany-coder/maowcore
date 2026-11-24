@@ -38,6 +38,14 @@ test('roles: root owners are always owner and pass every rank check', () => {
   });
 });
 
+test('roles: the Ranks list shows root owners who never signed in', { skip: !roles.hasTable() && 'needs SQLite' }, () => {
+  withOwners(`${A},${B}`, () => {
+    const rows = roles.list().filter((r) => r.userId === A || r.userId === B);
+    assert.strictEqual(rows.length, 2);
+    assert.ok(rows.every((r) => r.rank === 'owner' && r.permanent));
+  });
+});
+
 test('roles: a root owner\'s rank can\'t be changed by anyone', () => {
   withOwners(`${A},${B}`, () => {
     if (!roles.hasTable()) {

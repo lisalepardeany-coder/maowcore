@@ -6,6 +6,13 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.9.2] — 2026-11-24
+
+### Changed
+- `/botinfo` lists every root owner by name for an owner ("Owners: @a, @b").
+- The dashboard's Ranks page shows all root owners with a 🔒 badge, including
+  ones who never signed in (their name and avatar come from Discord).
+
 ## [3.9.1] — 2026-11-24
 
 ### Changed

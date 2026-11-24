@@ -5811,7 +5811,7 @@
                 <div class="rank-tag">${escapeHtmlSafe(u.tag || '(unknown)')}${isYou ? '<span class="rank-you-tag">you</span>' : ''}</div>
                 <div class="rank-id">${escapeHtmlSafe(u.userId)}</div>
               </div>
-              <span class="rank-badge ${cls}">${escapeHtmlSafe(u.rank)}</span>
+              <span class="rank-badge ${cls}"${u.permanent ? ' title="Permanent owner (OWNER_USER_ID): can\'t be changed here"' : ''}>${u.permanent ? '🔒 ' : ''}${escapeHtmlSafe(u.rank)}</span>
               <div class="rank-granted">
                 <div>by ${escapeHtmlSafe(u.grantedBy || '—')}</div>
                 <div>${escapeHtmlSafe(granted)}</div>
