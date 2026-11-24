@@ -29,7 +29,7 @@ const egg = {
   // 1. Update = make the code exactly what's on GitHub (fetch + reset, so a file edited on the server can't
   //    block it the way a merge conflict would block `git pull`). data/, cookies/, bin/, .env and the built
   //    dashboard aren't in git, so they're kept. If GitHub can't be reached, the bot starts with the code it has.
-  // 2. The rest lives in the repo (deploy/pterodactyl/start.sh: dashboard build, yt-dlp update, start), so it
+  // 2. The rest lives in the repo (deploy/pterodactyl/start.sh: temp folder, yt-dlp update, start), so it
   //    can change without re-importing the egg. Older code without that script just starts the bot.
   startup: 'if [[ -d .git ]] && [[ "{{AUTO_UPDATE}}" == "1" ]]; then echo "Updating from GitHub..."; '
     + 'git fetch --quiet origin {{BRANCH}} && git reset --hard FETCH_HEAD && npm install --omit=dev --no-audit --no-fund; fi; '
@@ -52,7 +52,12 @@ const egg = {
     v('Spotify client secret', 'SPOTIFY_CLIENT_SECRET', 'Optional, for Spotify links.', '', 'nullable|string|max:100'),
     v('Genius token', 'GENIUS_TOKEN', 'Optional, for /lyrics. genius.com/api-clients', '', 'nullable|string|max:200'),
     v('Bot name', 'BOT_INSTANCE_NAME', 'Name shown in mod-log entries ("via <name>").', 'MaowCore', 'required|string|max:40'),
-    v('Backup DMs', 'OFFSITE_BACKUP', 'How often the bot DMs its owner (OWNER_USER_ID in .env) a backup of its data: weekly, daily or off. No songs, cookies or logins are included.', 'weekly', 'required|string|in:weekly,daily,off'),
+    v('Owner user ID', 'OWNER_USER_ID', 'Your own Discord user ID (Discord: Settings > Advanced > Developer Mode, then right-click your name > Copy User ID). Owner-only commands, backup DMs and health alerts go to this account.', '', 'nullable|string|max:32'),
+    v('Dashboard token', 'CONTROL_TOKEN', 'Password for the web dashboard. Leave blank and the bot makes one on first start, saved in data/control-token.txt.', '', 'nullable|string|max:200'),
+    v('Discord sign-in secret', 'DISCORD_CLIENT_SECRET', 'Optional: lets people sign in to the dashboard with Discord. Developer Portal > your app > OAuth2 > Client Secret. Also set the dashboard public URL below.', '', 'nullable|string|max:200'),
+    v('Require sign-in', 'PANEL_REQUIRE_LOGIN', '1 = the dashboard needs a Discord sign-in (or the token) for everything; 0 = the dashboard token alone.', '0', 'required|boolean'),
+    v('Command prefix', 'COMMAND_PREFIX', 'Optional. Puts a prefix in front of every slash command name (e.g. "mc" makes /play into /mc-play), for running two bots in one server. Lowercase letters, digits and _ only.', '', 'nullable|regex:/^[a-z0-9_]*$/|max:10'),
+    v('Backup DMs', 'OFFSITE_BACKUP', 'How often the bot DMs its owner (Owner user ID above) a backup of its data: weekly, daily or off. No songs, cookies or logins are included.', 'weekly', 'required|string|in:weekly,daily,off'),
     v('Dashboard public URL', 'PANEL_PUBLIC_URL', 'Optional. The address people use to reach the dashboard, e.g. http://node.example.com:25570 (needed for Discord sign-in).', '', 'nullable|string|max:200'),
     v('Git repo', 'GIT_ADDRESS', 'Where the install script gets the code. Leave blank to upload the files yourself.', 'https://github.com/lisalepardeany-coder/maowcore', 'nullable|string|max:200'),
     v('Git branch', 'BRANCH', 'Branch to install.', 'main', 'required|string|max:60'),

@@ -6,6 +6,20 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.8.1] — 2026-11-24
+
+### Security
+- On Pterodactyl the dashboard no longer runs without a password. If no
+  `CONTROL_TOKEN` is set (Startup tab or `.env`), the bot makes one on first
+  start and keeps it in `data/control-token.txt`; it's never printed to the
+  console. Before this, a panel server without a token left the dashboard
+  open to anyone who found its address.
+
+### Added
+- Egg variables for the settings the panel had no box for: Owner user ID,
+  Dashboard token, Discord sign-in secret, Require sign-in, Command prefix.
+  Re-import the egg to see them (Admin > Nests > the egg > Import / update).
+
 ## [3.8.0] — 2026-11-23
 
 ### Removed

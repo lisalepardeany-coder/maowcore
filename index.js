@@ -1,5 +1,6 @@
 require('./lib/hosting'); // Pterodactyl port/env fixes; must run before .env loads
 require('dotenv').config();
+require('./lib/hosting').ensureControlToken(); // never an open dashboard on a panel
 // Load runtime-editable integration creds (Last.fm) into process.env before
 // any integration code reads them.
 require('./lib/integrations-config').load();

@@ -4,7 +4,7 @@
         "version": "PTDL_v2",
         "update_url": null
     },
-    "exported_at": "2026-11-23T15:50:06+00:00",
+    "exported_at": "2026-11-24T16:00:21+00:00",
     "name": "MaowCore",
     "author": "lara@maowcore.local",
     "description": "MaowCore: a Discord music + community bot (YouTube, Spotify, SoundCloud, leveling, modmail, giveaways, automod) with a web dashboard. The dashboard runs on this server's port; open http://<server address>:<port>/ once it says \"Logged in as\".",
@@ -100,8 +100,58 @@
             "field_type": "text"
         },
         {
+            "name": "Owner user ID",
+            "description": "Your own Discord user ID (Discord: Settings > Advanced > Developer Mode, then right-click your name > Copy User ID). Owner-only commands, backup DMs and health alerts go to this account.",
+            "env_variable": "OWNER_USER_ID",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:32",
+            "field_type": "text"
+        },
+        {
+            "name": "Dashboard token",
+            "description": "Password for the web dashboard. Leave blank and the bot makes one on first start, saved in data/control-token.txt.",
+            "env_variable": "CONTROL_TOKEN",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:200",
+            "field_type": "text"
+        },
+        {
+            "name": "Discord sign-in secret",
+            "description": "Optional: lets people sign in to the dashboard with Discord. Developer Portal > your app > OAuth2 > Client Secret. Also set the dashboard public URL below.",
+            "env_variable": "DISCORD_CLIENT_SECRET",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:200",
+            "field_type": "text"
+        },
+        {
+            "name": "Require sign-in",
+            "description": "1 = the dashboard needs a Discord sign-in (or the token) for everything; 0 = the dashboard token alone.",
+            "env_variable": "PANEL_REQUIRE_LOGIN",
+            "default_value": "0",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|boolean",
+            "field_type": "text"
+        },
+        {
+            "name": "Command prefix",
+            "description": "Optional. Puts a prefix in front of every slash command name (e.g. \"mc\" makes /play into /mc-play), for running two bots in one server. Lowercase letters, digits and _ only.",
+            "env_variable": "COMMAND_PREFIX",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|regex:/^[a-z0-9_]*$/|max:10",
+            "field_type": "text"
+        },
+        {
             "name": "Backup DMs",
-            "description": "How often the bot DMs its owner (OWNER_USER_ID in .env) a backup of its data: weekly, daily or off. No songs, cookies or logins are included.",
+            "description": "How often the bot DMs its owner (Owner user ID above) a backup of its data: weekly, daily or off. No songs, cookies or logins are included.",
             "env_variable": "OFFSITE_BACKUP",
             "default_value": "weekly",
             "user_viewable": true,
