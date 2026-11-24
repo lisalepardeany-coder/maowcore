@@ -28,8 +28,8 @@ const MEMBER = '210000000000000003';
 const seed = () => {
   if (!sqliteOk) return;
   db.raw.exec(`DELETE FROM posts; DELETE FROM user_roles;`);
-  delete process.env.OWNER_USER_ID;
-  roles.noteLogin({ userId: OWNER, tag: 'Owner' });        // becomes owner (first user)
+  process.env.OWNER_USER_ID = OWNER;
+  roles.noteLogin({ userId: OWNER, tag: 'Owner' });        // owner (OWNER_USER_ID)
   roles.noteLogin({ userId: ADMIN, tag: 'Admin' });        // becomes member
   roles.noteLogin({ userId: MEMBER, tag: 'Member' });      // becomes member
   roles.grant(OWNER, ADMIN, 'admin');

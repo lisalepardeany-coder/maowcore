@@ -52,7 +52,7 @@ const egg = {
     v('Spotify client secret', 'SPOTIFY_CLIENT_SECRET', 'Optional, for Spotify links.', '', 'nullable|string|max:100'),
     v('Genius token', 'GENIUS_TOKEN', 'Optional, for /lyrics. genius.com/api-clients', '', 'nullable|string|max:200'),
     v('Bot name', 'BOT_INSTANCE_NAME', 'Name shown in mod-log entries ("via <name>").', 'MaowCore', 'required|string|max:40'),
-    v('Owner user IDs', 'OWNER_USER_ID', 'Permanent bot owners: your Discord user ID (Settings > Advanced > Developer Mode, then right-click your name > Copy User ID), or several separated by commas. They are always owner on the dashboard and pass the bot\'s permission checks in every server. Backup DMs and health alerts go to the first one.', '', 'nullable|string|max:200'),
+    v('Extra owner user IDs', 'OWNER_USER_ID', 'Optional. The bot\'s two owners are built in; add more permanent owners here as Discord user IDs separated by commas (Settings > Advanced > Developer Mode, then right-click a name > Copy User ID). Owners are always owner on the dashboard and pass the bot\'s permission checks in every server.', '', 'nullable|string|max:200'),
     v('Dashboard token', 'CONTROL_TOKEN', 'Password for the web dashboard. Leave blank and the bot makes one on first start, saved in data/control-token.txt.', '', 'nullable|string|max:200'),
     v('Discord sign-in secret', 'DISCORD_CLIENT_SECRET', 'Optional: lets people sign in to the dashboard with Discord. Developer Portal > your app > OAuth2 > Client Secret. Also set the dashboard public URL below.', '', 'nullable|string|max:200'),
     v('Require sign-in', 'PANEL_REQUIRE_LOGIN', '1 = the dashboard needs a Discord sign-in (or the token) for everything; 0 = the dashboard token alone.', '0', 'required|boolean'),

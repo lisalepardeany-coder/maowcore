@@ -6,6 +6,16 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.9.5] — 2026-11-24
+
+### Changed
+- The bot's two owners (168281178309132288 and 481051702850617346) are built
+  in (`lib/owners.js`), so every copy of the bot knows them with no setting.
+  `OWNER_USER_ID` now only adds extra owners; it can't remove the built-in
+  ones. The first built-in owner gets health alerts and backup DMs.
+- Because owners always exist now, the first stranger to sign in to the
+  dashboard is no longer made owner.
+
 ## [3.9.4] — 2026-11-24
 
 ### Fixed

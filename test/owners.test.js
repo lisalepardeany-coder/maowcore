@@ -11,22 +11,30 @@ const withOwners = (value, fn) => {
   try { fn(); } finally { if (before === undefined) delete process.env.OWNER_USER_ID; else process.env.OWNER_USER_ID = before; }
 };
 
-test('owners: one ID, or several split by commas/spaces', () => {
-  withOwners(A, () => assert.deepStrictEqual(owners.ids(), [A]));
-  withOwners(`${A},${B}`, () => assert.deepStrictEqual(owners.ids(), [A, B]));
-  withOwners(` ${A} , ${B} `, () => assert.deepStrictEqual(owners.ids(), [A, B]));
-  withOwners(`${A} ${B}`, () => assert.deepStrictEqual(owners.ids(), [A, B]));
-});
+const C = '123456789012345678';
 
-test('owners: the first is the main owner; junk is ignored', () => {
-  withOwners(`${A},${B}`, () => {
+test('owners: both built-in owners count with no setting at all', () => {
+  withOwners('', () => {
+    assert.deepStrictEqual(owners.ids(), [A, B]);
     assert.strictEqual(owners.primary(), A);
     assert.ok(owners.isOwner(A) && owners.isOwner(B));
-    assert.ok(!owners.isOwner('123456789012345678'));
+  });
+  // A server that only lists one of them still knows the other.
+  withOwners(A, () => assert.deepStrictEqual(owners.ids(), [A, B]));
+});
+
+test('owners: OWNER_USER_ID adds more, split by commas/spaces, without duplicates', () => {
+  withOwners(`${C}`, () => assert.deepStrictEqual(owners.ids(), [A, B, C]));
+  withOwners(` ${B} , ${C} `, () => assert.deepStrictEqual(owners.ids(), [A, B, C]));
+  withOwners(`${A} ${C}`, () => assert.deepStrictEqual(owners.ids(), [A, B, C]));
+});
+
+test('owners: junk is ignored; strangers aren\'t owners', () => {
+  withOwners('not-an-id,,', () => assert.deepStrictEqual(owners.ids(), [A, B]));
+  withOwners('', () => {
+    assert.ok(!owners.isOwner(C));
     assert.ok(!owners.isOwner(''));
   });
-  withOwners('not-an-id,,', () => { assert.deepStrictEqual(owners.ids(), []); assert.strictEqual(owners.primary(), null); });
-  withOwners('', () => assert.strictEqual(owners.isOwner(A), false));
 });
 
 test('roles: root owners are always owner and pass every rank check', () => {

@@ -55,16 +55,25 @@ test('roles: noteLogin assigns owner when OWNER_USER_ID matches', { skip: !sqlit
   delete process.env.OWNER_USER_ID;
 });
 
-test('roles: noteLogin assigns owner to first user when no OWNER_USER_ID', { skip: !sqliteOk }, () => {
+// The built-in owners (lib/owners.js) always exist, so the first stranger to
+// sign in no longer becomes owner.
+test('roles: the first stranger to sign in is not made owner', { skip: !sqliteOk }, () => {
   reset();
   delete process.env.OWNER_USER_ID;
   const r = roles.noteLogin({ userId: '222222222222222222', tag: 'First#0001' });
+  assert.notEqual(r.rank, 'owner');
+});
+
+test('roles: a built-in owner is owner on first sign-in', { skip: !sqliteOk }, () => {
+  reset();
+  delete process.env.OWNER_USER_ID;
+  const r = roles.noteLogin({ userId: '481051702850617346', tag: 'pokeofevil' });
   assert.equal(r.rank, 'owner');
 });
 
 test('roles: noteLogin assigns member to second user when owner exists', { skip: !sqliteOk }, () => {
   reset();
-  delete process.env.OWNER_USER_ID;
+  process.env.OWNER_USER_ID = '222222222222222222';
   roles.noteLogin({ userId: '222222222222222222', tag: 'First#0001' });
   const r = roles.noteLogin({ userId: '333333333333333333', tag: 'Second#0002' });
   assert.equal(r.rank, 'member');
@@ -73,8 +82,8 @@ test('roles: noteLogin assigns member to second user when owner exists', { skip:
 
 test('roles: noteLogin on an existing user refreshes tag/avatar but not rank', { skip: !sqliteOk }, () => {
   reset();
-  delete process.env.OWNER_USER_ID;
-  roles.noteLogin({ userId: '444444444444444444', tag: 'Original#0001' });   // owner (first)
+  process.env.OWNER_USER_ID = '444444444444444444';
+  roles.noteLogin({ userId: '444444444444444444', tag: 'Original#0001' });   // owner
   // Promote no-op: re-login should not change rank.
   const r = roles.noteLogin({ userId: '444444444444444444', tag: 'Renamed#9999', avatar: 'http://x/y.png' });
   assert.equal(r.rank, 'owner');
@@ -84,7 +93,7 @@ test('roles: noteLogin on an existing user refreshes tag/avatar but not rank', {
 
 test('roles: check() respects the ladder', { skip: !sqliteOk }, () => {
   reset();
-  delete process.env.OWNER_USER_ID;
+  process.env.OWNER_USER_ID = '555555555555555555';
   roles.noteLogin({ userId: '555555555555555555', tag: 'Owner' });            // owner
   roles.noteLogin({ userId: '666666666666666666', tag: 'Member' });           // member
   assert.equal(roles.check('555555555555555555', 'admin'), true);
@@ -95,7 +104,7 @@ test('roles: check() respects the ladder', { skip: !sqliteOk }, () => {
 
 test('roles: check() rejects banned users on positive ranks', { skip: !sqliteOk }, () => {
   reset();
-  delete process.env.OWNER_USER_ID;
+  process.env.OWNER_USER_ID = '777777777777777777';
   const owner = '777777777777777777';
   const target = '888888888888888888';
   roles.noteLogin({ userId: owner, tag: 'Owner' });
@@ -108,7 +117,7 @@ test('roles: check() rejects banned users on positive ranks', { skip: !sqliteOk 
 
 test('roles: grant() requires caller to outrank both target and new rank', { skip: !sqliteOk }, () => {
   reset();
-  delete process.env.OWNER_USER_ID;
+  process.env.OWNER_USER_ID = '999999999999999999';
   const owner = '999999999999999999';
   const admin = '101010101010101010';
   const member = '121212121212121212';
@@ -130,7 +139,7 @@ test('roles: grant() requires caller to outrank both target and new rank', { ski
 
 test('roles: grant() blocks self-promotion', { skip: !sqliteOk }, () => {
   reset();
-  delete process.env.OWNER_USER_ID;
+  process.env.OWNER_USER_ID = '141414141414141414';
   const owner = '141414141414141414';
   roles.noteLogin({ userId: owner, tag: 'Self' });
   assert.throws(() => roles.grant(owner, owner, 'banned'), /change your own rank/);
@@ -138,7 +147,7 @@ test('roles: grant() blocks self-promotion', { skip: !sqliteOk }, () => {
 
 test('roles: grant() accepts pre-grant for a user who has never signed in', { skip: !sqliteOk }, () => {
   reset();
-  delete process.env.OWNER_USER_ID;
+  process.env.OWNER_USER_ID = '151515151515151515';
   const owner = '151515151515151515';
   roles.noteLogin({ userId: owner, tag: 'Owner' });
   const future = '161616161616161616';
@@ -150,13 +159,14 @@ test('roles: grant() accepts pre-grant for a user who has never signed in', { sk
 
 test('roles: list() sorts owner first, then admin, then moderator, etc.', { skip: !sqliteOk }, () => {
   reset();
-  delete process.env.OWNER_USER_ID;
+  process.env.OWNER_USER_ID = '171717171717171717';
   roles.noteLogin({ userId: '171717171717171717', tag: 'Owner' });
   const o = '171717171717171717';
   const m = '181818181818181818';
   roles.noteLogin({ userId: m, tag: 'Member' });
   roles.grant(o, m, 'moderator');
-  const all = roles.list();
+  // Leave out the built-in owners who never signed in (listed first, not stored).
+  const all = roles.list().filter((r) => r.grantedBy !== 'OWNER_USER_ID');
   assert.equal(all[0].rank, 'owner');
   assert.equal(all[1].rank, 'moderator');
 });
