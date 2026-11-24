@@ -352,12 +352,18 @@ const startLiveUpdate = (guildId, message) => {
 };
 
 // DisTube events
+const welcomeIntro = require('./lib/welcome-intro');
 client.distube
   // A new queue starts with this server's saved autoplay choice.
   .on('initQueue', (queue) => {
-    if (getGuild(queue.id).autoplay && !queue.autoplay) queue.toggleAutoplay();
+    const cfg = getGuild(queue.id);
+    if (cfg.autoplay && !queue.autoplay) queue.toggleAutoplay();
+    // The server's welcome sound plays before the first song (lib/welcome-intro.js).
+    welcomeIntro.prepare(client.distube, queue, cfg.welcomeSoundUrl, (t) => control.log(t, 'warn', 'play'));
   })
   .on('playSong', async (queue, song) => {
+    // Welcome sound goes first; the song plays again right after it.
+    if (await welcomeIntro.maybeIntro(queue, song).catch(() => false)) return;
     clearIdleTimer(queue.id);
     abLoop.stop(queue.id);  // clear any prior A-B loop when a new song starts
     require('./lib/vote-skip').clear(queue.id);  // skip votes are per song
@@ -1074,11 +1080,15 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
 
   // ===== Welcome sound — bot just joined a channel =====
   if (isBotState && !oldState.channelId && newState.channelId && cfg.welcomeSoundUrl) {
-    // Guard against the /play race: if the user just summoned the bot to
-    // play a song, the queue will populate moments after this fires. We
-    // skip if there's any queue at all, so the welcome sound plays only
-    // for "idle" joins (24/7 boot, /join, etc.).
-    await playSoundIfIdle(newState.channel, cfg.welcomeSoundUrl, 'Welcome');
+    // Joined to play music (/play etc.): the queue appears a moment after
+    // this fires, and the welcome sound then plays before the first song
+    // (welcome-intro). So wait a little; only an idle join (/join, 24/7)
+    // still has no queue then, and gets the welcome sound on its own.
+    const channel = newState.channel;
+    setTimeout(() => {
+      if (botVoiceChannel(guild)?.id !== channel?.id) return;  // left again
+      playSoundIfIdle(channel, cfg.welcomeSoundUrl, 'Welcome').catch(() => {});
+    }, 4000).unref?.();
     return;  // bot-state changes don't trigger user-join or follow logic
   }
 

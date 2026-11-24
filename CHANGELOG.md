@@ -6,6 +6,15 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.11.1] — 2026-11-24
+
+### Fixed
+- The server's welcome sound never played when the bot joined through
+  `/play` (it only played for joins with an empty queue). It now plays before
+  the first song of every music session, then the song starts from the
+  beginning (`lib/welcome-intro.js`). Idle joins (`/join`, 24/7) still play it
+  on its own, after a short wait so it can't play twice.
+
 ## [3.11.0] — 2026-11-24
 
 ### Added
