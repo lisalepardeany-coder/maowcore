@@ -6,6 +6,17 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.11.2] — 2026-11-24
+
+### Fixed
+- The welcome sound took about 10 s to start. It is now downloaded once into
+  `data/welcome-cache/` (at start-up and whenever the link changes) and played
+  straight from that file the moment the queue is created, while the requested
+  song loads behind it. It no longer posts "Now playing" or lands in history.
+- The welcome sound played before every song: each new queue counted as a new
+  session even when the bot never left the channel. It now plays only when the
+  bot has just joined voice.
+
 ## [3.11.1] — 2026-11-24
 
 ### Fixed

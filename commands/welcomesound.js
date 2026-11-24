@@ -14,6 +14,8 @@ module.exports = {
     const url = interaction.options.getString('url');
     const key = which === 'welcome' ? 'welcomeSoundUrl' : 'leaveSoundUrl';
     updateGuild(interaction.guildId, { [key]: url || null });
+    // Download it now so it plays instantly next time the bot joins.
+    if (which === 'welcome' && url) require('../lib/welcome-intro').warm(url);
     return interaction.reply({
       content: url ? `🔔  ${which} sound set.` : `✕  ${which} sound cleared.`,
       flags: MessageFlags.Ephemeral,

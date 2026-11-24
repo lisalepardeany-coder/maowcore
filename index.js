@@ -353,6 +353,13 @@ const startLiveUpdate = (guildId, message) => {
 
 // DisTube events
 const welcomeIntro = require('./lib/welcome-intro');
+// Download every server's welcome sound once, so it can play instantly.
+client.once(Events.ClientReady, () => {
+  for (const g of client.guilds.cache.values()) {
+    const url = getGuild(g.id).welcomeSoundUrl;
+    if (url) welcomeIntro.warm(url, (t) => control.log(t, 'warn', 'play'));
+  }
+});
 client.distube
   // A new queue starts with this server's saved autoplay choice.
   .on('initQueue', (queue) => {
@@ -362,7 +369,9 @@ client.distube
     welcomeIntro.prepare(client.distube, queue, cfg.welcomeSoundUrl, (t) => control.log(t, 'warn', 'play'));
   })
   .on('playSong', async (queue, song) => {
-    // Welcome sound goes first; the song plays again right after it.
+    // The welcome sound itself: no "now playing" message, not in history.
+    if (welcomeIntro.isIntro(song)) { clearIdleTimer(queue.id); return; }
+    // Welcome sound not downloaded yet: it goes in front now (slow path).
     if (await welcomeIntro.maybeIntro(queue, song).catch(() => false)) return;
     clearIdleTimer(queue.id);
     abLoop.stop(queue.id);  // clear any prior A-B loop when a new song starts
@@ -1078,6 +1087,13 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
   const cfg = getGuild(guildId);
   const isBotState = oldState.id === client.user.id;
 
+  // Remember when the bot joined voice: the welcome sound is only for fresh joins,
+  // not for every new queue while it's already sitting in the channel.
+  if (isBotState) {
+    if (!oldState.channelId && newState.channelId) welcomeIntro.noteJoin(guildId);
+    else if (oldState.channelId && !newState.channelId) welcomeIntro.noteLeave(guildId);
+  }
+
   // ===== Welcome sound — bot just joined a channel =====
   if (isBotState && !oldState.channelId && newState.channelId && cfg.welcomeSoundUrl) {
     // Joined to play music (/play etc.): the queue appears a moment after
@@ -1086,8 +1102,8 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
     // still has no queue then, and gets the welcome sound on its own.
     const channel = newState.channel;
     setTimeout(() => {
-      if (botVoiceChannel(guild)?.id !== channel?.id) return;  // left again
-      playSoundIfIdle(channel, cfg.welcomeSoundUrl, 'Welcome').catch(() => {});
+      if (botVoiceChannel(guild)?.id !== channel?.id || !isBotIdle(guildId)) return;  // left again, or music started
+      playSoundIfIdle(channel, welcomeIntro.forIdleJoin(guildId, cfg.welcomeSoundUrl), 'Welcome').catch(() => {});
     }, 4000).unref?.();
     return;  // bot-state changes don't trigger user-join or follow logic
   }
