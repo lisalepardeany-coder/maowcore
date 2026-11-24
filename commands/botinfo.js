@@ -15,8 +15,9 @@ const readPkgVersion = (pkg) => {
   } catch { return '—'; }
 };
 
+// 20 s: the standalone yt-dlp unpacks ~35 MB on its first run after a restart.
 const runVersion = (file, args, parse) => new Promise((resolve) => {
-  execFile(file, args, { timeout: 8000, windowsHide: true }, (err, stdout) => {
+  execFile(file, args, { timeout: 20000, windowsHide: true }, (err, stdout) => {
     if (err) return resolve('unavailable');
     try { resolve(parse(String(stdout)) || 'unknown'); } catch { resolve('unknown'); }
   });
@@ -29,6 +30,8 @@ const ytdlpPath = () => path.join(
 );
 
 // Tool versions don't change while the bot runs, so look them up once.
+// A failed lookup isn't kept: a slow first run or a busy moment would
+// otherwise show "unavailable" until the next restart.
 let toolVersions = null;
 const getToolVersions = async () => {
   if (!toolVersions) {
@@ -36,7 +39,9 @@ const getToolVersions = async () => {
       runVersion(ffmpegPath(), ['-version'], (s) => s.match(/ffmpeg version (\S+)/)?.[1]),
       runVersion(ytdlpPath(), ['--version'], (s) => s.trim().split(/\s+/)[0]),
     ]);
-    toolVersions = { ffmpeg, ytdlp };
+    const found = { ffmpeg, ytdlp };
+    if (ffmpeg !== 'unavailable' && ytdlp !== 'unavailable') toolVersions = found;
+    return found;
   }
   return toolVersions;
 };

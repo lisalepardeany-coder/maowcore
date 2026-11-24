@@ -6,6 +6,14 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.9.4] — 2026-11-24
+
+### Fixed
+- `/botinfo` could show "yt-dlp unavailable" until the next restart: the
+  version check gave up after 8 s (the standalone yt-dlp unpacks ~35 MB on
+  its first run after a restart) and the failure was remembered. It now
+  waits 20 s and tries again next time instead of remembering a failure.
+
 ## [3.9.3] — 2026-11-24
 
 ### Changed
