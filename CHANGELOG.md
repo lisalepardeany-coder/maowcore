@@ -6,6 +6,16 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.12.1] — 2026-11-25
+
+### Fixed
+- Screens 769–900 px wide (many phones in desktop view, tablets): the section
+  rail was hidden in the old slide-out sidebar and there was no bottom bar, and
+  the top bar ran off-screen. The slim layout now switches to its bottom bar
+  at 900 px, the same point as the old drawer rule.
+- Listen room page in the dashboard could show an empty link and a blank
+  preview. Both are now in the page itself instead of filled in later.
+
 ## [3.12.0] — 2026-11-25
 
 ### Added

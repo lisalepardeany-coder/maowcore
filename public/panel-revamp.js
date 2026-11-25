@@ -63,9 +63,12 @@
     <div class="card"><div class="card-head"><h3>Upcoming</h3><div class="mr-form"><label class="small muted" style="flex-direction:row;gap:6px"><input type="checkbox" id="mr-r-mine" /> only this profile</label><label class="small muted" id="mr-r-all-wrap" hidden style="flex-direction:row;gap:6px"><input type="checkbox" id="mr-r-all" /> everyone's</label></div></div><div class="mr-list" id="mr-r-list"></div></div>`);
   addPage('listen', '🎧 Listen room', 'A simple page friends can open to see what\'s playing and add songs.', `
     <div class="card"><div class="card-head"><h3>Share</h3></div>
-      <div class="mr-linkbox"><code id="mr-l-link"></code><button class="mr-btn" id="mr-l-copy">📋 Copy</button><a class="mr-btn" id="mr-l-open" target="_blank" rel="noopener">Open ↗</a></div>
+      <div class="mr-linkbox"><code id="mr-l-link">${location.origin}/listen</code><button class="mr-btn" id="mr-l-copy">📋 Copy</button><a class="mr-btn" id="mr-l-open" href="/listen" target="_blank" rel="noopener">Open ↗</a></div>
       <div class="mr-help" style="margin-top:8px" id="mr-l-help"></div></div>
-    <div class="card"><div class="card-head"><h3>Preview</h3></div><iframe class="mr-listen-frame" id="mr-l-frame" title="Listen room preview" loading="lazy"></iframe></div>`);
+    <div class="card"><div class="card-head"><h3>Preview</h3></div><iframe class="mr-listen-frame" id="mr-l-frame" title="Listen room preview" loading="lazy" src="/listen?embed=1"></iframe></div>`);
+  // (Link and preview are in the HTML itself: loading="lazy" keeps the preview
+  // from loading until the page is opened, and nothing depends on renderListen
+  // having run.)
 
   // =====================================================================
   // 1. Menu: accordion groups, active group, version

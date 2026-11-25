@@ -43,7 +43,7 @@
     + '<div class="nx-spacer"></div><div class="nx-ver" id="nx-ver"></div>';
   // Desktop: inside the sidebar. Phone: the sidebar is hidden, so the rail
   // moves to <body> and becomes a bottom bar.
-  const phone = window.matchMedia('(max-width: 768px)');
+  const phone = window.matchMedia('(max-width: 900px)');
   const placeRail = () => (phone.matches ? document.body : document.querySelector('.sidebar'))?.appendChild(rail);
   placeRail();
   phone.addEventListener?.('change', placeRail);

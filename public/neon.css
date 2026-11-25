@@ -221,7 +221,7 @@ body.nx #page-home > .home-tools .tool-btn { background: transparent !important;
 body.nx #page-home > .home-tools .tool-btn:hover { opacity: 1; color: var(--fg); border-color: var(--accent) !important; }
 
 /* ---------- Phone ---------- */
-@media (max-width: 768px) {
+@media (max-width: 900px) {
   body.nx { --sidebar-w: 0px; --sidebar-w-collapsed: 0px; }
   body.nx .sidebar, body.nx #mr-tabs, body.nx #page-home > .home-tools, body.nx #sidebar-toggle, body.nx .topbar select,
   body.nx .topbar-instance, body.nx .topbar-diag, body.nx .server-select, body.nx .brand-name { display: none !important; }
@@ -327,7 +327,7 @@ body.nx[data-theme="neon"] #ov-ping { text-shadow: 0 0 12px rgba(46, 230, 255, .
 body.nx[data-theme="neon"] #w-lyrics-box .ly-line.on { color: #fff; text-shadow: 0 0 18px rgba(255, 46, 136, .85), 0 0 2px #ff8a3d; }
 body.nx[data-theme="neon"] .palette { background: #140a22 !important; border: 1px solid rgba(255, 46, 136, .3) !important; }
 body.nx[data-theme="neon"] .toast { background: #170b26 !important; }
-@media (max-width: 768px) {
+@media (max-width: 900px) {
   body.nx[data-theme="neon"] .np-art { transform: none; }
   body.nx[data-theme="neon"] #mr-remote .rm-title { font-weight: 400 !important; text-transform: uppercase; font-size: 26px !important; transform: skewX(-6deg); transform-origin: left; filter: drop-shadow(0 0 12px rgba(255,46,136,.45)); }
   body.nx[data-theme="neon"] .page-head h1, body.nx[data-theme="neon"] .page-head h2 { font-size: 28px !important; }
