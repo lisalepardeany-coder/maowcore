@@ -83,8 +83,17 @@
     const h = Math.floor(s / 3600); const m = Math.floor((s % 3600) / 60); const sec = String(s % 60).padStart(2, '0');
     return h ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`;
   };
+  // The dashboard token saved by the main panel (same address) works here too.
+  const token = () => {
+    try {
+      const p = JSON.parse(localStorage.getItem('maow.instances') || 'null');
+      const i = p?.instances?.find((x) => String(x.url || '').replace(/\/$/, '') === location.origin);
+      return i?.token || '';
+    } catch { return ''; }
+  };
   const api = async (path, body) => {
     const headers = { 'X-Maow-Session': session() };
+    if (token()) headers.Authorization = `Bearer ${token()}`;
     if (body) headers['Content-Type'] = 'application/json';
     const r = await fetch(path, body ? { method: 'POST', headers, body: JSON.stringify(body) } : { headers });
     const d = await r.json().catch(() => ({}));
@@ -202,7 +211,7 @@
     startAt = s.currentTime || 0;
     songKey = s.nowPlaying?.url || s.nowPlaying?.name || null;
     stale = false;
-    audio.src = `/api/listen/audio?session=${encodeURIComponent(session())}&t=${Date.now()}`;
+    audio.src = `/api/listen/audio?session=${encodeURIComponent(session())}${!session() && token() ? `&token=${encodeURIComponent(token())}` : ''}&t=${Date.now()}`;
     audio.play().catch(() => say('Your browser blocked the sound: press 🎧 Listen here again.'));
     say('Connecting…');
   };

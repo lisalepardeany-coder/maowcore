@@ -6,6 +6,13 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.13.1] — 2026-11-25
+
+### Fixed
+- **Dashboard looked "down" with a dashboard token** (always the case on Pterodactyl). With the login lock off, nothing ever asked for the token, so a new browser (or the new https address, which browsers treat as a new site) opened the panel without it: "NO SIGNAL" and 401 errors everywhere. Now a sign-in screen asks for the token (or offers Discord sign-in) and checks it before saving (`POST /api/auth/token-check`, 10 tries a minute).
+- Only `app.js` sent the token, so playlists, stats, routines, reminders, the listen room, downloads and other panels failed with 401 even after entering it. `login-gate.js` (loaded first) now adds the saved token and Discord session to every `/api/` call on the page.
+- Listen room: works with the dashboard token too (requests and the audio stream).
+
 ## [3.13.0] — 2026-11-25
 
 ### Added

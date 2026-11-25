@@ -26,6 +26,57 @@
     if (!r.ok && !d.error) d.error = `HTTP ${r.status}`;
     return d;
   };
+  // The dashboard token lives in app.js's instance list ("maow.instances").
+  // Browsers keep that per address (http:// and https:// count as two), so a
+  // new address starts without it.
+  const IKEY = 'maow.instances';
+  const readInstances = () => { try { return JSON.parse(localStorage.getItem(IKEY) || 'null'); } catch { return null; } };
+  const sameOrigin = (u) => String(u || '').replace(/\/$/, '') === location.origin;
+  const activeInstance = () => {
+    const p = readInstances();
+    return p?.instances?.find((i) => i.id === p.activeId) || p?.instances?.[0] || null;
+  };
+  const saveToken = (token) => {
+    let p = readInstances();
+    if (!p?.instances?.length) p = { instances: [], activeId: null };
+    let inst = p.instances.find((i) => sameOrigin(i.url));
+    if (!inst) { inst = { id: p.instances.length ? `local-${Date.now()}` : 'local', name: 'This bot', url: location.origin, token: '' }; p.instances.push(inst); }
+    inst.token = token;
+    p.activeId = inst.id;
+    try { localStorage.setItem(IKEY, JSON.stringify(p)); } catch { /* private window */ }
+  };
+
+  // Every script on the page (playlists, stats, listen room, downloads…) calls
+  // fetch('/api/…') on its own and only app.js added the token, so with a
+  // dashboard token everything else got 401. This script loads first: it adds
+  // the saved token / Discord session to this bot's own /api/ calls.
+  const nativeFetch = window.fetch.bind(window);
+  window.fetch = (input, init = {}) => {
+    try {
+      const url = new URL(typeof input === 'string' || input instanceof URL ? input : input.url, location.href);
+      if (url.origin === location.origin && url.pathname.startsWith('/api/')) {
+        const inst = activeInstance();
+        const token = inst && sameOrigin(inst.url) ? inst.token : '';
+        const session = get();
+        if (token || session) {
+          const h = new Headers(init.headers || (input instanceof Request ? input.headers : undefined));
+          if (token && !h.has('Authorization')) h.set('Authorization', `Bearer ${token}`);
+          if (session && !h.has('X-Maow-Session')) h.set('X-Maow-Session', session);
+          init = { ...init, headers: h };
+        }
+      }
+    } catch { /* leave the call as it was */ }
+    return nativeFetch(input, init);
+  };
+  window.maowAuthQuery = () => {   // for <audio src> and links, which can't send headers
+    const inst = activeInstance();
+    const token = inst && sameOrigin(inst.url) ? inst.token : '';
+    const p = new URLSearchParams();
+    if (get()) p.set('session', get());
+    else if (token) p.set('token', token);
+    return p.toString();
+  };
+
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const ALLOWED = new Set(['member', 'moderator', 'admin', 'owner']);
 
@@ -82,6 +133,18 @@
           <p>You're signed in, but the owner hasn't given you access to the panel yet. You can already join the <b>Listen room</b> to see what's playing and add songs.</p>
           <div class="mg-row"><a class="mg-btn" href="/listen" style="text-decoration:none">🎧 Open the Listen room</a></div>
           <div class="mg-row"><button class="mg-btn ghost" data-act="recheck">↻ Check again</button><button class="mg-btn ghost" data-act="out">Sign out</button></div>`;
+      } else if (state.tokenMode) {
+        inner = `
+          <div class="mg-mark">🔒</div>
+          <h1>Sign in to MaowCore</h1>
+          <p>This dashboard is protected.${state.oauth ? ' Sign in with Discord, or enter the dashboard token.' : ' Enter the dashboard token to continue.'}</p>
+          ${state.oauth ? '<button class="mg-btn" data-act="in">Sign in with Discord</button><div class="mg-small" style="margin:14px 0 10px">or</div>' : ''}
+          <form data-act="token" class="mg-row" style="margin-top:0">
+            <input type="password" name="token" autocomplete="current-password" placeholder="Dashboard token" aria-label="Dashboard token"
+              style="flex:1;min-width:0;min-height:44px;padding:0 12px;border-radius:10px;border:1px solid var(--border,#3f4147);background:var(--bg-input,#1e1f22);color:inherit;font:inherit">
+            <button class="mg-btn" type="submit">Open</button>
+          </form>
+          <div class="mg-small">On Pterodactyl the token is in the server's files: <b>data/control-token.txt</b> (or the Dashboard token on the Startup tab).</div>`;
       } else {
         inner = `
           <div class="mg-mark">🔒</div>
@@ -96,6 +159,14 @@
       g.innerHTML = `<div class="mg-card">${inner}<div class="mg-err" aria-live="polite">${state.banned ? 'This account is banned from the panel.' : why ? esc(decodeURIComponent(why)) : ''}</div></div>`;
       const err = g.querySelector('.mg-err');
       g.querySelector('[data-act="in"]')?.addEventListener('click', () => signIn(err));
+      g.querySelector('form[data-act="token"]')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const token = e.currentTarget.token.value.trim();
+        if (!token) return;
+        err.textContent = '';
+        const r = await api('/api/auth/token-check', { token }).catch(() => ({ error: 'Could not reach the bot.' }));
+        if (r.ok) { saveToken(token); location.reload(); } else err.textContent = r.error || 'That token is not right.';
+      });
       g.querySelector('[data-act="recheck"]')?.addEventListener('click', () => location.reload());
       g.querySelector('[data-act="out"]')?.addEventListener('click', async () => { await api('/api/auth/logout', {}); drop(); location.reload(); });
       if (why) history.replaceState(null, '', location.pathname);
@@ -109,7 +180,23 @@
   window.maowAuthReady = (async () => {
     let health;
     try { health = await (await fetch('/api/health')).json(); } catch { return true; }
-    if (!health.requireLogin) return true;
+    if (!health.requireLogin) {
+      // Token-protected, no login lock: a saved token that works, or any
+      // Discord sign-in (the server accepts either), opens the panel.
+      if (!health.authRequired) return true;
+      const inst = activeInstance();
+      if (inst && !sameOrigin(inst.url)) return true;          // managing another bot from here
+      if (inst?.token) {
+        // Can't ask (network)? Open anyway: the server still checks every call.
+        const r = await api('/api/auth/token-check', { token: inst.token }).catch(() => ({ unreachable: true }));
+        if (r.ok || r.unreachable) return true;
+      }
+      const me = get() ? await api('/api/auth/me').catch(() => ({})) : {};
+      if (me.user) return true;
+      if (get()) drop();
+      showGate({ tokenMode: true, oauth: !!health.oauthConfigured, banned: !!me.banned });
+      return false;
+    }
     const me = await api('/api/auth/me').catch(() => ({}));
     if (me.user && ALLOWED.has(me.rank)) return true;
     if (!me.user && get()) drop();   // expired / signed out elsewhere
