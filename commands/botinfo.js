@@ -188,7 +188,7 @@ const buildSpecs = async (client, { isOwner = false, isPrivate = false } = {}) =
     // address anyone can open, so the public URL wins when it's set.
     const host = !process.env.CONTROL_HOST || process.env.CONTROL_HOST === '0.0.0.0' ? '127.0.0.1' : process.env.CONTROL_HOST;
     const panel = String(process.env.PANEL_PUBLIC_URL || '').trim().replace(/\/$/, '')
-      || `http://${host}:${Number(process.env.CONTROL_PORT) || 8765}`;
+      || `${require('../lib/tls-cert').wanted() ? 'https' : 'http'}://${host}:${Number(process.env.CONTROL_PORT) || 8765}`;
     // <@id> mentions show as names inside an embed and never ping anyone.
     const all = require('../lib/owners').ids().map((id) => `<@${id}>`).join(', ');
     embed.addFields({ name: '◆ You', value: `You're a permanent owner of this bot.\n**Owners:** ${all}`, inline: false });

@@ -206,8 +206,9 @@
   const checkApp = async () => {
     const r = await window.maow.checkAppUpdate();
     if (!r.ok) return;
-    const { current, update, portable } = r.value;
-    $('app-update-info').textContent = update ? `Version ${update.version} is ready (you have ${current}).` : `You have the newest version (${current}).${portable ? '' : ' (Self-update only works in the portable .exe.)'}`;
+    const { current, update, portable, installed } = r.value;
+    $('app-build-name').textContent = installed ? 'MaowCore-Setup-x.y.z.exe' : 'MaowCore-Portable-x.y.z.exe';
+    $('app-update-info').textContent = update ? `Version ${update.version} is ready (you have ${current}).` : `You have the newest version (${current}).${portable || installed ? '' : ' (Self-update only works in the built app.)'}`;
     $('btn-check-app').textContent = update ? 'Update now' : 'Check';
     $('btn-check-app').classList.toggle('primary', !!update);
     showUpdate(update);

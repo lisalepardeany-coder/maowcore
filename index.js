@@ -221,7 +221,7 @@ try {
 } catch (e) {
   diag.bootFail('library', e);
 }
-diag.bootOk('control', `http://${process.env.CONTROL_HOST || '127.0.0.1'}:${Number(process.env.CONTROL_PORT) || 8765}/`);
+diag.bootOk('control', `${require('./lib/tls-cert').wanted() ? 'https' : 'http'}://${process.env.CONTROL_HOST || '127.0.0.1'}:${Number(process.env.CONTROL_PORT) || 8765}/`);
 // Slash-command deployment runs from `npm run deploy` as a separate script
 // (Discord requires registration before login). Skip here so the timeline
 // doesn't show a phantom 'pending'.

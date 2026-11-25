@@ -19,5 +19,15 @@ export TMPDIR=/home/container/.tmp
 # 3. yt-dlp updates itself (YouTube breaks old versions often).
 if [[ -x bin/yt-dlp ]]; then ./bin/yt-dlp -U 2>&1 | tail -n 1; fi
 
-# 4. The bot.
-exec node index.js
+# 4. Native modules (opus, sqlite, sodium) are built for one Node.js version.
+#    When the server's Docker image moves to another one, rebuild them once.
+ABI=$(node -p process.versions.modules)
+if [[ -d node_modules && "$(cat node_modules/.maow-abi 2>/dev/null)" != "$ABI" ]]; then
+  echo "Node.js $(node -v): rebuilding native modules..."
+  if npm rebuild --no-audit --no-fund >/dev/null 2>&1; then echo "Native modules rebuilt."
+  else echo "Rebuild had problems; the bot uses its built-in fallbacks where it can."; fi
+  echo "$ABI" > node_modules/.maow-abi
+fi
+
+# 5. The bot (--expose-gc: it frees memory after big downloads, same as npm start).
+exec node --expose-gc index.js

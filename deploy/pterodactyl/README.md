@@ -14,7 +14,7 @@
    - downloads a Linux `yt-dlp` into `bin/`;
    - runs `npm install`.
 4. Start the server. It shows as running once the console prints `Logged in as`.
-5. Open the dashboard at `http://<node address>:<server port>/`, with themes, Control room, downloads and the status page at `/status.html`.
+5. Open the dashboard at `https://<server IP>:<server port>/`, with themes, Control room, downloads and the status page at `/status.html`. The first time, the browser warns about the certificate: click **Advanced > Proceed** (see [Dashboard https](#dashboard-https)).
 
 **Already have a server from an older egg?** Update the egg (Admin > Nests > MaowCore > Update egg), then on the server's **Startup** tab set **Update on start** to `1` and restart.
 
@@ -36,6 +36,17 @@ Either way, the cookies are saved to `data/youtube-cookies.txt`. Restart once af
 Console commands (type in the panel's console): `cookies` shows what's saved, `cookies reload` checks the folder now, `cookies remove` deletes them, `help`.
 
 Logging in to YouTube from the console isn't possible: yt-dlp dropped its login command after YouTube blocked it.
+
+## Dashboard https
+
+On the panel the dashboard uses https by itself (**Dashboard https** = `auto`). The bot makes its own certificate on first start (`data/tls/selfsigned-*.pem`), renews it before it expires, and prints its SHA-256 fingerprint in the console.
+
+- **The warning:** the certificate isn't from a company browsers trust, so they warn once ("Your connection is not private"). Click **Advanced > Proceed**. The connection is encrypted either way.
+- **Use the server's IP address**, e.g. `https://203.0.113.5:25570`. If the panel's domain forces https (HSTS), browsers don't offer "Proceed" for any port on that domain.
+- **Sign-in:** set **Dashboard public URL** to that same address and add `<that URL>/api/auth/discord/callback` in the Developer Portal. The certificate also covers the public URL's address.
+- **`http://` links** on the same port are redirected to `https://`, so there's no "SSL protocol error".
+- **Your own certificate:** upload `data/tls/cert.pem` and `data/tls/key.pem` (PEM). The bot uses them as they are and never replaces them.
+- A trusted (padlock) certificate can't be made by the bot: Let's Encrypt needs port 80 or 443, which the panel server doesn't have. For that, put the dashboard behind the host's web server (nginx) on a subdomain.
 
 ## Notes
 

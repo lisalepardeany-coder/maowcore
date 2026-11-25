@@ -41,6 +41,8 @@ chmod +x bin/yt-dlp
 if [ -f package.json ]; then
   rm -rf node_modules
   npm install --omit=dev
+  # Which Node.js the native modules were built for (start.sh rebuilds on a change)
+  node -p process.versions.modules > node_modules/.maow-abi
 else
   echo "No package.json yet; upload the bot and restart the server."
 fi

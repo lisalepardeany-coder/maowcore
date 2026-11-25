@@ -6,6 +6,17 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.13.0] — 2026-11-25
+
+### Added
+- **Dashboard https.** On Pterodactyl the dashboard now uses https on its own port, with a certificate the bot makes itself (`lib/tls-cert.js`, saved in `data/tls/`). It is renewed before it expires (swapped in without a restart) and remade when the dashboard's address changes. Browsers warn once: **Advanced > Proceed**. Your own `data/tls/cert.pem` + `key.pem` are used instead when present. New setting `PANEL_HTTPS`: `auto` (https on Pterodactyl, http on a PC), `on`, `off`.
+- `http://` and `https://` work on the same port: plain http from outside is redirected to https instead of failing with "SSL protocol error". The bot's own `127.0.0.1` links (library songs, welcome sounds) stay on plain http.
+- Pterodactyl egg: every setting the bot reads is now on the Startup tab (Twitch, Last.fm, health alerts, alert webhook, status page push, open sign-up, allowed websites, GitHub token, deploy commands on start, dashboard https), plus a Node.js 24 image.
+- MaowCore desktop app 1.2.0 builds as a Windows installer too (`MaowCore-Setup-x.y.z.exe`): choose the folder, Start menu and Desktop shortcuts, uninstaller. Installed copies update from a newer Setup file.
+
+### Changed
+- Pterodactyl start script: rebuilds native modules once when the Node.js version changes, and starts the bot with `--expose-gc` like `npm start`.
+
 ## [3.12.1] — 2026-11-25
 
 ### Fixed

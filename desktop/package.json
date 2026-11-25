@@ -1,15 +1,17 @@
 {
   "name": "maowcore-desktop",
   "productName": "MaowCore",
-  "version": "1.1.0",
-  "description": "MaowCore Portable: runs the MaowCore Discord bot and installs what it needs",
+  "version": "1.2.0",
+  "description": "MaowCore: runs the MaowCore Discord bot and installs what it needs",
   "main": "main.js",
   "private": true,
   "author": "Hazel",
   "scripts": {
     "start": "node scripts/prepare.js && electron .",
     "prepare-bundle": "node scripts/prepare.js",
-    "build": "node scripts/prepare.js && electron-builder --win portable",
+    "build": "node scripts/prepare.js && electron-builder --win nsis portable",
+    "build:setup": "node scripts/prepare.js && electron-builder --win nsis",
+    "build:portable": "node scripts/prepare.js && electron-builder --win portable",
     "test": "node --test test/"
   },
   "devDependencies": {
@@ -23,8 +25,22 @@
     "files": ["main.js", "preload.js", "lib/**", "ui/**", "package.json"],
     "extraResources": [{ "from": "build/bot-bundle", "to": "bot" }],
     "icon": "build/icon.png",
-    "win": { "target": "portable" },
+    "win": { "target": ["nsis", "portable"] },
     "portable": { "artifactName": "MaowCore-Portable-${version}.exe", "unpackDirName": "MaowCore-Portable" },
+    "nsis": {
+      "artifactName": "MaowCore-Setup-${version}.exe",
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "MaowCore",
+      "uninstallDisplayName": "MaowCore",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "license": "../LICENSE"
+    },
     "asar": true
   }
 }

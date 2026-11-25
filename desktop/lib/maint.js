@@ -78,16 +78,17 @@ const cmpVer = (a, b) => {
   for (let i = 0; i < 3; i++) { const d = (pa[i] || 0) - (pb[i] || 0); if (d) return d > 0 ? 1 : -1; }
   return 0;
 };
-// Pure (tested): newest "MaowCore-Portable-x.y.z.exe" in a list of names.
-const newestBuild = (names) => names
-  .map((n) => ({ n, v: (String(n).match(/^MaowCore-Portable-(\d+\.\d+\.\d+)\.exe$/i) || [])[1] }))
+// Pure (tested): newest "MaowCore-<kind>-x.y.z.exe" in a list of names.
+// kind is "Portable" (the single exe) or "Setup" (the installer).
+const newestBuild = (names, kind = 'Portable') => names
+  .map((n) => ({ n, v: (String(n).match(new RegExp(`^MaowCore-${kind}-(\\d+\\.\\d+\\.\\d+)\\.exe$`, 'i')) || [])[1] }))
   .filter((x) => x.v)
   .sort((a, b) => cmpVer(b.v, a.v))[0] || null;
 
-const checkAppUpdate = (sourceDirs, current) => {
+const checkAppUpdate = (sourceDirs, current, kind = 'Portable') => {
   for (const dir of sourceDirs.filter(Boolean)) {
     try {
-      const best = newestBuild(fs.readdirSync(dir));
+      const best = newestBuild(fs.readdirSync(dir), kind);
       if (best && cmpVer(best.v, current) > 0) return { version: best.v, file: path.join(dir, best.n) };
     } catch { /* folder missing */ }
   }
@@ -121,4 +122,12 @@ const applyAppUpdate = (newFile, targetExe, pid) => {
   return true;
 };
 
-module.exports = { listBackups, backupNow, restoreBackup, updateBot, cmpVer, newestBuild, checkAppUpdate, applyAppUpdate };
+// Installed copy: run the newer installer. It closes this app, installs over
+// the same folder (it remembers where) and starts MaowCore again.
+const runInstaller = (setupFile) => {
+  const child = spawn(setupFile, [], { detached: true, stdio: 'ignore' });
+  child.unref();
+  return true;
+};
+
+module.exports = { listBackups, backupNow, restoreBackup, updateBot, cmpVer, newestBuild, checkAppUpdate, applyAppUpdate, runInstaller };

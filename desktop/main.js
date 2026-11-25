@@ -19,6 +19,17 @@ const SETTINGS_FILE = path.join(BASE, 'settings.json');
 const BUNDLED_BOT = app.isPackaged ? path.join(process.resourcesPath, 'bot') : path.join(__dirname, 'build', 'bot-bundle');
 const STARTUP_VBS = path.join(app.getPath('appData'), 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup', 'MaowCore Bot.vbs');
 const EXE = process.env.PORTABLE_EXECUTABLE_FILE || process.execPath;
+// Installed with MaowCore-Setup (not the portable exe, not npm start).
+const INSTALLED = app.isPackaged && !process.env.PORTABLE_EXECUTABLE_FILE;
+const INSTALL_DIR = INSTALLED ? path.dirname(process.execPath) : null;
+const BUILD_KIND = INSTALLED ? 'Setup' : 'Portable';
+// The installer replaces its whole folder on every update, so the bot (with
+// its .env and data) must live somewhere else.
+const insideInstallDir = (dir) => {
+  if (!INSTALL_DIR || !dir) return false;
+  const rel = path.relative(INSTALL_DIR, path.resolve(dir));
+  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+};
 fs.mkdirSync(BASE, { recursive: true });
 
 const defaults = { botDir: null, nodePath: null, autoStartBot: true, startHidden: false, closeToTray: true, firstRun: true };
@@ -171,6 +182,7 @@ handle('useExisting', async (dir) => {
   return refresh();
 });
 handle('installFresh', async (dir) => {
+  if (insideInstallDir(dir)) throw new Error('Pick a folder outside the MaowCore program folder (updates replace that folder). For example Documents\\MaowCore Bot.');
   await step('Copying bot files', async () => { tools.copyBot(BUNDLED_BOT, dir, appLog); settings.botDir = dir; settings.firstRun = false; saveSettings(); });
   return setupAll();
 });
@@ -240,20 +252,21 @@ handle('updateBot', () => step('Updating the bot', async () => {
 // App updates: newer MaowCore-Portable-x.y.z.exe in the bot's desktop/dist
 // folder (where new builds land), or a folder picked in the app.
 const updateSources = () => [settings.updateDir, settings.botDir && path.join(settings.botDir, 'desktop', 'dist')];
-handle('checkAppUpdate', () => ({ current: app.getVersion(), update: maint.checkAppUpdate(updateSources(), app.getVersion()), portable: !!process.env.PORTABLE_EXECUTABLE_FILE }));
+handle('checkAppUpdate', () => ({ current: app.getVersion(), update: maint.checkAppUpdate(updateSources(), app.getVersion(), BUILD_KIND), portable: !!process.env.PORTABLE_EXECUTABLE_FILE, installed: INSTALLED }));
 handle('applyAppUpdate', async () => {
-  const u = maint.checkAppUpdate(updateSources(), app.getVersion());
+  const u = maint.checkAppUpdate(updateSources(), app.getVersion(), BUILD_KIND);
   if (!u) throw new Error('No newer version found.');
-  if (!process.env.PORTABLE_EXECUTABLE_FILE) throw new Error('Self-update only works in the portable .exe.');
+  if (!process.env.PORTABLE_EXECUTABLE_FILE && !INSTALLED) throw new Error('Self-update only works in the built app (portable or installed).');
   appLog(`⬆ Updating MaowCore to v${u.version}…`);
   await runner.stop();
-  maint.applyAppUpdate(u.file, process.env.PORTABLE_EXECUTABLE_FILE, process.pid);
+  if (INSTALLED) maint.runInstaller(u.file);
+  else maint.applyAppUpdate(u.file, process.env.PORTABLE_EXECUTABLE_FILE, process.pid);
   quitting = true;
   setTimeout(() => app.quit(), 300);
   return true;
 });
 handle('setUpdateDir', async () => {
-  const r = await dialog.showOpenDialog(win, { title: 'Folder with new MaowCore-Portable builds', properties: ['openDirectory'] });
+  const r = await dialog.showOpenDialog(win, { title: `Folder with new MaowCore-${BUILD_KIND} builds`, properties: ['openDirectory'] });
   if (!r.canceled) { settings.updateDir = r.filePaths[0]; saveSettings(); }
   return settings.updateDir || null;
 });
@@ -274,7 +287,7 @@ app.whenReady().then(async () => {
   if (settings.autoStartBot && ready(c) && !runner.external()) safeStart();
   // A newer build waiting? Tell the window (it shows an "Update" banner).
   setTimeout(() => {
-    const u = maint.checkAppUpdate(updateSources(), app.getVersion());
+    const u = maint.checkAppUpdate(updateSources(), app.getVersion(), BUILD_KIND);
     if (u) { send('appUpdate', u); appLog(`⬆ MaowCore v${u.version} is available (Maintenance tab).`); }
   }, 4000);
 });

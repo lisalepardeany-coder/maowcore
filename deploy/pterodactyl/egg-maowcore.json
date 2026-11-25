@@ -4,13 +4,14 @@
         "version": "PTDL_v2",
         "update_url": null
     },
-    "exported_at": "2026-11-24T18:32:55+00:00",
+    "exported_at": "2026-11-25T17:37:02+00:00",
     "name": "MaowCore",
     "author": "lara@maowcore.local",
     "description": "MaowCore: a Discord music + community bot (YouTube, Spotify, SoundCloud, leveling, modmail, giveaways, automod) with a web dashboard. The dashboard runs on this server's port; open http://<server address>:<port>/ once it says \"Logged in as\".",
     "features": null,
     "docker_images": {
         "Node.js 22": "ghcr.io/parkervcp/yolks:nodejs_22",
+        "Node.js 24": "ghcr.io/parkervcp/yolks:nodejs_24",
         "Node.js 20": "ghcr.io/parkervcp/yolks:nodejs_20"
     },
     "file_denylist": [],
@@ -23,7 +24,7 @@
     },
     "scripts": {
         "installation": {
-            "script": "#!/bin/bash\n# MaowCore install script for Pterodactyl (egg-maowcore.json embeds this file).\n# Runs once in a node:22-trixie container; the server's files live in /mnt/server.\nset -e\napt-get update\napt-get install -y --no-install-recommends git curl ca-certificates\nmkdir -p /mnt/server\ncd /mnt/server\n\n# 1. Get the code: clone the repo, pull if it's already a checkout,\n#    or leave uploaded files alone.\nif [ -n \"${GIT_ADDRESS}\" ]; then\n  [[ ${GIT_ADDRESS} != *.git ]] && GIT_ADDRESS=\"${GIT_ADDRESS}.git\"\n  if [ -n \"${USERNAME}\" ] && [ -n \"${ACCESS_TOKEN}\" ]; then\n    # private repo: put the login into the URL\n    GIT_ADDRESS=\"https://${USERNAME}:${ACCESS_TOKEN}@$(echo \"${GIT_ADDRESS}\" | cut -d/ -f3-)\"\n  fi\n  if [ -d .git ]; then\n    echo \"Existing checkout found, pulling the latest code\"\n    git pull\n  elif [ -z \"$(ls -A)\" ]; then\n    echo \"Cloning ${BRANCH:-main}\"\n    git clone --single-branch --branch \"${BRANCH:-main}\" \"${GIT_ADDRESS}\" .\n  else\n    echo \"The server folder has files but no git checkout, so nothing was cloned.\"\n    echo \"Either upload the bot's files yourself, or empty the folder and reinstall.\"\n  fi\nfi\n\n# 2. Standalone yt-dlp (no Python needed). The bot finds it in ./bin by itself.\nmkdir -p bin data cookies\ncase \"$(uname -m)\" in\n  aarch64|arm64) YTDLP=yt-dlp_linux_aarch64 ;;\n  *)             YTDLP=yt-dlp_linux ;;\nesac\ncurl -fsSL \"https://github.com/yt-dlp/yt-dlp/releases/latest/download/${YTDLP}\" -o bin/yt-dlp\nchmod +x bin/yt-dlp\n./bin/yt-dlp --version\n\n# 3. Node packages, built for Linux (never copy node_modules from Windows).\nif [ -f package.json ]; then\n  rm -rf node_modules\n  npm install --omit=dev\nelse\n  echo \"No package.json yet; upload the bot and restart the server.\"\nfi\n\necho \"MaowCore install finished.\"\n",
+            "script": "#!/bin/bash\n# MaowCore install script for Pterodactyl (egg-maowcore.json embeds this file).\n# Runs once in a node:22-trixie container; the server's files live in /mnt/server.\nset -e\napt-get update\napt-get install -y --no-install-recommends git curl ca-certificates\nmkdir -p /mnt/server\ncd /mnt/server\n\n# 1. Get the code: clone the repo, pull if it's already a checkout,\n#    or leave uploaded files alone.\nif [ -n \"${GIT_ADDRESS}\" ]; then\n  [[ ${GIT_ADDRESS} != *.git ]] && GIT_ADDRESS=\"${GIT_ADDRESS}.git\"\n  if [ -n \"${USERNAME}\" ] && [ -n \"${ACCESS_TOKEN}\" ]; then\n    # private repo: put the login into the URL\n    GIT_ADDRESS=\"https://${USERNAME}:${ACCESS_TOKEN}@$(echo \"${GIT_ADDRESS}\" | cut -d/ -f3-)\"\n  fi\n  if [ -d .git ]; then\n    echo \"Existing checkout found, pulling the latest code\"\n    git pull\n  elif [ -z \"$(ls -A)\" ]; then\n    echo \"Cloning ${BRANCH:-main}\"\n    git clone --single-branch --branch \"${BRANCH:-main}\" \"${GIT_ADDRESS}\" .\n  else\n    echo \"The server folder has files but no git checkout, so nothing was cloned.\"\n    echo \"Either upload the bot's files yourself, or empty the folder and reinstall.\"\n  fi\nfi\n\n# 2. Standalone yt-dlp (no Python needed). The bot finds it in ./bin by itself.\nmkdir -p bin data cookies\ncase \"$(uname -m)\" in\n  aarch64|arm64) YTDLP=yt-dlp_linux_aarch64 ;;\n  *)             YTDLP=yt-dlp_linux ;;\nesac\ncurl -fsSL \"https://github.com/yt-dlp/yt-dlp/releases/latest/download/${YTDLP}\" -o bin/yt-dlp\nchmod +x bin/yt-dlp\n./bin/yt-dlp --version\n\n# 3. Node packages, built for Linux (never copy node_modules from Windows).\nif [ -f package.json ]; then\n  rm -rf node_modules\n  npm install --omit=dev\n  # Which Node.js the native modules were built for (start.sh rebuilds on a change)\n  node -p process.versions.modules > node_modules/.maow-abi\nelse\n  echo \"No package.json yet; upload the bot and restart the server.\"\nfi\n\necho \"MaowCore install finished.\"\n",
             "container": "node:22-trixie",
             "entrypoint": "bash"
         }
@@ -161,12 +162,152 @@
         },
         {
             "name": "Dashboard public URL",
-            "description": "Optional. The address people use to reach the dashboard, e.g. http://node.example.com:25570 (needed for Discord sign-in).",
+            "description": "Optional. The address people use to reach the dashboard, e.g. https://203.0.113.5:25570 (needed for Discord sign-in; the https certificate also covers this address).",
             "env_variable": "PANEL_PUBLIC_URL",
             "default_value": "",
             "user_viewable": true,
             "user_editable": true,
             "rules": "nullable|string|max:200",
+            "field_type": "text"
+        },
+        {
+            "name": "Dashboard https",
+            "description": "auto = the dashboard uses https with a certificate the bot makes itself (browsers warn once: Advanced > Proceed); on = always; off = plain http. Open it at https://<server IP>:<port>. To use your own certificate, upload data/tls/cert.pem and data/tls/key.pem.",
+            "env_variable": "PANEL_HTTPS",
+            "default_value": "auto",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|in:auto,on,off",
+            "field_type": "text"
+        },
+        {
+            "name": "Open sign-up",
+            "description": "With \"Require sign-in\" on: 1 = new Discord sign-ins become members right away; 0 = they start as guests until a moderator promotes them.",
+            "env_variable": "PANEL_OPEN_SIGNUP",
+            "default_value": "0",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|boolean",
+            "field_type": "text"
+        },
+        {
+            "name": "Extra allowed websites",
+            "description": "Optional. Other websites allowed to call the dashboard API (e.g. a status page), separated by commas: https://a.example.com,https://b.example.com",
+            "env_variable": "PANEL_ALLOWED_ORIGINS",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:500",
+            "field_type": "text"
+        },
+        {
+            "name": "Twitch client ID",
+            "description": "Optional, for Twitch go-live alerts. dev.twitch.tv/console > Register Your Application.",
+            "env_variable": "TWITCH_CLIENT_ID",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:100",
+            "field_type": "text"
+        },
+        {
+            "name": "Twitch client secret",
+            "description": "Optional, for Twitch go-live alerts.",
+            "env_variable": "TWITCH_CLIENT_SECRET",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:100",
+            "field_type": "text"
+        },
+        {
+            "name": "Last.fm API key",
+            "description": "Optional, to scrobble what the bot plays. last.fm/api/account/create",
+            "env_variable": "LASTFM_API_KEY",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:100",
+            "field_type": "text"
+        },
+        {
+            "name": "Last.fm shared secret",
+            "description": "Optional, for Last.fm scrobbling.",
+            "env_variable": "LASTFM_API_SECRET",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:100",
+            "field_type": "text"
+        },
+        {
+            "name": "Last.fm session key",
+            "description": "Optional. Leave blank and connect Last.fm from the dashboard instead (it saves the key itself).",
+            "env_variable": "LASTFM_SESSION_KEY",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:100",
+            "field_type": "text"
+        },
+        {
+            "name": "Health alerts",
+            "description": "1 = the bot DMs its main owner when something breaks (crashes, downloads failing, YouTube blocked); 0 = no alert DMs.",
+            "env_variable": "HEALTH_ALERTS",
+            "default_value": "1",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|boolean",
+            "field_type": "text"
+        },
+        {
+            "name": "Alert webhook",
+            "description": "Optional. A Discord webhook URL that also gets error-spike alerts.",
+            "env_variable": "ALERT_WEBHOOK_URL",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:300",
+            "field_type": "text"
+        },
+        {
+            "name": "Status page URL",
+            "description": "Optional. Where the bot pushes its public status (the Cloudflare status worker in deploy/status-worker).",
+            "env_variable": "STATUS_PUSH_URL",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:300",
+            "field_type": "text"
+        },
+        {
+            "name": "Status page secret",
+            "description": "Optional. Shared secret for the status page push.",
+            "env_variable": "STATUS_PUSH_SECRET",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:200",
+            "field_type": "text"
+        },
+        {
+            "name": "GitHub token",
+            "description": "Optional. A read-only GitHub token, only to avoid rate limits for the update feed and /announceupdate.",
+            "env_variable": "GITHUB_TOKEN",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:200",
+            "field_type": "text"
+        },
+        {
+            "name": "Deploy commands on start",
+            "description": "true = the bot updates its slash commands with Discord when it starts (new or changed commands show up by themselves); false = never.",
+            "env_variable": "AUTO_DEPLOY_COMMANDS",
+            "default_value": "true",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|in:true,false",
             "field_type": "text"
         },
         {
