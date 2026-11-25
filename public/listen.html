@@ -44,6 +44,16 @@
   .eq i { width: 3px; background: var(--accent); border-radius: 2px; animation: eq .9s ease-in-out infinite; }
   .eq i:nth-child(2) { animation-delay: .2s; } .eq i:nth-child(3) { animation-delay: .4s; }
   @keyframes eq { 0%, 100% { height: 3px; } 50% { height: 12px; } }
+  .np-row { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+  .np-row .muted { flex: 1; }
+  button.ghost { background: var(--input); color: var(--fg); border: 1px solid var(--border); }
+  .results { list-style: none; padding: 0; margin: 10px 0 0; }
+  .results li { display: flex; gap: 10px; align-items: center; padding: 7px 0; border-top: 1px solid var(--border); }
+  .results li:first-child { border-top: 0; }
+  .results img { width: 64px; height: 36px; object-fit: cover; border-radius: 6px; background: var(--input); flex-shrink: 0; }
+  .results .info { flex: 1; min-width: 0; }
+  .results .info div:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+  .results button { min-height: 34px; padding: 6px 12px; }
   [data-embed] .wrap { padding-top: 10px; }
   [data-embed] header { display: none; }
 </style>
@@ -84,6 +94,7 @@
   };
   const app = document.getElementById('app');
   let typing = false; let lastMsg = ''; let lastCls = '';
+  let results = []; let skipMsg = ''; let skipCls = ''; let skipTimer = 0;
 
   const signIn = async () => {
     const r = await fetch('/api/auth/discord/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ next: 'listen' }) });
@@ -111,26 +122,64 @@
         ${np ? `<div class="np">${np.thumbnail ? `<img src="${esc(np.thumbnail)}" alt="">` : ''}<div><div class="t">${esc(np.name)}</div>
           <div class="muted">${clock(s.currentTime)} / ${clock(np.duration)}${np.by ? ` · added by ${esc(np.by)}` : ''}</div></div></div>
           <div class="bar"><i style="width:${np.duration ? Math.min(100, (s.currentTime / np.duration) * 100) : 0}%"></i></div>`
-        : '<div class="muted">Nothing is playing right now.</div>'}
-        ${s.voice ? `<div class="muted" style="margin-top:10px">🔊 ${esc(s.voice.name)} · ${s.voice.listeners.map((n) => `<span class="pill">${esc(n)}</span>`).join('') || 'nobody listening'}</div>` : ''}
+        : `<div class="muted">${s.mode === 'web' ? 'Nothing is playing. The bot isn\'t in a voice call, so songs you add play right here in the browser for everyone on this page.' : 'Nothing is playing right now.'}</div>`}
+        <div class="np-row">
+          ${s.voice ? `<div class="muted">🔊 ${esc(s.voice.name)} · ${s.voice.listeners.map((n) => `<span class="pill">${esc(n)}</span>`).join('') || 'nobody listening'}</div>`
+            : s.mode === 'web' && np ? `<div class="muted">🌐 Browser only · ${(s.web?.listeners || []).map((n) => `<span class="pill">${esc(n)}</span>`).join('') || 'just you'}</div>` : '<div class="muted"></div>'}
+          ${np && s.canPause ? `<button type="button" class="ghost" id="pause" data-paused="${s.paused ? 1 : 0}">${s.paused ? '▶ Resume' : '⏸ Pause'}</button>` : ''}
+          ${np ? '<button type="button" class="ghost" id="skip" title="Skip (or vote to skip)">⏭ Skip</button>' : ''}
+        </div>
+        <div class="msg ${skipCls}" id="skip-msg">${esc(skipMsg)}</div>
       </div>
       <div class="card"><h2>Add a song</h2>
-        <form id="add"><input id="q" placeholder="${s.canAdd ? 'Song name or YouTube / Spotify link' : 'Wait until music is playing'}" ${s.canAdd ? '' : 'disabled'} maxlength="300" autocomplete="off" />
-        <button ${s.canAdd ? '' : 'disabled'}>Add</button></form><div class="msg ${lastCls}" id="msg">${esc(lastMsg)}</div></div>
+        <form id="add"><input id="q" placeholder="${s.canAdd ? 'Search a song, or paste a YouTube / Spotify link' : 'Not available right now'}" ${s.canAdd ? '' : 'disabled'} maxlength="300" autocomplete="off" />
+        <button ${s.canAdd ? '' : 'disabled'}>Search</button></form><div class="msg ${lastCls}" id="msg">${esc(lastMsg)}</div>
+        ${results.length ? `<ul class="results">${results.map((r, i) => `<li>${r.thumbnail ? `<img src="${esc(r.thumbnail)}" alt="" loading="lazy">` : ''}
+          <div class="info"><div>${esc(r.name)}</div><div class="muted">${esc(r.by || '')} · ${clock(r.duration)}</div></div>
+          <button type="button" data-pick="${i}">Add</button></li>`).join('')}</ul>` : ''}</div>
       <div class="card"><h2>Up next</h2>${s.upNext.length ? `<ol>${s.upNext.map((u) => `<li>${esc(u.name)}${u.by ? ` <span class="muted">· ${esc(u.by)}</span>` : ''}</li>`).join('')}</ol>${s.more ? `<div class="muted" style="margin-top:6px">+ ${s.more} more</div>` : ''}` : '<div class="muted">The queue is empty.</div>'}</div>`;
     const q = document.getElementById('q');
     q.value = keep;
     q.addEventListener('focus', () => { typing = true; });
     q.addEventListener('blur', () => { typing = false; });
+    const add = async (query) => {
+      try { await api('/api/listen/add', { query }); lastMsg = '✓ Added to the queue'; lastCls = 'ok'; q.value = ''; results = []; }
+      catch (err) { lastMsg = err.signin ? 'Please sign in again.' : err.message; lastCls = 'err'; }
+      typing = false; tick();
+      setTimeout(() => { lastMsg = ''; }, 6000);
+    };
     document.getElementById('add').onsubmit = async (e) => {
       e.preventDefault();
       const query = q.value.trim();
       if (!query) return;
       const btn = e.target.querySelector('button'); btn.disabled = true;
-      try { await api('/api/listen/add', { query }); lastMsg = '✓ Added to the queue'; lastCls = 'ok'; q.value = ''; }
-      catch (err) { lastMsg = err.signin ? 'Please sign in again.' : err.message; lastCls = 'err'; }
+      if (/^https?:\/\//i.test(query)) return add(query);         // a link: add it straight away
+      try {
+        results = (await api(`/api/listen/search?q=${encodeURIComponent(query)}`)).results || [];
+        lastMsg = results.length ? 'Pick one:' : 'No songs found for that.'; lastCls = results.length ? '' : 'err';
+      } catch (err) { lastMsg = err.signin ? 'Please sign in again.' : err.message; lastCls = 'err'; }
       typing = false; tick();
-      setTimeout(() => { lastMsg = ''; }, 6000);
+    };
+    app.querySelectorAll('[data-pick]').forEach((b) => b.onclick = () => {
+      const r = results[Number(b.dataset.pick)];
+      if (!r) return;
+      app.querySelectorAll('[data-pick]').forEach((x) => { x.disabled = true; });
+      add(r.url);
+    });
+    const pause = document.getElementById('pause');
+    if (pause) pause.onclick = async () => {
+      pause.disabled = true;
+      try { await api('/api/listen/pause', { paused: pause.dataset.paused !== '1' }); }
+      catch (err) { skipMsg = err.message; skipCls = 'err'; }
+      tick();
+    };
+    const skip = document.getElementById('skip');
+    if (skip) skip.onclick = async () => {
+      skip.disabled = true;
+      try { const r = await api('/api/listen/skip', {}); skipMsg = r.message; skipCls = r.ok ? 'ok' : 'err'; }
+      catch (err) { skipMsg = err.signin ? 'Please sign in again.' : err.message; skipCls = 'err'; }
+      tick();
+      clearTimeout(skipTimer); skipTimer = setTimeout(() => { skipMsg = ''; }, 8000);
     };
   };
 
@@ -159,7 +208,9 @@
   };
   const stopAudio = () => { audio.pause(); audio.removeAttribute('src'); audio.load(); };
   audio.addEventListener('playing', () => say('<span class="eq"><i></i><i></i><i></i></span> Playing in your browser, in sync with the bot.'));
-  audio.addEventListener('waiting', () => { if (listening) say('Loading…'); });
+  // A song ran out: ask for the next one now instead of at the next 4 s check.
+  audio.addEventListener('ended', () => { if (listening) { stale = true; retryAt = 0; setTimeout(tick, 400); } });
+  audio.addEventListener('waiting',() => { if (listening) say('Loading…'); });
   audio.addEventListener('error', () => {
     if (!listening || !audio.getAttribute('src')) return;
     say('Couldn\'t play this song in the browser. Trying again shortly…');
@@ -176,10 +227,13 @@
   const follow = (s) => {
     lastState = s;
     player.hidden = false;
-    if (!listening) return;
+    if (!listening) {
+      say(s.mode === 'web' ? 'Hear it in your browser, in sync with everyone on this page.' : 'Hear the music in your browser, in sync with the bot.');
+      return;
+    }
     const key = s.nowPlaying?.url || s.nowPlaying?.name || null;
     if (!s.nowPlaying) { if (audio.getAttribute('src')) stopAudio(); songKey = null; return say('Waiting for music…'); }
-    if (s.paused) { if (!audio.paused) audio.pause(); stale = true; return say('⏸ Paused by the bot.'); }
+    if (s.paused) { if (!audio.paused) audio.pause(); stale = true; return say(s.mode === 'web' ? '⏸ Paused.' : '⏸ Paused by the bot.'); }
     if (stale && Date.now() < retryAt) return;
     const heard = startAt + (audio.currentTime || 0);
     const live = !s.nowPlaying.duration;

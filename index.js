@@ -353,6 +353,9 @@ const startLiveUpdate = (guildId, message) => {
 
 // DisTube events
 const welcomeIntro = require('./lib/welcome-intro');
+const taste = require('./lib/taste');
+// /stop or leaving isn't a "skip" of the song that was on: just forget it.
+client.distube.on('deleteQueue', (queue) => taste.forget(queue.id));
 // Download every server's welcome sound once, so it can play instantly.
 client.once(Events.ClientReady, () => {
   for (const g of client.guilds.cache.values()) {
@@ -365,6 +368,8 @@ client.distube
   .on('initQueue', (queue) => {
     const cfg = getGuild(queue.id);
     if (cfg.autoplay && !queue.autoplay) queue.toggleAutoplay();
+    // Autoplay picks from the related songs using what this server skips / lets play (lib/taste.js).
+    taste.attach(queue);
     // The server's welcome sound plays before the first song (lib/welcome-intro.js).
     welcomeIntro.prepare(client.distube, queue, cfg.welcomeSoundUrl, (t) => control.log(t, 'warn', 'play'));
   })
@@ -374,6 +379,7 @@ client.distube
     // Welcome sound not downloaded yet: it goes in front now (slow path).
     if (await welcomeIntro.maybeIntro(queue, song).catch(() => false)) return;
     clearIdleTimer(queue.id);
+    taste.notePlay(queue.id, song);  // judges the previous song: skipped early or played through
     abLoop.stop(queue.id);  // clear any prior A-B loop when a new song starts
     require('./lib/vote-skip').clear(queue.id);  // skip votes are per song
     // Hoist dedication from DisTube metadata onto the song itself. This is
@@ -528,6 +534,7 @@ client.distube
     scheduleIdleLeave(queue.id, queue.textChannel, EMPTY_MS, 'Channel was deserted.');
   })
   .on('finish', (queue) => {
+    taste.noteStop(queue.id);   // the last song played through
     stopLiveUpdate(queue.id);
     require('./lib/fader').clear(queue.id);
     sponsorblock.clearForGuild(queue.id);
@@ -872,6 +879,10 @@ async function birthdayCheck() {
   }
 }
 client.once(Events.ClientReady, () => { setTimeout(() => birthdayCheck().catch(() => {}), 15_000); const iv = setInterval(() => birthdayCheck().catch(() => {}), 60 * 60_000); iv.unref?.(); });
+
+// Song request channel (/requests): type a song name or link there to queue it.
+const songRequests = require('./lib/song-requests');
+client.on(Events.MessageCreate, (msg) => { songRequests.handle(msg).catch((e) => console.warn('[requests]', e.message)); });
 
 // Collab games — counting + one-word-story channel listeners.
 const collab = require('./lib/collab');

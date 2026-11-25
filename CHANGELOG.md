@@ -6,6 +6,29 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.12.0] — 2026-11-25
+
+### Added
+- Listen room without Discord voice: when the bot isn't in a voice call, songs
+  added in the listen room play in the browser for everyone on the page, on one
+  shared clock (`lib/web-queue.js`). The clock stops when nobody has the page
+  open. Pause (whoever added the song, or moderators) and skip (instant for your
+  own song or moderators, otherwise a vote among people on the page).
+- Listen room: ⏭ Skip button (same rules as `/skip`; a pending vote also shows
+  in Discord) and search shows 5 results to pick from.
+- Song request channel: `/requests set channel:#…` — anyone in voice types a
+  song name or pastes a link there to queue it. Messages starting with `#` stay
+  chat.
+- Smarter autoplay groundwork (`lib/taste.js`): each server's early skips and
+  played-through songs are remembered, and autoplay picks from the related
+  songs with `score()`. The default score keeps YouTube's order.
+
+### Fixed
+- Refreshing the dashboard always went back to Home. The open page is now in
+  the address (`#/library`), so reloads, bookmarks and links keep it.
+- Listen room audio could be almost silent in a song's first second (`-ss 0`
+  made ffmpeg give up on servers that can't seek). Seeks under 1 s are skipped.
+
 ## [3.11.3] — 2026-11-24
 
 ### Fixed

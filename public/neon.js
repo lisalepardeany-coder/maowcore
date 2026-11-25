@@ -59,12 +59,13 @@
     const b = e.target.closest('button[data-hub]');
     if (!b) return;
     const hub = HUBS.find((h) => h.id === b.dataset.hub);
+    wanted = null;                               // you picked a page yourself
     const last = store.get(`maow.nx.last.${hub.id}`);
     go(hub.pages.includes(last) && navItem(last) ? last : hub.pages.find((p) => navItem(p)));
   });
   tabs.addEventListener('click', (e) => {
     const b = e.target.closest('button[data-page]');
-    if (b) go(b.dataset.page);
+    if (b) { wanted = null; go(b.dataset.page); }
   });
 
   let shownHub = null;
@@ -73,6 +74,7 @@
     const hub = hubOf(page);
     if (!hub) return;
     store.set(`maow.nx.last.${hub.id}`, page);
+    rememberPage(page);
     rail.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.hub === hub.id));
     if (shownHub !== hub.id) {
       shownHub = hub.id;
@@ -91,6 +93,35 @@
   };
   const nav = document.querySelector('.sidebar .nav');
   if (nav) new MutationObserver(sync).observe(nav, { attributes: true, subtree: true, attributeFilter: ['class'] });
+
+  // ---------- keep the page across a refresh ----------
+  // The open page lives in the address (#/library), so reloading, a bookmark
+  // or a shared link opens that page instead of Home. Sign-in hashes
+  // (#maow_session=…, #login_error=…) are left alone for app.js to read.
+  const pageFromHash = () => (location.hash.match(/^#\/([\w-]+)$/) || [])[1];
+  let wanted = pageFromHash();
+  function rememberPage(page) {
+    if (wanted && page !== wanted) return;      // still restoring: don't overwrite with Home
+    wanted = null;
+    if (/[=&]/.test(location.hash)) return;
+    const h = page === 'home' ? '' : `#/${page}`;
+    if (location.hash !== h) history.replaceState(null, '', location.pathname + location.search + h);
+  }
+  const restore = () => {
+    if (!wanted) return;
+    if (!navItem(wanted)) { wanted = null; return; } // page doesn't exist (or isn't allowed for you)
+    if (document.querySelector('.sidebar .nav-item.active')?.dataset.page !== wanted) go(wanted);
+  };
+  restore();
+  // The app switches to Home itself when it first gets the bot's state and
+  // after sign-in; restore again after those, then stop.
+  let tries = 0;
+  window.addEventListener('maow:state', function again() {
+    restore();
+    if (!wanted || ++tries > 3) window.removeEventListener('maow:state', again);
+  });
+  setTimeout(() => { restore(); wanted = null; }, 4000);
+  window.addEventListener('hashchange', () => { const p = pageFromHash(); if (p && navItem(p)) go(p); });
 
   // ---------- fold page descriptions into ⓘ ----------
   // Only plain text blocks without an id: elements with an id are filled in
