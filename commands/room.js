@@ -1,12 +1,13 @@
 const { SlashCommandBuilder, MessageFlags, PermissionFlagsBits, ChannelType } = require('discord.js');
 const { getGuild } = require('../lib/config');
+const { findTrigger } = require('../lib/auto-voice');
 
 // Controls for the auto voice rooms (join the "Create Room" channel → you get
 // your own room). The owner is whoever has Manage Channels on the room.
 const isTempRoom = (ch, cfg) => {
-  if (!ch || ch.type !== ChannelType.GuildVoice || !cfg.autoVoiceRoomId || ch.id === cfg.autoVoiceRoomId) return false;
-  const trigger = ch.guild.channels.cache.get(cfg.autoVoiceRoomId);
-  return !!trigger && ch.parentId === trigger.parentId && ch.name.startsWith('🎙 ');
+  if (!ch || ch.type !== ChannelType.GuildVoice) return false;
+  const trigger = findTrigger(ch.guild, cfg);
+  return !!trigger && ch.id !== trigger.id && ch.parentId === trigger.parentId && ch.name.startsWith('🎙 ');
 };
 const ownerId = (ch) => ch.permissionOverwrites.cache.find((o) => o.type === 1 && o.allow.has(PermissionFlagsBits.ManageChannels))?.id || null;
 

@@ -6,6 +6,13 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.13.2] — 2026-11-26
+
+### Fixed
+- **Auto voice rooms: joining "Create Room" made no room** on a bot whose `data/` folder didn't have the trigger's ID (only `/setup` saved it, so a server moved to Pterodactyl or a channel made by hand never worked). The bot now finds a voice channel named like "➕ Create Room", "create-room" or "Join to Create" and saves its ID (`lib/auto-voice.js`).
+- Muting or deafening inside the Create Room channel no longer counts as joining it.
+- A room that can't be made (missing Manage Channels, Move Members or Connect) is now explained in the dashboard log instead of only the console.
+
 ## [3.13.1] — 2026-11-25
 
 ### Fixed

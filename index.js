@@ -1000,16 +1000,19 @@ client.on(Events.MessageUpdate, (oldMsg, newMsg) => {
 
 // On ready: scan for orphaned temp voice channels left over from previous runs
 // (empty voice channels in the auto-voice category whose name starts with 🎙).
+const autoVoice = require('./lib/auto-voice');
+const voiceTrigger = (guild) => autoVoice.findTrigger(guild, getGuild(guild.id), (id) => {
+  updateGuild(guild.id, { autoVoiceRoomId: id });
+  control.log(`🎙 Auto voice rooms: using "${guild.channels.cache.get(id)?.name}" in ${guild.name} as the Create Room channel`, 'info', 'system', { subsystem: 'system' });
+});
 client.once(Events.ClientReady, () => {
   for (const guild of client.guilds.cache.values()) {
-    const cfg = getGuild(guild.id);
-    if (!cfg.autoVoiceRoomId) continue;
-    const triggerCh = guild.channels.cache.get(cfg.autoVoiceRoomId);
+    const triggerCh = voiceTrigger(guild);
     if (!triggerCh) continue;
     const parentId = triggerCh.parentId;
     for (const ch of guild.channels.cache.values()) {
       if (ch.type !== ChannelType.GuildVoice) continue;
-      if (ch.id === cfg.autoVoiceRoomId) continue;          // never delete the trigger
+      if (ch.id === triggerCh.id) continue;                 // never delete the trigger
       if (ch.parentId !== parentId) continue;               // must be in same category
       if (!ch.name.startsWith('🎙 ')) continue;             // only our temp rooms
       if (ch.members.some((m) => !m.user.bot)) {                            // still in use — track it
@@ -1021,11 +1024,16 @@ client.once(Events.ClientReady, () => {
   }
 });
 client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
-  // Spawn on join of the trigger channel
-  const cfg = getGuild(newState.guild.id);
-  if (cfg.autoVoiceRoomId && newState.channelId === cfg.autoVoiceRoomId && newState.id !== client.user.id) {
+  // Spawn on join of the trigger channel. Only a real join counts: muting or
+  // deafening inside the trigger also fires this event with the same channel.
+  const trigger = newState.channelId && newState.channelId !== oldState.channelId ? voiceTrigger(newState.guild) : null;
+  if (trigger && newState.channelId === trigger.id && !newState.member?.user.bot) {
     try {
-      const parent = newState.channel.parent;
+      const me = newState.guild.members.me;
+      const perms = trigger.permissionsFor(me);
+      const missing = ['ManageChannels', 'MoveMembers', 'Connect'].filter((p) => !perms?.has(PermissionFlagsBits[p]));
+      if (missing.length) throw new Error(`the bot is missing ${missing.join(', ')} on "${trigger.name}"`);
+      const parent = trigger.parent;
       const ch = await newState.guild.channels.create({
         name: `🎙 ${newState.member.displayName}'s Room`,
         type: ChannelType.GuildVoice,
@@ -1039,7 +1047,10 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
       });
       tempVoiceChannels.add(ch.id);
       await newState.member.voice.setChannel(ch);
-    } catch (e) { console.warn('[autovoice] failed:', e.message); }
+    } catch (e) {
+      console.warn('[autovoice] failed:', e.message);
+      control.log(`▲ Auto voice room for ${newState.member?.displayName} in ${newState.guild.name} failed: ${e.message}`, 'warn', 'system', { subsystem: 'system' });
+    }
   }
   // Clean up empty temp channels
   if (oldState.channelId && tempVoiceChannels.has(oldState.channelId)) {
