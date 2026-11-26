@@ -750,10 +750,10 @@ module.exports = {
         title: '📜 Slash Commands', color: COLORS.COSMIC,
         fields: [
           { name: '🎵 Music', value: '/play · /skip · /queue · /pause · /resume · /stop · /leave · /volume · /seek · /loop · /shuffle · /nowplaying · /lyrics · /dedicate', inline: false },
-          { name: '📚 Library', value: '/library play|list|remove|install · /load · /save · /share · /importpl', inline: false },
+          { name: '📚 Library', value: '/library play|list|remove|install · /playlist save|load|list|delete|share|import', inline: false },
           { name: '⚙️ Server', value: '/setup · /config · /prefix · /language · /reactionrole · /setup', inline: false },
           { name: '🎲 Fun / Social', value: '/quiz · /gametour · /tours · /radiosearch · /tts · /sb · /trivia', inline: false },
-          { name: '🛡️ Moderation', value: '/warn · /timeout · /ban · /kick · /purge · /lock · /unlock · /mute', inline: false },
+          { name: '🛡️ Moderation', value: '/warn · /mod kick|ban|timeout|tempban|tempmute|history · /purge · /lock · /unlock', inline: false },
           { name: '⚙️ Utility', value: '/help · /ping · /invite · /follow · /backup · /version', inline: false },
         ],
         footer: 'Use /help for descriptions of each command',

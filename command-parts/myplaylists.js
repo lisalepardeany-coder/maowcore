@@ -11,7 +11,7 @@ module.exports = {
       .setColor(COLORS.COSMIC)
       .setAuthor({ name: '✦  YOUR SAVED PLAYLISTS' });
     if (!entries.length) {
-      embed.setDescription('*— archive empty —*\nUse `/save name:...` while a queue is active to store one.');
+      embed.setDescription('*— archive empty —*\nUse `/playlist save name:...` while a queue is active to store one.');
     } else {
       embed.setDescription(
         entries

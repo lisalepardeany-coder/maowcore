@@ -6,6 +6,16 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.15.0] — 2026-11-26
+
+### Changed
+- **Commands merged** to make room under Discord's limit of 100 slash commands per server (the bot had 120). Everything works the same, only the names changed:
+  - **`/sound`**: `filter`, `eq`, `pitch`, `speed`, `normalize`, `crossfade`, `karaoke` (was `/filter`, `/eq`, `/pitch`, `/speed`, `/normalize`, `/crossfade`, `/karaoke`).
+  - **`/mod`**: now also `kick`, `ban`, `softban`, `unban`, `timeout` (was their own commands), next to `tempban`, `tempmute`, `history`, `note`, `modmail`. Each action still needs its own permission (Kick Members, Ban Members, Timeout Members).
+  - **`/playlist`**: `save`, `load`, `list`, `delete`, `share`, `import` (was `/save`, `/load`, `/myplaylists`, `/deleteplaylist`, `/share`, `/importpl`).
+- 120 → 104 commands, so every server command fits in the server set again (94 + 10 that also work in DMs). `/help`, `/setup`'s command list and the README use the new names.
+- Old commands disappear by themselves when the bot updates its commands on start (Discord can take a minute to refresh the list).
+
 ## [3.14.0] — 2026-11-26
 
 ### Added

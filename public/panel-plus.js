@@ -192,7 +192,7 @@
       <div class="page-head"><div><h2>♫ Playlists &amp; Radio</h2><div class="muted small">Your saved playlists, mood mixes, song radio and internet radio.</div></div></div>
       <div class="card"><div class="card-head"><h3>💾 Your playlists</h3><button class="mr-btn" id="mp-pl-save">Save current queue…</button></div>
         <div class="mr-list" id="mp-pl-list"><div class="mr-empty">Loading…</div></div>
-        <div class="muted small" style="margin-top:6px">Also works in Discord: /save, /load, /myplaylists. Spotify playlist links can be played with /play.</div></div>
+        <div class="muted small" style="margin-top:6px">Also works in Discord: /playlist save, load, list. Spotify playlist links can be played with /play.</div></div>
       <div class="card"><div class="card-head"><h3>🎛 Mood mix &amp; song radio</h3></div>
         <div class="mr-form" id="mp-moods"></div>
         <div class="mr-form" style="margin-top:10px"><button class="mr-btn primary" id="mp-similar">📻 More like the current song</button></div></div>

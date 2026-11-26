@@ -4,7 +4,7 @@ const playlists = require('../lib/playlists');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('share')
-    .setDescription('Export a saved playlist as a portable file friends can /importpl')
+    .setDescription('Export a saved playlist as a portable file friends can /playlist import')
     .addStringOption((opt) => opt.setName('name').setDescription('Playlist name').setRequired(true).setAutocomplete(true)),
   async autocomplete(interaction) {
     const focused = interaction.options.getFocused().toLowerCase();
@@ -26,7 +26,7 @@ module.exports = {
     // slashes, and other chars that produce confusing or unsafe downloads.
     const safeFile = name.replace(/[^a-zA-Z0-9._-]+/g, '_').replace(/^_+|_+$/g, '') || 'playlist';
     return interaction.reply({
-      content: `✦  Shareable export of **${name}** — ${urls.length} signals. Hand the file to a friend; they run \`/importpl\` to add it to their own collection.`,
+      content: `✦  Shareable export of **${name}** — ${urls.length} signals. Hand the file to a friend; they run \`/playlist import\` to add it to their own collection.`,
       files: [new AttachmentBuilder(buf, { name: `${safeFile}.maowpl.json` })],
       flags: MessageFlags.Ephemeral,
     });

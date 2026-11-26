@@ -252,10 +252,10 @@ Right-click any YouTube/Spotify/SoundCloud link on the web → "Queue in MaowCor
 - **Playback:** `/play /pause /resume /skip /previous /seek /stop /leave /247 /sleep /restore /undo`
 - **Sources:** `/radio /radiosearch /podcast /sb /say /announce`
 - **Queue:** `/queue /nowplaying /remove /shuffle /loop /favorite /timemachine /event`
-- **Playlists:** `/save /load /myplaylists /deleteplaylist /share /importpl /quickset`
-- **Audio:** `/volume /filter /eq /speed /pitch /karaoke /normalize /crossfade /autoplay /sponsorblock`
+- **Playlists:** `/playlist save|load|list|delete|share|import`, `/quickset`
+- **Audio:** `/volume`, `/sound filter|eq|speed|pitch|karaoke|normalize|crossfade`, `/autoplay /sponsorblock`
 - **Intelligence:** `/lyrics /rate /tours`
-- **Moderation:** `/kick /ban /unban /softban /timeout /warn /modlog /purge /lock /unlock /slowmode /role /nick`
+- **Moderation:** `/mod kick|ban|unban|softban|timeout|tempban|tempmute|history|note|modmail`, `/warn /modlog /purge /lock /unlock /slowmode /role /nick`
 - **Automod:** `/automod`
 - **Server setup:** `/setup /welcome /welcomesound /statschannels /reactionrole`
 - **Utility:** `/userinfo /serverinfo /avatar /poll /tag /suggest /remind`

@@ -15,7 +15,7 @@ module.exports = {
     updateGuild(interaction.guildId, { appeals: { channelId: ch?.id || null } });
     return interaction.reply({
       content: ch
-        ? `📝 Appeals are on. When someone is banned (with /ban or the panel) they get a DM with an **Appeal** button; appeals arrive in ${ch} with Accept / Deny buttons. One appeal per person per day.`
+        ? `📝 Appeals are on. When someone is banned (with /mod ban or the panel) they get a DM with an **Appeal** button; appeals arrive in ${ch} with Accept / Deny buttons. One appeal per person per day.`
         : '✕ Appeals turned off.',
       flags: MessageFlags.Ephemeral,
     });
