@@ -1,0 +1,33 @@
+/* ===== Phone fixes (loaded last, after every theme) =====
+   The phone layout (neon.css / panel-revamp.css) hides the top bar's server
+   picker, so with more than one server there was no way to switch. It comes
+   back here as a full-width row under the top bar, only when there is more
+   than one server to pick. Plus: bigger tap targets, no zoom-in when typing on
+   iPhone, and long text that wraps instead of sticking out. */
+@media (max-width: 900px) {
+  /* Top bar: let its controls take part in the bar's own wrapping. */
+  .app { grid-template-rows: auto 1fr !important; }
+  .topbar { flex-wrap: wrap; height: auto !important; min-height: var(--topbar-h, 60px); row-gap: 8px; }
+  .topbar .topbar-controls { display: contents; }
+
+  /* Server picker: its own row, only with 2+ servers. */
+  .topbar #server-select { display: none !important; }
+  .topbar #server-select:has(option:nth-child(2)) {
+    display: block !important; order: 99; flex: 1 1 100%; max-width: none !important; width: 100%;
+    min-height: 42px; margin: 0 0 6px; padding: 8px 12px; font-size: 16px; border-radius: 12px;
+  }
+
+  /* iPhone zooms in on inputs smaller than 16px; keep the page still. */
+  .main input:not([type=checkbox]):not([type=radio]):not([type=range]),
+  .main select, .main textarea { font-size: 16px; }
+
+  /* Tap targets: plain checkboxes were 13px, chips and small buttons ~25px. */
+  .main input[type=checkbox]:not(.switch input), .main input[type=radio] { width: 22px; height: 22px; flex: none; }
+  .main button, .main .filter-chip, .main .tab, .main select { min-height: 38px; }
+  .main .switch { min-height: 0; }
+
+  /* Long codes / paths wrap instead of running off the screen. */
+  .main code { overflow-wrap: anywhere; word-break: break-word; }
+  .main pre { max-width: 100%; overflow-x: auto; }
+  .main table { display: block; max-width: 100%; overflow-x: auto; }
+}

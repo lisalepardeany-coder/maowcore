@@ -2651,6 +2651,8 @@
       `<option value="${s.id}">${escapeHtmlSafe(s.name)}</option>`,
     ).join('');
     if (cur) sel.value = cur.id;
+    // Pages opened before the server list arrived (a reload on #/welcome) draw now.
+    window.dispatchEvent(new Event('maow:servers'));
   };
   $('server-select')?.addEventListener('change', (e) => {
     selectedServerId = e.target.value;
@@ -4240,6 +4242,14 @@
     else if (name === 'reactions') renderReactionsPage();
     else if (name === 'insights') { try { renderHeatmap(); } catch { /* depends on state */ } }
   };
+
+  // Per-server pages redraw when the server list first arrives (opening the
+  // panel straight on #/welcome showed an empty page) and when another server
+  // is picked (they kept showing the old server's settings).
+  const SERVER_PAGES = { members: renderMembersPage, channels: renderChannelsPage, roles: renderRolesPage, welcome: renderWelcomePage, reactions: renderReactionsPage };
+  const redrawServerPage = () => { const fn = SERVER_PAGES[activePage]; if (fn) fn(); };
+  window.addEventListener('maow:servers', redrawServerPage);
+  $('server-select')?.addEventListener('change', redrawServerPage);
 
   // ===== Welcome / Farewell builder =====
   const welcomeState = { cfg: null, dirty: false };

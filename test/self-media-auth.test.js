@@ -66,5 +66,5 @@ test('listen-room audio: a signed-in session in the address opens it, nothing el
 });
 
 test('the dashboard\'s new files load before sign-in', () => {
-  for (const p of ['/neon.css', '/neon.js']) assert.equal(server._checkAuth(req('203.0.113.9'), fakeRes(), p), true, p);
+  for (const p of ['/neon.css', '/neon.js', '/mobile.css']) assert.equal(server._checkAuth(req('203.0.113.9'), fakeRes(), p), true, p);
 });

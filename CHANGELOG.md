@@ -6,6 +6,14 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.15.1] — 2026-11-26
+
+### Fixed
+- **Dashboard on phones: the server picker was hidden**, so with more than one server you couldn't switch which one you were managing. It's back as its own row under the top bar (only when there's more than one server to pick).
+- Switching servers now redraws Members, Channels, Roles, Welcome & Farewell and Reaction roles; they kept showing the previous server's settings.
+- Opening the dashboard straight on one of those pages (a reload, or a saved link like `#/welcome`) showed an empty page until you clicked away and back.
+- Phones: checkboxes are bigger (22px instead of 13px), small buttons and filter chips are easier to tap, typing in a field no longer zooms the page in on iPhone, and long codes wrap instead of running off the screen (`public/mobile.css`).
+
 ## [3.15.0] — 2026-11-26
 
 ### Changed
