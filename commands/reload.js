@@ -5,8 +5,10 @@ const fs = require('node:fs');
 module.exports = {
   data: new SlashCommandBuilder().setName('reload').setDescription('(Owner only) Hot-reload command files'),
   async execute(interaction) {
-    const ownerId = interaction.client.application?.owner?.id;
-    if (ownerId && interaction.user.id !== ownerId) {
+    // OWNER_USER_ID, like /backup. It used Discord's "application owner", which
+    // is empty until fetched (anyone could reload then) and a Team for team-owned
+    // apps (nobody could).
+    if (!require('../lib/owners').isOwner(interaction.user.id)) {
       return interaction.reply({ content: '◌ Owner only.', flags: MessageFlags.Ephemeral });
     }
     const commandsPath = path.join(__dirname);

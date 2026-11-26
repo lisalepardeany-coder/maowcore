@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, MessageFlags, PermissionFlagsBits } = require('discord.js');
 const modlog = require('../lib/modlog');
+const hierarchy = require('../lib/hierarchy');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -18,6 +19,11 @@ module.exports = {
     const role = interaction.options.getRole('role');
     const member = await interaction.guild.members.fetch(user.id).catch(() => null);
     if (!member) return interaction.reply({ content: '◌ Member not found.', flags: MessageFlags.Ephemeral });
+    // Like Discord's own menu: only roles below your highest role, and only on
+    // members below you (otherwise Manage Roles could hand out Admin).
+    const actor = await hierarchy.actorOf(interaction);
+    if (!hierarchy.canAssignRole(actor, role)) return interaction.reply({ content: hierarchy.ROLE_MSG, flags: MessageFlags.Ephemeral });
+    if (!hierarchy.canModerate(actor, member, { allowSelf: true })) return interaction.reply({ content: hierarchy.MOD_MSG, flags: MessageFlags.Ephemeral });
     try {
       if (sub === 'add') {
         await member.roles.add(role);

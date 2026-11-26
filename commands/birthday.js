@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, MessageFlags, PermissionFlagsBits, ChannelType } = require('discord.js');
-const { getGuild, updateGuild } = require('../lib/config');
 const tools = require('../lib/mod-tools');
+const bdays = require('../lib/birthday-store');
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
@@ -18,18 +18,19 @@ module.exports = {
       .addRoleOption((o) => o.setName('role').setDescription('Role given for the day'))),
   async execute(interaction) {
     const sub = interaction.options.getSubcommand();
-    const cfg = getGuild(interaction.guildId).birthdays || { people: {} };
-    const people = cfg.people || {};
+    // Same list as /community birthday (lib/birthday-store.js).
+    const cfg = bdays.get(interaction.guildId);
+    const people = cfg.people;
     if (sub === 'set') {
       const d = interaction.options.getInteger('day'); const m = interaction.options.getInteger('month');
       if (!tools.validDay(d, m)) return interaction.reply({ content: '◌ That date doesn\'t exist.', flags: MessageFlags.Ephemeral });
       people[interaction.user.id] = { d, m };
-      updateGuild(interaction.guildId, { birthdays: { ...cfg, people } });
+      bdays.save(interaction.guildId, cfg);
       return interaction.reply({ content: `🎂 Saved: **${d} ${MONTHS[m - 1]}**.${cfg.channelId ? '' : ' (Wishes will start once a mod runs `/birthday setup`.)'}`, flags: MessageFlags.Ephemeral });
     }
     if (sub === 'remove') {
       delete people[interaction.user.id];
-      updateGuild(interaction.guildId, { birthdays: { ...cfg, people } });
+      bdays.save(interaction.guildId, cfg);
       return interaction.reply({ content: '✕ Birthday removed.', flags: MessageFlags.Ephemeral });
     }
     if (sub === 'list') {
@@ -52,7 +53,11 @@ module.exports = {
     if (role && role.position >= interaction.guild.members.me.roles.highest.position) {
       return interaction.reply({ content: `◌ I can't give ${role} — move my role above it first.`, flags: MessageFlags.Ephemeral });
     }
-    updateGuild(interaction.guildId, { birthdays: { ...cfg, people, channelId: ch?.id || null, roleId: role?.id || null } });
+    const hierarchy = require('../lib/hierarchy');
+    if (role && !hierarchy.canAssignRole(await hierarchy.actorOf(interaction), role)) {
+      return interaction.reply({ content: hierarchy.ROLE_MSG, flags: MessageFlags.Ephemeral });
+    }
+    bdays.save(interaction.guildId, { ...cfg, channelId: ch?.id || null, roleId: role?.id || null });
     return interaction.reply({ content: ch ? `🎂 Birthday wishes go to ${ch} at 9:00${role ? `, and ${role} is given for the day` : ''}.` : '✕ Birthday wishes turned off.', flags: MessageFlags.Ephemeral });
   },
 };

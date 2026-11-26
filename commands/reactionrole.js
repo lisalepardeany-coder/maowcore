@@ -34,6 +34,11 @@ module.exports = {
     if (me && role.position >= me.roles.highest.position) {
       return interaction.reply({ content: '◌ That role is higher than my highest role — move my role above it first, or pick a lower role.', flags: MessageFlags.Ephemeral });
     }
+    // Anyone reacting gets this role, so it must be below the creator's own.
+    const hierarchy = require('../lib/hierarchy');
+    if (!hierarchy.canAssignRole(await hierarchy.actorOf(interaction), role)) {
+      return interaction.reply({ content: hierarchy.ROLE_MSG, flags: MessageFlags.Ephemeral });
+    }
     const embed = new EmbedBuilder()
       .setColor(COLORS.COSMIC)
       .setTitle(`✦  ${title}`)

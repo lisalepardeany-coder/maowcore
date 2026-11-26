@@ -67,7 +67,7 @@ module.exports = {
           '',
           '**◇ Server admin**',
           '`/dj role|ratio|show` · `/alias set|remove|list` · `/personality <tone>`',
-          '`/language <locale>` · `/backup` · `/import` · `/reload` · `/botinfo`',
+          '`/language <locale>` · `/backup` · `/reload` · `/botinfo`',
           '`/quickset set|clear|list` · `/welcomesound which: url:`',
           '',
           '*React with* `❤️ ⏭️ 🔁 🔀` *on the Now Transmitting message for quick controls.*',

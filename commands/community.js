@@ -71,8 +71,12 @@ module.exports = {
       if (sub === 'config') {
         if (!admin) return interaction.reply(eph('◌  Manage-Server only.'));
         const ch = interaction.options.getChannel('channel'); const role = interaction.options.getRole('role');
-        const patch = {}; if (ch) patch.birthdayChannelId = ch.id; if (role) patch.birthdayRoleId = role.id;
-        updateGuild(gid, patch);
+        if (role) {
+          const hierarchy = require('../lib/hierarchy');
+          if (!hierarchy.canAssignRole(await hierarchy.actorOf(interaction), role)) return interaction.reply(eph(hierarchy.ROLE_MSG));
+        }
+        // Same settings as /birthday setup (lib/birthday-store.js).
+        require('../lib/birthday-store').update(gid, (b) => { if (ch) b.channelId = ch.id; if (role) b.roleId = role.id; });
         return interaction.reply(eph(`✦  Birthdays → ${ch ? `announce in ${ch}` : ''}${role ? ` · role ${role}` : ''}. Checked daily.`));
       }
     }

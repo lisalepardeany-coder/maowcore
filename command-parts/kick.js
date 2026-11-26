@@ -14,6 +14,8 @@ module.exports = {
     const member = await interaction.guild.members.fetch(user.id).catch(() => null);
     if (!member) return interaction.reply({ content: '◌ Member not found.', flags: MessageFlags.Ephemeral });
     if (!member.kickable) return interaction.reply({ content: '◌ I cannot kick this member (role hierarchy).', flags: MessageFlags.Ephemeral });
+    const hierarchy = require('../lib/hierarchy');
+    if (!hierarchy.canModerate(await hierarchy.actorOf(interaction), member)) return interaction.reply({ content: hierarchy.MOD_MSG, flags: MessageFlags.Ephemeral });
     try {
       await user.send(`You were kicked from **${interaction.guild.name}**. Reason: ${reason}`).catch(() => {});
       await member.kick(reason);

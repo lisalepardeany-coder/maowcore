@@ -28,7 +28,7 @@ test('roles: ladder is owner > admin > moderator > member > guest > banned', () 
   assert.equal(roles.rankIndex('member'), 2);
 });
 
-test('roles: new sign-ins wait as guest while the login lock is on', () => {
+test('roles: new sign-ins wait as guest, with or without the login lock, unless sign-up is open', () => {
   const prev = { lock: process.env.PANEL_REQUIRE_LOGIN, open: process.env.PANEL_OPEN_SIGNUP };
   try {
     delete process.env.PANEL_OPEN_SIGNUP;
@@ -38,7 +38,7 @@ test('roles: new sign-ins wait as guest while the login lock is on', () => {
     assert.equal(roles.newUserRank(), 'member');
     process.env.PANEL_REQUIRE_LOGIN = '0';
     delete process.env.PANEL_OPEN_SIGNUP;
-    assert.equal(roles.newUserRank(), 'member');
+    assert.equal(roles.newUserRank(), 'guest');   // used to be member: any Discord account got in
   } finally {
     for (const [k, v] of [['PANEL_REQUIRE_LOGIN', prev.lock], ['PANEL_OPEN_SIGNUP', prev.open]]) {
       if (v === undefined) delete process.env[k]; else process.env[k] = v;
@@ -71,13 +71,21 @@ test('roles: a built-in owner is owner on first sign-in', { skip: !sqliteOk }, (
   assert.equal(r.rank, 'owner');
 });
 
-test('roles: noteLogin assigns member to second user when owner exists', { skip: !sqliteOk }, () => {
+test('roles: noteLogin makes a second user a guest (member with open sign-up)', { skip: !sqliteOk }, () => {
   reset();
   process.env.OWNER_USER_ID = '222222222222222222';
-  roles.noteLogin({ userId: '222222222222222222', tag: 'First#0001' });
-  const r = roles.noteLogin({ userId: '333333333333333333', tag: 'Second#0002' });
-  assert.equal(r.rank, 'member');
-  assert.equal(r.grantedBy, 'self');
+  const prevOpen = process.env.PANEL_OPEN_SIGNUP;
+  try {
+    delete process.env.PANEL_OPEN_SIGNUP;
+    roles.noteLogin({ userId: '222222222222222222', tag: 'First#0001' });
+    const r = roles.noteLogin({ userId: '333333333333333333', tag: 'Second#0002' });
+    assert.equal(r.rank, 'guest');
+    assert.equal(r.grantedBy, 'self');
+    process.env.PANEL_OPEN_SIGNUP = '1';
+    assert.equal(roles.noteLogin({ userId: '343434343434343434', tag: 'Third#0003' }).rank, 'member');
+  } finally {
+    if (prevOpen === undefined) delete process.env.PANEL_OPEN_SIGNUP; else process.env.PANEL_OPEN_SIGNUP = prevOpen;
+  }
 });
 
 test('roles: noteLogin on an existing user refreshes tag/avatar but not rank', { skip: !sqliteOk }, () => {
@@ -95,7 +103,8 @@ test('roles: check() respects the ladder', { skip: !sqliteOk }, () => {
   reset();
   process.env.OWNER_USER_ID = '555555555555555555';
   roles.noteLogin({ userId: '555555555555555555', tag: 'Owner' });            // owner
-  roles.noteLogin({ userId: '666666666666666666', tag: 'Member' });           // member
+  roles.noteLogin({ userId: '666666666666666666', tag: 'Member' });           // guest at first
+  roles.grant('555555555555555555', '666666666666666666', 'member');          // let in by the owner
   assert.equal(roles.check('555555555555555555', 'admin'), true);
   assert.equal(roles.check('555555555555555555', 'owner'), true);
   assert.equal(roles.check('666666666666666666', 'admin'), false);

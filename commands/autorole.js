@@ -22,6 +22,8 @@ module.exports = {
       const me = interaction.guild.members.me;
       if (role.managed || role.id === interaction.guildId) return interaction.reply({ content: '◌ That role can\'t be given by bots.', flags: MessageFlags.Ephemeral });
       if (role.position >= me.roles.highest.position) return interaction.reply({ content: `◌ Move my role above ${role} first, then try again.`, flags: MessageFlags.Ephemeral });
+      const hierarchy = require('../lib/hierarchy');
+      if (!hierarchy.canAssignRole(await hierarchy.actorOf(interaction), role)) return interaction.reply({ content: hierarchy.ROLE_MSG, flags: MessageFlags.Ephemeral });
       if (!cfg.roles.includes(role.id)) cfg.roles.push(role.id);
       if (cfg.roles.length > 10) return interaction.reply({ content: '◌ Up to 10 auto-roles.', flags: MessageFlags.Ephemeral });
       save();

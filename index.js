@@ -1,3 +1,4 @@
+require('./lib/pending-restore').apply(); // a backup restored from the panel: swap it in before anything reads data/
 require('./lib/hosting'); // Pterodactyl port/env fixes; must run before .env loads
 require('dotenv').config();
 require('./lib/hosting').ensureControlToken(); // never an open dashboard on a panel
@@ -297,17 +298,39 @@ const clearIdleTimer = (guildId) => {
 const scheduleIdleLeave = (guildId, textChannel, ms, reason) => {
   if (getGuild(guildId).stay247) return;
   clearIdleTimer(guildId);
-  const t = setTimeout(() => {
+  const t = setTimeout(async () => {
     idleTimers.delete(guildId);
     const voice = client.distube.voices.get(guildId);
     if (!voice) return;
-    voice.leave();
+    await playLeaveSound(guildId, voice);
+    client.distube.voices.get(guildId)?.leave();
     textChannel?.send({
       embeds: [themedEmbed(COLORS.COSMIC, '⌬  RETURNING TO THE VOID', reason)],
     }).catch(() => {});
   }, ms);
   idleTimers.set(guildId, t);
 };
+
+// The server's leave sound (dashboard → Welcome & Farewell), played right before
+// the bot leaves on its own. It used to wait for DisTube's "empty" event, which
+// DisTube v5 never sends, so it never played. Short clips only: we leave after
+// it ends or after 10 s, whichever comes first.
+const LEAVE_SOUND_MAX_MS = 10_000;
+async function playLeaveSound(guildId, voice) {
+  const url = getGuild(guildId).leaveSoundUrl;
+  if (!url || !voice?.channel) return;
+  try {
+    const q = client.distube.getQueue(guildId);
+    if (q) await q.stop().catch(() => {});
+    await client.distube.play(voice.channel, url);
+    await new Promise((resolve) => {
+      const t = setTimeout(resolve, LEAVE_SOUND_MAX_MS);
+      const done = (queue) => { if (queue.id === guildId) { clearTimeout(t); client.distube.off('finish', done); resolve(); } };
+      client.distube.on('finish', done);
+      setTimeout(() => client.distube.off('finish', done), LEAVE_SOUND_MAX_MS + 100).unref?.();
+    });
+  } catch (e) { control.log(`Leave sound failed: ${e.message}`, 'warn'); }
+}
 
 // Live progress bar — skips ticks when nothing meaningful changed (paused / same-second)
 const PROGRESS_TICK_MS = 5000;
@@ -857,28 +880,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
     await interaction.update({ embeds: [community.eventEmbed(e)], components: [community.eventButtons(id)] });
   } catch (err) { console.warn('[rsvp]', err.message); }
 });
-async function birthdayCheck() {
-  const today = new Date();
-  const key = `${today.getFullYear()}-${today.getMonth() + 1}-${today.getDate()}`;
-  for (const guild of client.guilds.cache.values()) {
-    const cfg = getGuild(guild.id);
-    const todays = community.todaysBirthdays(guild.id, today);
-    // Birthday role: keep it on exactly today's celebrants.
-    if (cfg.birthdayRoleId) {
-      const role = guild.roles.cache.get(cfg.birthdayRoleId);
-      if (role) {
-        for (const m of role.members.values()) if (!todays.includes(m.id)) m.roles.remove(role, 'Birthday over').catch(() => {});
-        for (const u of todays) { const m = await guild.members.fetch(u).catch(() => null); if (m && !m.roles.cache.has(role.id)) m.roles.add(role, 'Happy birthday!').catch(() => {}); }
-      }
-    }
-    // Announce once per day.
-    if (cfg.birthdayLastRun !== key && todays.length && cfg.birthdayChannelId) {
-      const ch = guild.channels.cache.get(cfg.birthdayChannelId);
-      if (ch) { ch.send({ content: `🎉🎂 Happy Birthday ${todays.map((u) => `<@${u}>`).join(', ')}! Have an amazing day! 🥳`, allowedMentions: { users: todays } }).catch(() => {}); updateGuild(guild.id, { birthdayLastRun: key }); }
-    }
-  }
-}
-client.once(Events.ClientReady, () => { setTimeout(() => birthdayCheck().catch(() => {}), 15_000); const iv = setInterval(() => birthdayCheck().catch(() => {}), 60 * 60_000); iv.unref?.(); });
+// Birthdays (/birthday and /community birthday share one list) are wished by
+// lib/mod-tools.js runBirthdays above; a second check here used to post too.
 
 // Song request channel (/requests): type a song name or link there to queue it.
 const songRequests = require('./lib/song-requests');
@@ -1194,22 +1197,27 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
   }
 });
 
-// Leave sound — fired BEFORE the bot disconnects (which is when the channel
-// goes empty and DisTube would normally cut the connection). We let DisTube's
-// `empty` event give us a heads up so we can play the leave sound first.
-client.distube?.on?.('empty', async (queue) => {
-  const guildId = queue?.voiceChannel?.guild?.id;
-  if (!guildId) return;
-  const cfg = getGuild(guildId);
-  if (!cfg.leaveSoundUrl) return;
-  const channel = queue.voiceChannel;
-  if (!channel) return;
-  try {
-    // Stop the current queue (it's empty anyway), then play the leave sound.
-    // DisTube will auto-disconnect when it finishes if no 24/7 mode is set.
-    await client.distube.play(channel, cfg.leaveSoundUrl);
-  } catch (e) {
-    control.log(`Leave sound failed: ${e.message}`, 'warn');
+// Deserted voice channel. DisTube v5 no longer sends its "empty" event, so the
+// "Disengaging in 30s" handler above never ran and the bot stayed in empty
+// channels. Detect it here: when the last person leaves the bot's channel, run
+// that handler (or, with no queue, the same 30 s leave); when someone comes
+// back in time, cancel it.
+const desertedGuilds = new Set();
+client.on(Events.VoiceStateUpdate, (oldState, newState) => {
+  const guild = newState.guild || oldState.guild;
+  const botChannel = guild?.members.me?.voice?.channel;
+  if (!botChannel) { desertedGuilds.delete(guild?.id); return; }
+  const people = botChannel.members.filter((m) => !m.user.bot).size;
+  if (people === 0 && !desertedGuilds.has(guild.id)) {
+    desertedGuilds.add(guild.id);
+    const queue = client.distube.getQueue(guild.id);
+    if (queue) client.distube.emit('empty', queue);
+    else scheduleIdleLeave(guild.id, null, EMPTY_MS, 'Channel was deserted.');
+  } else if (people > 0 && desertedGuilds.has(guild.id)) {
+    desertedGuilds.delete(guild.id);
+    clearIdleTimer(guild.id);
+    // Nothing playing: the normal idle timer applies again.
+    if (!client.distube.getQueue(guild.id)) scheduleIdleLeave(guild.id, null, getIdleMs(guild.id), 'Idle timeout reached.');
   }
 });
 

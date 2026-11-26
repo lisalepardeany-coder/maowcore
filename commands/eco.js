@@ -93,7 +93,7 @@ module.exports = {
       if (sub === 'pay') {
         const user = interaction.options.getUser('user'); const amount = interaction.options.getInteger('amount');
         if (user.bot || user.id === uid) return interaction.reply(eph('▲  Pick someone else.'));
-        try { economy.spend(gid, uid, amount, 'pay'); economy.award(gid, user.id, amount, 'pay'); return interaction.reply(`${COIN}  Sent **${fmt(amount)}** to ${user}.`); }
+        try { economy.spend(gid, uid, amount, 'pay'); economy.award(gid, user.id, amount, 'pay', { xp: false }); return interaction.reply(`${COIN}  Sent **${fmt(amount)}** to ${user}.`); }
         catch { return interaction.reply(eph(`▲  You don't have ${COIN} ${fmt(amount)}.`)); }
       }
       if (sub === 'top') {

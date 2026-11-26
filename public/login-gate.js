@@ -192,9 +192,11 @@
         if (r.ok || r.unreachable) return true;
       }
       const me = get() ? await api('/api/auth/me').catch(() => ({})) : {};
-      if (me.user) return true;
-      if (get()) drop();
-      showGate({ tokenMode: true, oauth: !!health.oauthConfigured, banned: !!me.banned });
+      // A Discord sign-in opens the panel only with a member rank or higher;
+      // new accounts start as guests until the owner promotes them (Ranks page).
+      if (me.user && ALLOWED.has(me.rank)) return true;
+      if (get() && !me.user) drop();
+      showGate({ tokenMode: true, oauth: !!health.oauthConfigured, banned: !!me.banned, user: me.user, guest: !!me.user && me.rank === 'guest' });
       return false;
     }
     const me = await api('/api/auth/me').catch(() => ({}));

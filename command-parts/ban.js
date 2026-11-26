@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, MessageFlags, PermissionFlagsBits } = require('discord.js');
 const modlog = require('../lib/modlog');
 const { appealDm } = require('../lib/mod-tools');
+const hierarchy = require('../lib/hierarchy');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -14,6 +15,11 @@ module.exports = {
     const user = interaction.options.getUser('user');
     const reason = interaction.options.getString('reason') || 'No reason given.';
     const purgeDays = interaction.options.getInteger('purge_days') ?? 0;
+    // Check everything before the DM below, so nobody is told they were banned
+    // when the ban then fails.
+    const member = await interaction.guild.members.fetch(user.id).catch(() => null);
+    if (member && !member.bannable) return interaction.reply({ content: '◌ I cannot ban this member (role hierarchy).', flags: MessageFlags.Ephemeral });
+    if (!hierarchy.canModerate(await hierarchy.actorOf(interaction), member)) return interaction.reply({ content: hierarchy.MOD_MSG, flags: MessageFlags.Ephemeral });
     try {
       // DM first (with an Appeal button when /appeals is on) — after the ban we may not share a server any more.
       await user.send(appealDm(interaction.guild, reason)).catch(() => {});

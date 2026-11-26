@@ -6,6 +6,23 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.16.0] — 2026-11-26
+
+### Security
+- **Dashboard: any Discord account could get full access.** With "Require sign-in" off (the Pterodactyl default) and Discord sign-in set up, a Discord session was accepted for the whole API without a rank check: database queries, restart/update, bans, YouTube cookies. Discord sign-ins are now always held to their rank, and new accounts start as **guest** (listen room only) until the owner promotes them on the Ranks page (`PANEL_OPEN_SIGNUP=1` lets them in as members). The live WebSocket follows the same rule. *If someone you don't know signed in before this update, check the Ranks page.*
+- **`/import` removed.** Anyone with Manage Server in any server the bot is in could overwrite the bot's data files, including dashboard sign-ins. Restores go through the dashboard's Backups page (owner only) or `node scripts/restore-backup.js`.
+- **Role order is checked like Discord does.** `/role`, `/reactionrole`, `/autorole` and the birthday role only accept roles below your own highest role; `/mod kick|ban|softban|timeout|tempban|tempmute` and `/nick` only work on members below you, never on the server owner (`lib/hierarchy.js`). Before, Manage Roles could hand out an Admin role and a moderator could ban admins, as long as the bot's role was higher.
+- The dashboard token is compared in constant time (`lib/token-eq.js`).
+- `/reload` checks `OWNER_USER_ID` (it used Discord's application owner, which could be empty).
+
+### Fixed
+- **The bot never left an empty voice channel.** DisTube v5 doesn't send its "empty" event, so "Disengaging in 30s if no one rejoins" never happened. The bot now notices when the last person leaves, leaves after 30 s, and stays if someone comes back.
+- **The leave sound never played** (same cause). It now plays right before the bot leaves on its own.
+- **Restoring a backup from the dashboard** now takes effect on the next restart instead of half-working: the running bot wrote its in-memory settings back over the restored file, and closing the database broke features until a restart. Dashboard snapshots now copy the database completely (recent changes were missing).
+- **`/eco pay` and `/eco rob` created XP**: moving coins gave the receiver 10 XP per coin, so two accounts could level up forever. Moved coins no longer give XP.
+- **Birthdays: `/birthday` and `/community birthday` now share one list** (they overwrote each other's data and `/community birthday list` showed junk entries), and wishes are posted once a day instead of possibly twice.
+- `/mod ban` no longer DMs "you were banned" when the ban is going to fail; `/mod timeout` shows up in the mod log.
+
 ## [3.15.1] — 2026-11-26
 
 ### Fixed

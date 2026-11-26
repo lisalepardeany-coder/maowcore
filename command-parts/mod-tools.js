@@ -4,6 +4,7 @@
 
 const { SlashCommandBuilder, EmbedBuilder, MessageFlags, PermissionFlagsBits, ChannelType } = require('discord.js');
 const modActions = require('../lib/mod-actions');
+const hierarchy = require('../lib/hierarchy');
 const notes = require('../lib/mod-notes');
 const modmail = require('../lib/modmail');
 const warnings = require('../lib/warnings');
@@ -53,6 +54,7 @@ module.exports = {
       const reason = interaction.options.getString('reason') || 'No reason given';
       const member = await interaction.guild.members.fetch(user.id).catch(() => null);
       if (member && !member.bannable) return interaction.editReply('▲  I can\'t ban that member (hierarchy/perms).');
+      if (!hierarchy.canModerate(await hierarchy.actorOf(interaction), member)) return interaction.editReply(hierarchy.MOD_MSG);
       try {
         await modActions.tempBan(interaction.guild, user, ms, reason, interaction.user.tag);
         return interaction.editReply(`🔨  Temp-banned **${user.tag}** for **${modActions.formatDuration(ms)}** — auto-unban ${ts(Date.now() + ms)}.`);
@@ -66,6 +68,7 @@ module.exports = {
       const member = await interaction.guild.members.fetch(user.id).catch(() => null);
       if (!member) return interaction.editReply('▲  That user isn\'t in the server.');
       if (!member.moderatable) return interaction.editReply('▲  I can\'t mute that member (hierarchy/perms).');
+      if (!hierarchy.canModerate(await hierarchy.actorOf(interaction), member)) return interaction.editReply(hierarchy.MOD_MSG);
       const ms = modActions.parseDuration(interaction.options.getString('duration'));
       if (!ms || ms < 60_000) return interaction.editReply('▲  Invalid duration. Try `30m`, `2h`, `1d`.');
       const reason = interaction.options.getString('reason') || 'No reason given';

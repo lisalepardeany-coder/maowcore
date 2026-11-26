@@ -1054,7 +1054,7 @@
           try {
             const d = await fetchJson('/api/backup/restore', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
             if (d.error) throw new Error(d.error);
-            toast('↺ Restored', `${d.restored} files. Restart the bot.`, 'success', 5000);
+            toast('↺ Restore ready', `${d.restored} files are swapped in when the bot restarts. Restart it now to finish.`, 'success', 7000);
           } catch (e) { toast('▲ Restore failed', e.message, 'error', 4000); }
         }));
         wrap.querySelectorAll('.backup-delete').forEach((b) => b.addEventListener('click', async () => {

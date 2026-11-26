@@ -12,6 +12,10 @@ module.exports = {
     const nickname = interaction.options.getString('nickname') || null;
     const member = await interaction.guild.members.fetch(user.id).catch(() => null);
     if (!member) return interaction.reply({ content: '◌ Member not found.', flags: MessageFlags.Ephemeral });
+    const hierarchy = require('../lib/hierarchy');
+    if (!hierarchy.canModerate(await hierarchy.actorOf(interaction), member, { allowSelf: true })) {
+      return interaction.reply({ content: hierarchy.MOD_MSG, flags: MessageFlags.Ephemeral });
+    }
     try {
       await member.setNickname(nickname);
       return interaction.reply(`✦  ${user} is now **${nickname || user.username}**.`);
