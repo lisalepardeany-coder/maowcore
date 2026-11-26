@@ -966,7 +966,16 @@ client.once(Events.ClientReady, () => setTimeout(async () => {
     const r = await selfCheck.run(client);
     control.log(`${r.ok ? '✓' : '✕'} Start check: ${r.checks.map((c) => `${c.name} ${c.ok ? 'ok' : 'FAILED'}`).join(', ')}`,
       r.ok ? 'success' : 'error', 'system', { subsystem: 'system' });
-    if (!r.ok) healthAlerts.alert('selfcheck', 'Something is wrong after the restart', selfCheck.summary(r));
+    // lib/rollback.js: a passing version becomes "last good"; a new version
+    // that fails is marked bad, and the next start goes back.
+    const rollback = require('./lib/rollback');
+    const rb = rollback.recordCheck(r, selfCheck.summary(r));
+    if (!r.ok) {
+      const back = rb.markedBad && rb.good
+        ? `\n\nThis version is marked as broken. **Restart the server** and it goes back to v${rb.good.version} (${rollback.short(rb.good.commit)}), the last version that passed. A newer push is tried normally.`
+        : '';
+      healthAlerts.alert('selfcheck', 'Something is wrong after the restart', selfCheck.summary(r) + back);
+    }
     extra.push(`**Start check**\n${selfCheck.summary(r)}`);
   } catch (e) { console.warn('[self-check]', e.message); }
   try {
@@ -977,6 +986,20 @@ client.once(Events.ClientReady, () => setTimeout(async () => {
     if (r.sent || r.posted) control.log(`🔔 Update notes: posted in ${r.posted} server${r.posted === 1 ? '' : 's'}${r.sent ? ', DM\'d to the owner' : ''}`, 'info', 'system', { subsystem: 'system' });
   }).catch((e) => console.warn('[update-notes]', e.message));
 }, 20_000));
+
+// A rollback happened before this start (deploy/pterodactyl/start.sh): tell the owner why.
+client.once(Events.ClientReady, () => setTimeout(() => {
+  try {
+    const rollback = require('./lib/rollback');
+    const ev = rollback.takeUnreported();
+    if (!ev) return;
+    control.log(`↩ Rolled back from v${ev.from.version} to v${ev.to.version}: ${ev.reason}`, 'warn', 'system', { subsystem: 'system' });
+    healthAlerts.alert('rollback', `Went back to v${ev.to.version}`,
+      `v${ev.from.version} (${rollback.short(ev.from.commit)}) didn't work, because ${ev.reason}.\n`
+      + `The bot is running v${ev.to.version} (${rollback.short(ev.to.commit)}) again, the last version that passed its start check. `
+      + 'It stays there until a newer version is pushed. AUTO_ROLLBACK=0 turns this off.', { color: 0xf59e0b, icon: '↩' });
+  } catch (e) { console.warn('[rollback]', e.message); }
+}, 25_000));
 
 // Yesterday's errors as one DM to the owner (lib/error-digest.js).
 require('./lib/error-digest').start(client);

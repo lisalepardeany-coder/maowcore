@@ -4,6 +4,18 @@
 # script (so Stop's Ctrl+C reaches it).
 cd /home/container || exit 1
 
+# 0. If this update broke the bot before (its start check failed, or it kept
+#    crashing), go back to the last version that worked (lib/rollback.js).
+#    AUTO_ROLLBACK=0 turns this off. Exit code 10 = it went back: this file
+#    changed too, so start over with the older version's copy. (One { } block,
+#    so bash has read all of it before git replaces the file.)
+{
+  if [[ -d .git && -f lib/rollback.js && "${AUTO_ROLLBACK:-1}" != "0" ]]; then
+    node lib/rollback.js pre-start
+    if [[ $? -eq 10 ]]; then exec bash deploy/pterodactyl/start.sh; fi
+  fi
+}
+
 # 1. The SvelteKit dashboard was removed in 3.8.0. Its build output and tools
 #    (~300 MB, not tracked by git, so the update leaves them) are cleared once.
 if [[ -d dashboard && ! -f dashboard/package.json ]]; then

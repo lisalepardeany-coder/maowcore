@@ -73,6 +73,7 @@ const egg = {
     v('Health alerts', 'HEALTH_ALERTS', '1 = the bot DMs its main owner when something breaks (crashes, downloads failing, YouTube blocked); 0 = no alert DMs.', '1', 'required|boolean'),
     v('Update notes DM', 'UPDATE_NOTES', '1 = after an update, the bot DMs its main owner what changed (the CHANGELOG since the version it ran before); 0 = no DM.', '1', 'required|boolean'),
     v('Daily error digest', 'ERROR_DIGEST', '1 = once a day the bot DMs its main owner the previous day\'s errors, grouped (nothing on days without errors); 0 = off.', '1', 'required|boolean'),
+    v('Roll back broken updates', 'AUTO_ROLLBACK', '1 = if a new version fails its start check (or keeps crashing on start), the next start goes back to the last version that worked, and the owner gets a DM; 0 = always run the newest code.', '1', 'required|boolean'),
     v('Clean up left servers', 'GUILD_CLEANUP', '1 = settings of servers the bot was removed from are deleted after 30 days (levels, coins and play history stay); 0 = keep everything.', '1', 'required|boolean'),
     v('Alert webhook', 'ALERT_WEBHOOK_URL', 'Optional. A Discord webhook URL that also gets error-spike alerts.', '', 'nullable|string|max:300'),
     v('Status page URL', 'STATUS_PUSH_URL', 'Optional. Where the bot pushes its public status (the Cloudflare status worker in deploy/status-worker).', '', 'nullable|string|max:300'),

@@ -4,7 +4,7 @@
         "version": "PTDL_v2",
         "update_url": null
     },
-    "exported_at": "2026-11-26T11:07:20+00:00",
+    "exported_at": "2026-11-26T11:19:03+00:00",
     "name": "MaowCore",
     "author": "lara@maowcore.local",
     "description": "MaowCore: a Discord music + community bot (YouTube, Spotify, SoundCloud, leveling, modmail, giveaways, automod) with a web dashboard. The dashboard runs on this server's port; open http://<server address>:<port>/ once it says \"Logged in as\".",
@@ -274,6 +274,16 @@
             "name": "Daily error digest",
             "description": "1 = once a day the bot DMs its main owner the previous day's errors, grouped (nothing on days without errors); 0 = off.",
             "env_variable": "ERROR_DIGEST",
+            "default_value": "1",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|boolean",
+            "field_type": "text"
+        },
+        {
+            "name": "Roll back broken updates",
+            "description": "1 = if a new version fails its start check (or keeps crashing on start), the next start goes back to the last version that worked, and the owner gets a DM; 0 = always run the newest code.",
+            "env_variable": "AUTO_ROLLBACK",
             "default_value": "1",
             "user_viewable": true,
             "user_editable": true,

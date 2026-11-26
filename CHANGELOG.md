@@ -6,6 +6,17 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.18.0] — 2026-11-26
+
+The "safety net" update: a broken update fixes itself, the dashboard shows how the bot is doing, and every release is tested against the whole dashboard first.
+
+### Added
+- **Automatic rollback (Pterodactyl).** If a new version fails its start check, or keeps crashing before it finishes starting (3 starts in a row), the next start goes back to the last version that passed. The owner gets a DM saying which version and why. It stays on the working version until a newer one is pushed. `AUTO_ROLLBACK=0` turns it off.
+- **Bot health card** on the dashboard's Status page (admins): the last start check with a ✓ or ✕ for Discord, database, data folder and slash commands, errors per day for the last 7 days (hover a bar for the most common ones), and the last automatic rollback.
+- **Dashboard smoke test**: every release is now checked against all 200+ dashboard routes and every file the dashboard loads before it goes out, so a broken page is caught before it reaches you.
+
+### Fixed
+- The public status page answered with an error during the first seconds after a restart.
 ## [3.17.0] — 2026-11-26
 
 The "keeping an eye on things" update: the bot now tells its owner how it's doing, which commands people actually use, and cleans up after itself.

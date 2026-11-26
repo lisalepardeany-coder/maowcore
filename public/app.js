@@ -3371,11 +3371,53 @@
       rerenderDiagConsole();
       renderDiagnosticsPage();
       updateNavDiagBadge();
+      renderHealthCard();
     }
     if (name === 'moderation') {
       renderModerationPage();
     }
   };
+
+  // ===== Bot health card (start check, errors per day, last rollback) =====
+  async function renderHealthCard() {
+    const card = $('health-card');
+    if (!card) return;
+    let d;
+    try { d = await fetchJson('/api/admin/health'); }
+    catch { card.style.display = 'none'; return; }        // admins only
+    card.style.display = '';
+    const sc = d.startCheck;
+    $('health-version').textContent = `v${d.version}` + (sc ? ` · start check ${new Date(sc.at).toLocaleString()}: ${sc.ok ? 'all good' : 'problems found'}` : ' · start check not run yet (about 20 s after a start)');
+    const checks = $('health-checks');
+    checks.textContent = '';
+    for (const c of sc?.checks || []) {
+      const chip = document.createElement('span');
+      chip.className = 'chip';
+      chip.style.cssText = `padding:4px 10px;border-radius:999px;border:1px solid var(--border);color:${c.ok ? 'var(--success, #22c55e)' : 'var(--danger, #ef4444)'}`;
+      chip.textContent = `${c.ok ? '✓' : '✕'} ${c.name}`;
+      chip.title = c.detail || '';
+      checks.appendChild(chip);
+    }
+    const bars = $('health-errors');
+    bars.textContent = '';
+    const max = Math.max(1, ...(d.errors || []).map((e) => e.total));
+    for (const e of d.errors || []) {
+      const col = document.createElement('div');
+      col.style.cssText = 'flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:2px';
+      const n = document.createElement('div'); n.className = 'small muted'; n.textContent = String(e.total);
+      const bar = document.createElement('div');
+      bar.style.cssText = `width:100%;max-width:36px;border-radius:4px 4px 0 0;background:${e.total ? 'var(--danger, #ef4444)' : 'var(--border)'};height:${Math.max(3, Math.round((e.total / max) * 60))}px`;
+      const lbl = document.createElement('div'); lbl.className = 'small muted'; lbl.textContent = e.day.slice(5);
+      col.title = e.top?.length ? e.top.map((t) => `×${t.count} ${t.sample}`).join('\n') : 'No errors';
+      col.append(n, bar, lbl);
+      bars.appendChild(col);
+    }
+    const rb = d.rollback;
+    $('health-rollback').textContent = rb
+      ? `↩ Last rollback ${new Date(rb.at).toLocaleString()}: v${rb.from.version} → v${rb.to.version}, because ${rb.reason}.`
+      : 'No automatic rollbacks so far.';
+  }
+  $('health-refresh')?.addEventListener('click', renderHealthCard);
 
   // ===== Moderation page =====
   const modState = {
