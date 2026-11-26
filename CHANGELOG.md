@@ -6,6 +6,12 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.18.1] — 2026-11-26
+
+### Fixed
+- **A dashboard left open during an update stayed the old version.** It reconnects by itself after the restart, so it looked current, but new parts (like the bot health card) were missing until a reload. It now shows "MaowCore updated: vX → vY" with a Reload button.
+- The bot health card says why it's empty (for example "Only admins can see the bot health") instead of disappearing.
+
 ## [3.18.0] — 2026-11-26
 
 The "safety net" update: a broken update fixes itself, the dashboard shows how the bot is doing, and every release is tested against the whole dashboard first.

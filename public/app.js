@@ -1451,7 +1451,33 @@
       const tagEl = $('bot-tag');
       if (tagEl) tagEl.textContent = tag;
       document.title = `MaowCore${tag ? ' — ' + tag : ''}`;
+      // The bot restarted on a newer version while this page stayed open: the
+      // connection comes back by itself, but the page is still the old one.
+      const key = activeInstance()?.url || location.origin;
+      if (msg.version) {
+        const seen = (window.__maowVersions ||= {})[key];
+        if (!seen) window.__maowVersions[key] = msg.version;
+        else if (seen !== msg.version) showUpdateBanner(seen, msg.version);
+      }
     }
+  }
+
+  function showUpdateBanner(from, to) {
+    if (document.getElementById('maow-update-banner')) return;
+    const bar = document.createElement('div');
+    bar.id = 'maow-update-banner';
+    bar.setAttribute('role', 'status');
+    bar.style.cssText = 'position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:9999;display:flex;gap:10px;align-items:center;'
+      + 'max-width:calc(100vw - 32px);padding:10px 14px;border-radius:12px;background:var(--bg-elev, #222);color:var(--text, #fff);'
+      + 'border:1px solid var(--accent, #8b5cf6);box-shadow:0 6px 24px rgba(0,0,0,.4);font-size:14px';
+    const text = document.createElement('span');
+    text.textContent = `MaowCore updated: v${from} → v${to}. Reload to get the new dashboard.`;
+    const btn = document.createElement('button');
+    btn.className = 'primary';
+    btn.textContent = 'Reload';
+    btn.addEventListener('click', () => location.reload());
+    bar.append(text, btn);
+    document.body.appendChild(bar);
   }
 
   function appendLog(el, entry, max = 500) {
@@ -3384,8 +3410,16 @@
     if (!card) return;
     let d;
     try { d = await fetchJson('/api/admin/health'); }
-    catch { card.style.display = 'none'; return; }        // admins only
-    card.style.display = '';
+    catch (e) {
+      // Say why instead of vanishing (it needs admin rank or the dashboard token).
+      $('health-version').textContent = /403|rank|Forbidden/i.test(e.message)
+        ? 'Only admins can see the bot health.'
+        : `Couldn't load the bot health: ${e.message}`;
+      $('health-checks').textContent = '';
+      $('health-errors').textContent = '';
+      $('health-rollback').textContent = '';
+      return;
+    }
     const sc = d.startCheck;
     $('health-version').textContent = `v${d.version}` + (sc ? ` · start check ${new Date(sc.at).toLocaleString()}: ${sc.ok ? 'all good' : 'problems found'}` : ' · start check not run yet (about 20 s after a start)');
     const checks = $('health-checks');
