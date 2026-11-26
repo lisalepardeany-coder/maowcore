@@ -9,6 +9,8 @@ const fs   = require('node:fs');
 const path = require('node:path');
 const os   = require('node:os');
 const ops  = require('./lib/ops');
+const commandUsage = require('./lib/command-usage');
+commandUsage.start();
 const {
   Client,
   Collection,
@@ -634,12 +636,14 @@ client.on(Events.InteractionCreate, async (interaction) => {
       await command.execute(interaction);
       const dur = Date.now() - startedAt;
       ops.recordCommand(stripPrefix(interaction.commandName), true, dur);
+      commandUsage.record(interaction.guildId, commandUsage.pathOf(interaction, stripPrefix(interaction.commandName)), true);
       control.log(`✓ /${interaction.commandName} ok (${dur}ms)`, 'success', 'command',
         { subsystem: 'discord', meta: { user: who, guild: guildName, durationMs: dur } });
     } catch (err) {
       console.error(`Error in /${interaction.commandName}:`, err);
       const dur = Date.now() - startedAt;
       ops.recordCommand(stripPrefix(interaction.commandName), false, dur);
+      commandUsage.record(interaction.guildId, commandUsage.pathOf(interaction, stripPrefix(interaction.commandName)), false);
       control.log(`✕ /${interaction.commandName} failed (${dur}ms): ${err.message || err}`,
         'error', 'command',
         { subsystem: 'discord', meta: { user: who, guild: guildName, durationMs: dur, error: err?.message, stack: err?.stack } });
@@ -1549,6 +1553,7 @@ const shutdown = async (signal) => {
   if (shuttingDown) return;
   shuttingDown = true;
   try { ops.recordEvent('shutdown', signal); } catch { /* */ }
+  try { commandUsage.flush(); } catch { /* */ }
   console.log(`\n◌  ${signal} received — closing uplink…`);
   // Cap the total shutdown time at 5s. If destroy hangs (rare but possible
   // on a stuck WebSocket), force-exit anyway so the user isn't stuck.

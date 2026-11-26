@@ -4240,16 +4240,60 @@
     else if (name === 'roles') renderRolesPage();
     else if (name === 'welcome') renderWelcomePage();
     else if (name === 'reactions') renderReactionsPage();
+    else if (name === 'cmdusage') renderCommandUsagePage();
     else if (name === 'insights') { try { renderHeatmap(); } catch { /* depends on state */ } }
   };
 
   // Per-server pages redraw when the server list first arrives (opening the
   // panel straight on #/welcome showed an empty page) and when another server
   // is picked (they kept showing the old server's settings).
-  const SERVER_PAGES = { members: renderMembersPage, channels: renderChannelsPage, roles: renderRolesPage, welcome: renderWelcomePage, reactions: renderReactionsPage };
+  const SERVER_PAGES = { members: renderMembersPage, channels: renderChannelsPage, roles: renderRolesPage, welcome: renderWelcomePage, reactions: renderReactionsPage, cmdusage: renderCommandUsagePage };
   const redrawServerPage = () => { const fn = SERVER_PAGES[activePage]; if (fn) fn(); };
   window.addEventListener('maow:servers', redrawServerPage);
   $('server-select')?.addEventListener('change', redrawServerPage);
+
+  // ===== Command usage =====
+  const cuState = { data: null };
+  async function renderCommandUsagePage() {
+    const gId = activeGuildId();
+    if (!gId) return;
+    try {
+      cuState.data = await fetchJson(`/api/admin/command-usage?guildId=${encodeURIComponent(gId)}`);
+      drawCommandUsage();
+    } catch (e) {
+      toast('▲ Load failed', e.message, 'error', 3500);
+    }
+  }
+  function drawCommandUsage() {
+    const d = cuState.data;
+    const body = $('cu-table')?.querySelector('tbody');
+    if (!d || !body) return;
+    const cmds = d.commands || [];
+    const flagged = cmds.filter((c) => c.reason);
+    const unused = cmds.filter((c) => !c.runs).length;
+    $('cu-summary').textContent = `${cmds.length} commands · ${unused} never used · ${flagged.length} removal candidates · counting for ${d.days} day${d.days === 1 ? '' : 's'}`;
+    const ago = (t) => {
+      if (!t) return 'never';
+      const days = Math.floor((Date.now() - t) / 86400000);
+      return days < 1 ? 'today' : days === 1 ? 'yesterday' : `${days} days ago`;
+    };
+    const only = $('cu-only-flagged')?.checked;
+    body.textContent = '';
+    for (const c of only ? flagged : cmds) {
+      const tr = document.createElement('tr');
+      const cell = (text, right) => { const td = document.createElement('td'); td.textContent = text; if (right) td.style.textAlign = 'right'; tr.appendChild(td); return td; };
+      cell(`/${c.name}`).title = (c.paths || []).map((p) => `/${p.path}: ${p.runs}`).join('\n');
+      cell(String(c.runs), true);
+      cell(String(c.errors), true);
+      cell(ago(c.lastAt));
+      cell(c.subs ? `${c.usedSubs} of ${c.subs}` : '—');
+      const note = cell(c.reason || '');
+      if (c.reason) note.style.color = 'var(--warning, #d9a400)';
+      body.appendChild(tr);
+    }
+  }
+  $('cu-refresh')?.addEventListener('click', renderCommandUsagePage);
+  $('cu-only-flagged')?.addEventListener('change', drawCommandUsage);
 
   // ===== Welcome / Farewell builder =====
   const welcomeState = { cfg: null, dirty: false };

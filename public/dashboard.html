@@ -258,6 +258,10 @@
               <span class="nav-icon">❉</span>
               <span class="nav-label">Reaction roles</span>
             </a>
+            <a class="nav-item" data-page="cmdusage">
+              <span class="nav-icon">▤</span>
+              <span class="nav-label">Command usage</span>
+            </a>
             <a class="nav-item" data-page="moderation">
               <span class="nav-icon">⚖</span>
               <span class="nav-label">Moderation</span>
@@ -1538,6 +1542,31 @@
               <span id="updates-ping-label">Ping the 🔔 Bot Updates role</span>
             </label>
             <div class="muted small" id="updates-status">—</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- =================================================== -->
+      <!-- COMMAND USAGE                                       -->
+      <!-- =================================================== -->
+      <section class="page hidden" id="page-cmdusage">
+        <div class="page-head">
+          <h2>▤ Command usage</h2>
+          <div class="muted small">How often each command is used in this server. Discord allows 100 commands per server, so the ones nobody uses are the first to merge or remove.</div>
+        </div>
+        <div class="card">
+          <div class="card-head">
+            <h3 id="cu-summary">—</h3>
+            <div style="display:flex;gap:8px;align-items:center">
+              <label class="row" style="display:flex;gap:6px;align-items:center"><input id="cu-only-flagged" type="checkbox" /><span class="small">Only removal candidates</span></label>
+              <button id="cu-refresh">↻ Refresh</button>
+            </div>
+          </div>
+          <div class="table-wrap" style="overflow-x:auto">
+            <table class="data-table" id="cu-table" style="width:100%">
+              <thead><tr><th>Command</th><th style="text-align:right">Uses</th><th style="text-align:right">Errors</th><th>Last used</th><th>Subcommands used</th><th>Note</th></tr></thead>
+              <tbody></tbody>
+            </table>
           </div>
         </div>
       </section>

@@ -6,6 +6,11 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.17.0] — 2026-11-26
+
+### Added
+- **Command usage page** in the dashboard (Server → Command usage, admin rank): how often each command and subcommand is used in the selected server, its errors, when it was last used and how many of its subcommands anyone uses. After 14 days of counting it marks commands that were never used or not used for 60 days, so you know what to merge or remove before hitting Discord's 100-command limit. Commands that fail at least half the time are marked too. Counts are kept across restarts in `data/command-usage.json` (`lib/command-usage.js`).
+
 ## [3.16.0] — 2026-11-26
 
 ### Security
