@@ -18,9 +18,6 @@ const { getGuild, updateGuild } = require('../lib/config');
 const { COLORS } = require('../lib/theme');
 
 const pkg = require('../package.json');
-const REPO = `${process.env.GITHUB_OWNER || 'lisalepardeany-coder'}/${process.env.GITHUB_REPO || 'maowcore'}`;
-const CHANGELOG_URL = `https://github.com/${REPO}/blob/main/CHANGELOG.md`;
-const RELEASES_URL = `https://github.com/${REPO}/releases`;
 
 // Parse the newest real (non-empty) section from CHANGELOG.md.
 function latestChangelog() {
@@ -63,20 +60,8 @@ function targetChannel(guild) {
   return firstSendable(guild);
 }
 
-function buildEmbed(version, body) {
-  let desc = body || 'A new version of MaowCore is live.';
-  // Discord description cap is 4096; leave room for the links line.
-  const linksLine = `\n\n📖 [Full changelog](${CHANGELOG_URL}) · 🚀 [Releases](${RELEASES_URL})`;
-  if (desc.length > 3800) desc = desc.slice(0, 3800).trimEnd() + '…';
-  return new EmbedBuilder()
-    .setColor(COLORS.COSMIC)
-    .setAuthor({ name: 'MaowCore Update' })
-    .setTitle(`🔔 MaowCore — v${version}`)
-    .setURL(RELEASES_URL)
-    .setDescription(desc + linksLine)
-    .setFooter({ text: `MaowCore v${pkg.version} · ${REPO}` })
-    .setTimestamp();
-}
+// Same embed as the automatic post after an update (lib/update-notes.js).
+const buildEmbed = (version, body) => new EmbedBuilder(require('../lib/update-notes').buildEmbed(version, body)).setColor(COLORS.COSMIC);
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 

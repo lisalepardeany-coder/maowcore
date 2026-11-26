@@ -4266,11 +4266,38 @@
       $('welcome-farewell').value = data.farewellMessage || '';
       $('welcome-sound').value = data.welcomeSoundUrl || '';
       $('welcome-leave-sound').value = data.leaveSoundUrl || '';
+      renderUpdatesCard(data);
       welcomeState.dirty = false;
       refreshWelcomePreview();
     } catch (e) {
       toast('▲ Load failed', e.message, 'error', 3500);
     }
+  }
+
+  // Bot update posts card (same page, same Save button).
+  function renderUpdatesCard(data) {
+    const u = data.updates || {};
+    const sel = $('updates-channel');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">— none —</option>';
+    (data.channels || []).forEach((c) => {
+      const opt = document.createElement('option');
+      opt.value = c.id;
+      opt.textContent = `#${c.name}${c.parentName ? ` (${c.parentName})` : ''}`;
+      if (c.id === u.channelId) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    $('updates-enabled').checked = !!u.enabled;
+    $('updates-ping').checked = !!u.ping;
+    $('updates-ping').disabled = !u.pingRoleName;
+    $('updates-ping-label').textContent = u.pingRoleName
+      ? `Ping the @${u.pingRoleName} role`
+      : 'Ping a role (run /setup to make the 🔔 Bot Updates role)';
+    const status = $('updates-status');
+    if (!u.enabled) status.textContent = 'Off: updates are not posted in this server.';
+    else if (!u.channelId) status.textContent = '▲ Choose a channel, or nothing will be posted.';
+    else if (!u.ready) status.textContent = '▲ The bot can\'t post there (it needs Send Messages and Embed Links).';
+    else status.textContent = `✓ On.${u.lastVersion ? ` Last update posted here: v${u.lastVersion}.` : ''}`;
   }
 
   function refreshWelcomePreview() {
@@ -4286,7 +4313,7 @@
   ['welcome-message', 'welcome-farewell'].forEach((id) => {
     $(id)?.addEventListener('input', () => { welcomeState.dirty = true; refreshWelcomePreview(); });
   });
-  ['welcome-channel', 'welcome-sound', 'welcome-leave-sound'].forEach((id) => {
+  ['welcome-channel', 'welcome-sound', 'welcome-leave-sound', 'updates-enabled', 'updates-channel', 'updates-ping'].forEach((id) => {
     $(id)?.addEventListener('input', () => { welcomeState.dirty = true; });
     $(id)?.addEventListener('change', () => { welcomeState.dirty = true; });
   });
@@ -4302,6 +4329,11 @@
         farewellMessage: $('welcome-farewell').value,
         welcomeSoundUrl: $('welcome-sound').value,
         leaveSoundUrl: $('welcome-leave-sound').value,
+        updates: {
+          enabled: $('updates-enabled').checked,
+          channelId: $('updates-channel').value || null,
+          ping: $('updates-ping').checked,
+        },
       };
       const data = await fetchJson('/api/admin/welcome', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -4309,7 +4341,8 @@
       });
       if (data.error) throw new Error(data.error);
       welcomeState.dirty = false;
-      toast('✓ Saved', 'Welcome config updated', 'success', 2500);
+      toast('✓ Saved', 'Welcome and update posts saved', 'success', 2500);
+      renderWelcomePage();   // refresh the update-posts status line
     } catch (e) { toast('▲ Save failed', e.message, 'error', 3500); }
   });
 

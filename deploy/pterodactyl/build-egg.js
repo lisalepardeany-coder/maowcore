@@ -71,6 +71,7 @@ const egg = {
     v('Last.fm shared secret', 'LASTFM_API_SECRET', 'Optional, for Last.fm scrobbling.', '', 'nullable|string|max:100'),
     v('Last.fm session key', 'LASTFM_SESSION_KEY', 'Optional. Leave blank and connect Last.fm from the dashboard instead (it saves the key itself).', '', 'nullable|string|max:100'),
     v('Health alerts', 'HEALTH_ALERTS', '1 = the bot DMs its main owner when something breaks (crashes, downloads failing, YouTube blocked); 0 = no alert DMs.', '1', 'required|boolean'),
+    v('Update notes DM', 'UPDATE_NOTES', '1 = after an update, the bot DMs its main owner what changed (the CHANGELOG since the version it ran before); 0 = no DM.', '1', 'required|boolean'),
     v('Alert webhook', 'ALERT_WEBHOOK_URL', 'Optional. A Discord webhook URL that also gets error-spike alerts.', '', 'nullable|string|max:300'),
     v('Status page URL', 'STATUS_PUSH_URL', 'Optional. Where the bot pushes its public status (the Cloudflare status worker in deploy/status-worker).', '', 'nullable|string|max:300'),
     v('Status page secret', 'STATUS_PUSH_SECRET', 'Optional. Shared secret for the status page push.', '', 'nullable|string|max:200'),

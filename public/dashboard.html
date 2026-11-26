@@ -1478,7 +1478,7 @@
       <section class="page hidden" id="page-welcome">
         <div class="page-head">
           <h2>✦ Welcome &amp; Farewell</h2>
-          <div class="muted small">Configure greeting messages, channel, and join/leave sounds.</div>
+          <div class="muted small">Configure greeting messages, channel, join/leave sounds and bot update posts.</div>
         </div>
         <div class="card welcome-grid">
           <div class="welcome-form">
@@ -1517,6 +1517,26 @@
               <div class="d-author">◌  TRANSMISSION LOST</div>
               <div class="d-desc" id="welcome-preview-leave-text">—</div>
             </div>
+          </div>
+        </div>
+
+        <div class="card" id="updates-card" style="margin-top:14px">
+          <h3 style="margin:0 0 4px">🔔 Bot update posts</h3>
+          <div class="muted small" style="margin-bottom:10px">After the bot updates, it posts what changed (from the changelog) in this channel. Saved with the Save button above.</div>
+          <div class="welcome-form">
+            <label class="row" style="display:flex;flex-direction:row;justify-content:flex-start;gap:8px;align-items:center">
+              <input id="updates-enabled" type="checkbox" />
+              <span>Post update notes automatically</span>
+            </label>
+            <label>
+              <div class="muted small">Updates channel</div>
+              <select id="updates-channel"><option value="">— none —</option></select>
+            </label>
+            <label class="row" style="display:flex;flex-direction:row;justify-content:flex-start;gap:8px;align-items:center">
+              <input id="updates-ping" type="checkbox" />
+              <span id="updates-ping-label">Ping the 🔔 Bot Updates role</span>
+            </label>
+            <div class="muted small" id="updates-status">—</div>
           </div>
         </div>
       </section>

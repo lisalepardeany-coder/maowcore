@@ -948,6 +948,14 @@ client.once(Events.ClientReady, () => setTimeout(() => require('./lib/safety-che
 // Offsite backups: a backup DM'd to the owner weekly (OFFSITE_BACKUP=daily|weekly|off).
 require('./lib/offsite-backup').start(client);
 
+// After an update: post the CHANGELOG notes since the last version in each
+// server's updates channel and DM them to the owner (UPDATE_NOTES=0: no DM).
+client.once(Events.ClientReady, () => setTimeout(() => {
+  require('./lib/update-notes').run(client).then((r) => {
+    if (r.sent || r.posted) control.log(`🔔 Update notes: posted in ${r.posted} server${r.posted === 1 ? '' : 's'}${r.sent ? ', DM\'d to the owner' : ''}`, 'info', 'system', { subsystem: 'system' });
+  }).catch((e) => console.warn('[update-notes]', e.message));
+}, 20_000));
+
 // /download: post in the channel it was started from when the download is finished.
 require('./lib/download-queue').onFinish((s, job) => {
   if (!job.notify?.channelId) return;

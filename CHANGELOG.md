@@ -6,6 +6,16 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.14.0] — 2026-11-26
+
+### Added
+- **Automatic update notes.** After the bot starts on a newer version (a Pterodactyl auto-update, a git pull), it posts what changed in each server's updates channel and DMs the main owner: every CHANGELOG section since the version it ran before, so skipped versions are included (`lib/update-notes.js`). Each server remembers the last version it was shown (also set by `/announceupdate`), so nothing is posted twice. A new install posts nothing.
+- Dashboard → Server → Welcome & Farewell has a new **Bot update posts** card: on/off, the channel, and whether to ping the 🔔 Bot Updates role. It's on by default in servers where `/setup` made 🔔-bot-updates.
+- New setting `UPDATE_NOTES` (1/0, default 1) for the owner DM, also on the Pterodactyl Startup tab.
+
+### Changed
+- `/announceupdate` uses the same embed as the automatic posts. The Welcome page's channel lists now include announcement channels.
+
 ## [3.13.2] — 2026-11-26
 
 ### Fixed
