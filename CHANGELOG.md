@@ -8,8 +8,15 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [3.17.0] — 2026-11-26
 
+The "keeping an eye on things" update: the bot now tells its owner how it's doing, which commands people actually use, and cleans up after itself.
+
 ### Added
-- **Command usage page** in the dashboard (Server → Command usage, admin rank): how often each command and subcommand is used in the selected server, its errors, when it was last used and how many of its subcommands anyone uses. After 14 days of counting it marks commands that were never used or not used for 60 days, so you know what to merge or remove before hitting Discord's 100-command limit. Commands that fail at least half the time are marked too. Counts are kept across restarts in `data/command-usage.json` (`lib/command-usage.js`).
+- **Command usage page** (dashboard → Server → Command usage, admins): how often every command and subcommand is used in your server, how often it fails, when it was last used, and how many of its subcommands anyone touches. After 14 days of counting it marks commands nobody used, or nobody used for 60 days, so we know what to merge or drop before Discord's 100-command limit. Commands that fail half the time or more are marked too. Counts survive restarts.
+- **Daily error digest**: once a day the owner gets one DM with the previous day's errors, grouped by kind with a count and the server they happened in most ("×14 lyrics: timeout · mostly in Cats"). Days without errors send nothing. `ERROR_DIGEST=0` turns it off.
+- **Start check**: about 20 seconds after every start the bot checks itself: Discord connection, database, data folder, and whether Discord has all its slash commands. If something fails, the owner gets a health alert right away. After an update, the result is at the top of the update DM.
+- **Unused commands in the update DM**: the owner's update DM lists commands no server has used lately.
+- **Cleanup of servers the bot left**: 30 days after the bot is removed from a server, that server's settings, command counts, suggestions, polls, giveaways, tickets and appeals are deleted. Levels, coins and play history stay, and adding the bot back within 30 days cancels it. `GUILD_CLEANUP=0` keeps everything.
+- Pterodactyl: `ERROR_DIGEST` and `GUILD_CLEANUP` are on the Startup tab (re-import the egg to see them).
 
 ## [3.16.0] — 2026-11-26
 

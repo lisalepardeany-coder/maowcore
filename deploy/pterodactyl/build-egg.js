@@ -72,6 +72,8 @@ const egg = {
     v('Last.fm session key', 'LASTFM_SESSION_KEY', 'Optional. Leave blank and connect Last.fm from the dashboard instead (it saves the key itself).', '', 'nullable|string|max:100'),
     v('Health alerts', 'HEALTH_ALERTS', '1 = the bot DMs its main owner when something breaks (crashes, downloads failing, YouTube blocked); 0 = no alert DMs.', '1', 'required|boolean'),
     v('Update notes DM', 'UPDATE_NOTES', '1 = after an update, the bot DMs its main owner what changed (the CHANGELOG since the version it ran before); 0 = no DM.', '1', 'required|boolean'),
+    v('Daily error digest', 'ERROR_DIGEST', '1 = once a day the bot DMs its main owner the previous day\'s errors, grouped (nothing on days without errors); 0 = off.', '1', 'required|boolean'),
+    v('Clean up left servers', 'GUILD_CLEANUP', '1 = settings of servers the bot was removed from are deleted after 30 days (levels, coins and play history stay); 0 = keep everything.', '1', 'required|boolean'),
     v('Alert webhook', 'ALERT_WEBHOOK_URL', 'Optional. A Discord webhook URL that also gets error-spike alerts.', '', 'nullable|string|max:300'),
     v('Status page URL', 'STATUS_PUSH_URL', 'Optional. Where the bot pushes its public status (the Cloudflare status worker in deploy/status-worker).', '', 'nullable|string|max:300'),
     v('Status page secret', 'STATUS_PUSH_SECRET', 'Optional. Shared secret for the status page push.', '', 'nullable|string|max:200'),

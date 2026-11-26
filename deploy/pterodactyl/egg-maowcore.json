@@ -4,7 +4,7 @@
         "version": "PTDL_v2",
         "update_url": null
     },
-    "exported_at": "2026-11-26T06:44:00+00:00",
+    "exported_at": "2026-11-26T11:07:20+00:00",
     "name": "MaowCore",
     "author": "lara@maowcore.local",
     "description": "MaowCore: a Discord music + community bot (YouTube, Spotify, SoundCloud, leveling, modmail, giveaways, automod) with a web dashboard. The dashboard runs on this server's port; open http://<server address>:<port>/ once it says \"Logged in as\".",
@@ -264,6 +264,26 @@
             "name": "Update notes DM",
             "description": "1 = after an update, the bot DMs its main owner what changed (the CHANGELOG since the version it ran before); 0 = no DM.",
             "env_variable": "UPDATE_NOTES",
+            "default_value": "1",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|boolean",
+            "field_type": "text"
+        },
+        {
+            "name": "Daily error digest",
+            "description": "1 = once a day the bot DMs its main owner the previous day's errors, grouped (nothing on days without errors); 0 = off.",
+            "env_variable": "ERROR_DIGEST",
+            "default_value": "1",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|boolean",
+            "field_type": "text"
+        },
+        {
+            "name": "Clean up left servers",
+            "description": "1 = settings of servers the bot was removed from are deleted after 30 days (levels, coins and play history stay); 0 = keep everything.",
+            "env_variable": "GUILD_CLEANUP",
             "default_value": "1",
             "user_viewable": true,
             "user_editable": true,

@@ -957,11 +957,41 @@ require('./lib/offsite-backup').start(client);
 
 // After an update: post the CHANGELOG notes since the last version in each
 // server's updates channel and DM them to the owner (UPDATE_NOTES=0: no DM).
-client.once(Events.ClientReady, () => setTimeout(() => {
-  require('./lib/update-notes').run(client).then((r) => {
+// First a quick start check (lib/self-check.js): problems DM the owner at once,
+// and after an update the result and any long-unused commands head the DM.
+client.once(Events.ClientReady, () => setTimeout(async () => {
+  let extra = [];
+  try {
+    const selfCheck = require('./lib/self-check');
+    const r = await selfCheck.run(client);
+    control.log(`${r.ok ? '✓' : '✕'} Start check: ${r.checks.map((c) => `${c.name} ${c.ok ? 'ok' : 'FAILED'}`).join(', ')}`,
+      r.ok ? 'success' : 'error', 'system', { subsystem: 'system' });
+    if (!r.ok) healthAlerts.alert('selfcheck', 'Something is wrong after the restart', selfCheck.summary(r));
+    extra.push(`**Start check**\n${selfCheck.summary(r)}`);
+  } catch (e) { console.warn('[self-check]', e.message); }
+  try {
+    const unused = commandUsage.unusedEverywhere(client.commands);
+    if (unused.length) extra.push(`**Not used in any server lately (${unused.length})**\n${unused.map((n) => `/${n}`).join(', ').slice(0, 600)}\nDetails: dashboard → Command usage.`);
+  } catch (e) { console.warn('[command-usage]', e.message); }
+  require('./lib/update-notes').run(client, { extra: extra.join('\n\n') }).then((r) => {
     if (r.sent || r.posted) control.log(`🔔 Update notes: posted in ${r.posted} server${r.posted === 1 ? '' : 's'}${r.sent ? ', DM\'d to the owner' : ''}`, 'info', 'system', { subsystem: 'system' });
   }).catch((e) => console.warn('[update-notes]', e.message));
 }, 20_000));
+
+// Yesterday's errors as one DM to the owner (lib/error-digest.js).
+require('./lib/error-digest').start(client);
+
+// Settings of servers the bot left 30+ days ago are removed (lib/guild-cleanup.js).
+client.once(Events.ClientReady, () => {
+  const sweep = () => {
+    try {
+      const removed = require('./lib/guild-cleanup').sweep(client);
+      if (removed.length) control.log(`🧹 Removed saved data of ${removed.length} server${removed.length === 1 ? '' : 's'} the bot left over 30 days ago`, 'info', 'system', { subsystem: 'system' });
+    } catch (e) { console.warn('[guild-cleanup]', e.message); }
+  };
+  setTimeout(sweep, 90_000).unref?.();
+  setInterval(sweep, 86_400_000).unref?.();
+});
 
 // /download: post in the channel it was started from when the download is finished.
 require('./lib/download-queue').onFinish((s, job) => {
@@ -1265,6 +1295,7 @@ client.on(Events.MessageReactionRemove, (r) => { if (r.emoji?.name === '⭐') st
 const { deployToGuild, forgetGuild } = require('./lib/command-deploy');
 client.on(Events.GuildCreate, async (guild) => {
   control.log(`+ Joined server: ${guild.name}`);
+  require('./lib/guild-cleanup').markJoined(guild.id);
   // Auto-deploy slash commands to the new guild — they show up instantly
   // (vs. up-to-1-hour wait if we relied on global commands).
   if (process.env.AUTO_DEPLOY_COMMANDS !== 'false') {
@@ -1295,6 +1326,8 @@ client.on(Events.GuildCreate, async (guild) => {
 client.on(Events.GuildDelete, (guild) => {
   control.log(`- Left server: ${guild.name || guild.id}`);
   forgetGuild(guild.id);
+  // Its settings are removed after 30 days unless the bot is added back.
+  require('./lib/guild-cleanup').markLeft(guild.id);
 });
 
 // ── Stats channel updater ────────────────────────────────────────────────────
@@ -1554,6 +1587,7 @@ const shutdown = async (signal) => {
   shuttingDown = true;
   try { ops.recordEvent('shutdown', signal); } catch { /* */ }
   try { commandUsage.flush(); } catch { /* */ }
+  try { require('./lib/error-digest').flush(); } catch { /* */ }
   console.log(`\n◌  ${signal} received — closing uplink…`);
   // Cap the total shutdown time at 5s. If destroy hangs (rare but possible
   // on a stuck WebSocket), force-exit anyway so the user isn't stuck.
