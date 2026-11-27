@@ -936,6 +936,14 @@
                 </select>
                 <button id="install-btn" class="primary">Install</button>
               </div>
+              <div class="install-inputs lib-target">
+                <span class="muted small">📁 Save to</span>
+                <select id="lib-target-folder" title="Library folder for downloads and uploads">
+                  <option value="@auto" selected>Auto: a playlist gets its own folder, a song goes in the library</option>
+                  <option value="">The library (no folder)</option>
+                </select>
+                <button id="lib-new-folder" title="Make a new folder">+ New folder</button>
+              </div>
               <div class="install-hint muted small" id="install-hint" hidden></div>
               <div class="install-note muted small" id="install-note">
                 <strong>FLAC/WAV note:</strong> these only carry true lossless if the <em>source</em> is lossless.
@@ -956,6 +964,10 @@
                     <div class="muted small">Space for saved songs (MB). When full, the longest-unplayed saved songs are removed. Your uploads and installs never are.</div>
                     <input id="cfg-autosave-mb" type="number" min="100" max="100000" step="100" value="1024" />
                     <div class="muted small" id="cfg-autosave-used"></div>
+                  </label>
+                  <label>
+                    <div class="muted small">Folder for saved songs (empty = the library itself). Move a saved song into another folder to keep it: the space limit only clears this folder.</div>
+                    <input id="cfg-autosave-folder" type="text" maxlength="60" value="Played" />
                   </label>
                   <label>
                     <div class="muted small">Parallel downloads (1–3; YouTube blocks servers that download more)</div>
@@ -1007,6 +1019,8 @@
                 <option value="0">All</option>
               </select>
             </div>
+            <div class="lib-folders" id="lib-folders"></div>
+            <div class="lib-folder-actions" id="lib-folder-actions" hidden></div>
             <div class="lib-summary muted small" id="lib-summary">—</div>
 
             <div class="uploads-list" id="uploads-list" style="margin-top:14px"><div class="muted">Loading…</div></div>

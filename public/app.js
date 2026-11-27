@@ -543,7 +543,7 @@
     } else if (/[#&]login_error=/.test(location.hash)) {
       const why = decodeURIComponent((location.hash.match(/login_error=([^&]*)/) || [])[1] || '');
       history.replaceState(null, '', location.pathname);
-      setTimeout(() => toast('▲ Sign-in failed', why || 'Please try again.', 'error', 8000), 250);
+      setTimeout(() => toast('▲ Sign-in failed', why || 'Please try again.', 'error', why.length > 80 ? 30000 : 8000), 250);
     } else if (/[#&]banned=1/.test(location.hash)) {
       history.replaceState(null, '', location.pathname);
       // Show the banner once the toast subsystem is initialized.
@@ -5007,6 +5007,30 @@
     sort: localStorage.getItem('maow.libSort') || 'newest',
     perPage: Number(localStorage.getItem('maow.libPerPage') || 50),
     page: Number(localStorage.getItem('maow.libPage') || 1),
+    folders: [],
+    // the folder being looked at: null = every song, '' = not in a folder
+    folder: (() => { try { const v = localStorage.getItem('maow.libFolder'); return v === null ? null : JSON.parse(v); } catch { return null; } })(),
+  };
+  const folderLabel = (f) => (f ? `📁 ${f}` : 'Library (no folder)');
+  const libPost = async (url, body) => {
+    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || d.error) throw new Error(d.error || `server returned ${r.status}`);
+    return d;
+  };
+  // Where a new song goes. "Auto": a playlist gets a folder named after it; a
+  // single song or upload goes into the folder you're looking at (or the library).
+  const targetFolder = (playlistName) => {
+    const v = $('lib-target-folder')?.value ?? '@auto';
+    if (v !== '@auto') return v;
+    if (playlistName) return playlistName;
+    return typeof uploadsState.folder === 'string' ? uploadsState.folder : '';
+  };
+  const setFolderView = (f) => {
+    uploadsState.folder = f;
+    uploadsState.page = 1;
+    try { localStorage.setItem('maow.libFolder', JSON.stringify(f)); } catch { /* */ }
+    renderUploadsView();
   };
 
   const fmtGB = (b) => {
@@ -5054,6 +5078,87 @@
     return out;
   };
 
+  // Folder chips (All · Library · each folder), the open folder's actions,
+  // and the "Save to" picker for downloads/uploads.
+  const renderFolderBar = () => {
+    const bar = $('lib-folders');
+    const acts = $('lib-folder-actions');
+    const pick = $('lib-target-folder');
+    const folders = uploadsState.folders || [];
+    if (pick) {
+      const keep = pick.value || localStorage.getItem('maow.libTarget') || '@auto';
+      pick.innerHTML = '<option value="@auto">Auto: a playlist gets its own folder, a song goes where you are</option>'
+        + '<option value="">The library (no folder)</option>'
+        + folders.filter((f) => f.name).map((f) => `<option value="${escapeHtmlSafe(f.name)}">📁 ${escapeHtmlSafe(f.name)}</option>`).join('');
+      pick.value = [...pick.options].some((o) => o.value === keep) ? keep : '@auto';
+    }
+    if (!bar) return;
+    const total = uploadsState.songs.length;
+    const chip = (value, label, n) => {
+      const active = uploadsState.folder === value;
+      return `<button data-folder='${escapeHtmlSafe(JSON.stringify(value))}' class="${active ? 'active' : ''}" title="${escapeHtmlSafe(label)}">${escapeHtmlSafe(label)}<span class="n">${n}</span></button>`;
+    };
+    const root = folders.find((f) => f.name === '') || { count: 0 };
+    bar.innerHTML = chip(null, 'All', total)
+      + (folders.length > 1 ? chip('', 'Library', root.count) : '')
+      + folders.filter((f) => f.name).map((f) => chip(f.name, `📁 ${f.name}`, f.count)).join('');
+    bar.querySelectorAll('button[data-folder]').forEach((b) => b.addEventListener('click', () => setFolderView(JSON.parse(b.dataset.folder))));
+    if (!acts) return;
+    const f = uploadsState.folder;
+    acts.hidden = !f;
+    if (!f) { acts.innerHTML = ''; return; }
+    acts.innerHTML = `
+      <button class="primary" data-fact="play">▶ Play folder</button>
+      <button data-fact="shuffle">🔀 Shuffle</button>
+      <button data-fact="rename">✎ Rename</button>
+      <button class="danger" data-fact="delete">🗑 Delete folder</button>
+      <span class="muted small">On disk: ${escapeHtmlSafe(uploadsState.meta.dir ? `${uploadsState.meta.dir}/${f}` : f)}</span>`;
+    acts.querySelectorAll('button[data-fact]').forEach((b) => b.addEventListener('click', async () => {
+      const act = b.dataset.fact;
+      try {
+        if (act === 'play' || act === 'shuffle') {
+          const d = await libPost('/api/library/folders', { action: 'play', name: f, shuffle: act === 'shuffle' });
+          toast('♫ Playing folder', `${f}: ${d.queued} songs → ${d.channel}`, 'success', 3000);
+        } else if (act === 'rename') {
+          const to = prompt(`New name for "${f}":`, f);
+          if (!to || to.trim() === f) return;
+          const d = await libPost('/api/library/folders', { action: 'rename', name: f, to: to.trim() });
+          uploadsState.folder = d.result;
+          try { localStorage.setItem('maow.libFolder', JSON.stringify(d.result)); } catch { /* */ }
+          toast('✎ Renamed', `${f} → ${d.result}`, 'success', 2000);
+          renderUploads();
+        } else if (act === 'delete') {
+          const n = (folders.find((x) => x.name === f) || {}).count || 0;
+          let songs = 'move';
+          if (n) {
+            const ans = prompt(`"${f}" has ${n} song${n === 1 ? '' : 's'}.\n\nType MOVE to keep them (they go to the library), or DELETE to delete them with the folder.`, 'MOVE');
+            if (ans === null) return;
+            if (/^delete$/i.test(ans.trim())) songs = 'delete';
+            else if (!/^move$/i.test(ans.trim())) return;
+          } else if (!confirm(`Delete the empty folder "${f}"?`)) return;
+          await libPost('/api/library/folders', { action: 'delete', name: f, songs });
+          toast('🗑 Folder deleted', songs === 'delete' ? `${f} and its songs` : `${f} (songs moved to the library)`, 'info', 2500);
+          setFolderView(null);
+          renderUploads();
+        }
+      } catch (err) { toast('▲ Folder', err.message, 'error', 4000); }
+    }));
+  };
+
+  $('lib-target-folder')?.addEventListener('change', (e) => { try { localStorage.setItem('maow.libTarget', e.target.value); } catch { /* */ } });
+  $('lib-new-folder')?.addEventListener('click', async () => {
+    const name = prompt('Name of the new folder (for example a playlist name):');
+    if (!name || !name.trim()) return;
+    try {
+      const d = await libPost('/api/library/folders', { action: 'create', name: name.trim() });
+      toast('📁 Folder made', d.result, 'success', 2000);
+      const pick = $('lib-target-folder');
+      await renderUploads();
+      if (pick) { pick.value = d.result; try { localStorage.setItem('maow.libTarget', d.result); } catch { /* */ } }
+      setFolderView(d.result);
+    } catch (err) { toast('▲ Folder', err.message, 'error', 4000); }
+  });
+
   const renderUploads = async () => {
     const out = $('uploads-list');
     if (!out) return;
@@ -5061,6 +5166,8 @@
       const res = await fetch('/api/library');
       const data = await res.json();
       uploadsState.songs = data.songs || [];
+      uploadsState.folders = data.folders || [];
+      if (uploadsState.folder && !uploadsState.folders.some((f) => f.name === uploadsState.folder)) uploadsState.folder = null;
       uploadsState.meta = {
         dir: data.dir || '',
         totalBytes: data.totalBytes || 0,
@@ -5083,8 +5190,10 @@
     const installNote = $('install-note');
     if (!out) return;
 
-    const all = uploadsState.songs;
-    if (countEl) countEl.textContent = `${all.length} song${all.length === 1 ? '' : 's'}`;
+    const everything = uploadsState.songs;
+    if (countEl) countEl.textContent = `${everything.length} song${everything.length === 1 ? '' : 's'}`;
+    renderFolderBar();
+    const all = uploadsState.folder === null ? everything : everything.filter((s) => (s.folder || '') === uploadsState.folder);
 
     // Storage stats at top.
     if (statsEl) {
@@ -5101,9 +5210,11 @@
         'On Docker this is bundled — check the runtime image.';
     }
 
-    // Empty library.
+    // Empty library (or folder).
     if (!all.length) {
-      out.innerHTML = '<div class="queue-empty">— no songs yet — install from URL or drag &amp; drop above —</div>';
+      out.innerHTML = everything.length
+        ? `<div class="queue-empty">— nothing in ${escapeHtmlSafe(folderLabel(uploadsState.folder))} yet — install or drop songs while it's open, or move songs here with 📁 —</div>`
+        : '<div class="queue-empty">— no songs yet — install from URL or drag &amp; drop above —</div>';
       if (summaryEl) summaryEl.textContent = uploadsState.meta.dir ? `stored in ${uploadsState.meta.dir}` : '—';
       if (pagEl) { pagEl.hidden = true; pagEl.innerHTML = ''; }
       return;
@@ -5149,8 +5260,9 @@
         const warnBadge = s.losslessInLossyContainer
           ? ' <span class="u-badge-warn" title="Lossless container wrapping a lossy source — no real fidelity gain">lossy source</span>'
           : '';
-        const sourceTag = s.source === 'install' ? ' · installed'
-          : s.source === 'played' ? ` · saved while playing${s.uploader ? ' · ' + escapeHtmlSafe(s.uploader) : ''}` : '';
+        const sourceTag = (s.source === 'install' ? ' · installed'
+          : s.source === 'played' ? ` · saved while playing${s.uploader ? ' · ' + escapeHtmlSafe(s.uploader) : ''}` : '')
+          + (uploadsState.folder === null && s.folder ? ` · <span class="u-folder">📁 ${escapeHtmlSafe(s.folder)}</span>` : '');
         row.innerHTML = `
           <div style="min-width:0">
             <div class="u-name">${escapeHtmlSafe(s.name)}${warnBadge}</div>
@@ -5160,6 +5272,7 @@
             <button class="primary" data-act="play" data-id="${escapeHtmlSafe(s.id)}">▶ Play now</button>
             <button data-act="queue" data-id="${escapeHtmlSafe(s.id)}">+ Queue</button>
             <button data-act="preview" data-id="${escapeHtmlSafe(s.id)}" data-file="${escapeHtmlSafe(s.file)}">🔈 Preview</button>
+            <button data-act="move" data-id="${escapeHtmlSafe(s.id)}" title="Move to another folder">📁</button>
             <button class="danger" data-act="delete" data-id="${escapeHtmlSafe(s.id)}">✕</button>
           </div>`;
         out.appendChild(row);
@@ -5176,6 +5289,19 @@
             toast('+ Queued', 'Added to the end of the queue', 'success', 2000);
           } else if (act === 'preview') {
             previewAudio(`/library/${encodeURIComponent(btn.dataset.file)}`);
+          } else if (act === 'move') {
+            const song = uploadsState.songs.find((x) => x.id === id);
+            const names = uploadsState.folders.map((f) => f.name).filter(Boolean);
+            const to = prompt(
+              `Move "${song?.name || 'song'}" to which folder?\n\n`
+              + (names.length ? `Folders: ${names.join(', ')}\n` : '')
+              + 'A new name makes a new folder. Leave it empty for the library (no folder).',
+              song?.folder || '',
+            );
+            if (to === null) return;
+            libPost('/api/library/move', { ids: [id], folder: to.trim() })
+              .then(() => { toast('📁 Moved', `${song?.name || 'Song'} → ${folderLabel(to.trim())}`, 'success', 2000); renderUploads(); })
+              .catch((err) => toast('▲ Move failed', err.message, 'error', 4000));
           } else if (act === 'delete') {
             if (!confirm('Delete this uploaded song? This removes the file permanently.')) return;
             fetch('/api/library/delete', {
@@ -5325,6 +5451,7 @@
       if (!/^https?:\/\//i.test(url)) { toast('▲ Bad URL', 'Must start with http:// or https://', 'error', 2500); return; }
       const format = installFormat ? installFormat.value : 'original';
       const playlistLike = isPlaylistUrl(url);
+      let plFolder = '';
 
       installBtn.disabled = true;
       const prevText = installBtn.textContent;
@@ -5348,8 +5475,10 @@
             : '';
           const cfg = uploadsState.downloadConfig || { concurrency: 5, limitRate: null };
           const rateLabel = cfg.limitRate || 'unlimited rate';
+          plFolder = targetFolder(probe.playlistName || 'Playlist');
           if (!confirm(
             `Install all ${probe.count} song${probe.count === 1 ? '' : 's'} from "${probe.playlistName}"?\n\n` +
+            `Save to: ${folderLabel(plFolder)}\n` +
             `Format: ${format} · Concurrency: ${cfg.concurrency} · ${rateLabel}` +
             sampleStr
           )) {
@@ -5361,7 +5490,7 @@
           installBtn.textContent = 'Queued';
           const startRes = await fetch('/api/library/install-playlist', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url, format }),
+            body: JSON.stringify({ url, format, folder: plFolder }),
           });
           const startData = await startRes.json();
           if (!startRes.ok || startData.error) throw new Error(startData.error || `server returned ${startRes.status}`);
@@ -5390,7 +5519,7 @@
         const res = await fetch('/api/library/install', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url, format }),
+          body: JSON.stringify({ url, format, folder: targetFolder(null) }),
         });
         const data = await res.json();
         if (!res.ok || data.error) throw new Error(data.error || `server returned ${res.status}`);
@@ -5446,6 +5575,7 @@
       if (cfgLimitRate) cfgLimitRate.value = cfg.limitRate || '';
       if ($('cfg-autosave')) $('cfg-autosave').checked = cfg.autoSave !== false;
       if ($('cfg-autosave-mb')) $('cfg-autosave-mb').value = cfg.autoSaveMaxMB || 1024;
+      if ($('cfg-autosave-folder')) $('cfg-autosave-folder').value = cfg.autoSaveFolder ?? 'Played';
       if ($('cfg-autosave-used') && cfg.autoSaved) {
         $('cfg-autosave-used').textContent = `${cfg.autoSaved.count} saved · ${(cfg.autoSaved.bytes / 1048576).toFixed(0)} MB used`;
       }
@@ -5462,6 +5592,7 @@
         limitRate: cfgLimitRate.value || null,
         ...($('cfg-autosave') ? { autoSave: $('cfg-autosave').checked } : {}),
         ...($('cfg-autosave-mb') ? { autoSaveMaxMB: Number($('cfg-autosave-mb').value) || 1024 } : {}),
+        ...($('cfg-autosave-folder') ? { autoSaveFolder: $('cfg-autosave-folder').value.trim() } : {}),
       };
       const res = await fetch('/api/library/config', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -5470,6 +5601,7 @@
       const data = await res.json();
       if (!res.ok || data.error) throw new Error(data.error || `server returned ${res.status}`);
       uploadsState.downloadConfig = data.config;
+      if ($('cfg-autosave-folder')) $('cfg-autosave-folder').value = data.config.autoSaveFolder ?? '';
       toast('✓ Settings saved', `${data.config.concurrency} concurrent · ${data.config.limitRate || 'unlimited'}/s`, 'success', 2500);
     } catch (e) {
       toast('▲ Save failed', e.message, 'error', 3000);
@@ -5620,7 +5752,7 @@
       try {
         const res = await fetch('/api/library/upload', {
           method: 'POST',
-          headers: { 'X-Filename': encodeURIComponent(file.name) },
+          headers: { 'X-Filename': encodeURIComponent(file.name), 'X-Folder': encodeURIComponent(targetFolder(null)) },
           body: file,
         });
         const data = await res.json();

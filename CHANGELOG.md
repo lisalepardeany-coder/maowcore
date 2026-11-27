@@ -6,6 +6,29 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.21.0] — 2026-11-27
+
+### Added
+- **Library folders: choose where songs download to.** Folders are real subfolders of `data/library/`, so a playlist's songs also sit together in Pterodactyl's file manager and in backups.
+  - **Save to** (Library → Uploads, next to Install) picks the folder for link downloads, playlist downloads and uploads. The default, *Auto*, gives a playlist download its own folder named after the playlist, and puts a single song or upload in the folder you have open.
+  - Folder chips above the song list (All · Library · 📁 each folder) show one folder at a time. An open folder has **▶ Play folder**, **🔀 Shuffle**, **✎ Rename** and **🗑 Delete** (keep its songs, or delete them with it).
+  - **📁** on a song moves it to another folder (type a new name to make one). Songs already queued keep playing after a move.
+  - A song already in the library that you download into another folder is copied over, with no second download. The cleanup wizard doesn't count those copies as duplicates.
+  - Songs saved while playing go to the **Played** folder (Download settings → "Folder for saved songs"). The space limit only clears that folder, so moving a saved song into a folder of your own keeps it.
+  - `/library folder` plays a whole folder (optionally shuffled). `/library install` has a `folder` option, and the song picker shows each song's folder.
+
+- **Run on Pterodactyl without the MaowCore egg.** Pterodactyl's standard Node.js egg (or any egg with a Node.js 22+ image) runs the bot with one startup command (see `deploy/pterodactyl/README.md`, "Without the MaowCore egg"). The new `deploy/pterodactyl/boot.sh`:
+  - downloads the bot on the first start;
+  - updates it from GitHub;
+  - gets `yt-dlp`;
+  - installs the Node packages when they change;
+  - makes a `.env` to fill in.
+
+  Then it starts the bot the same way the egg does. The host's system (Debian 13, Ubuntu, …) doesn't matter.
+
+### Fixed
+- **"Sign-in failed — Discord said: invalid_client" now says what to fix:** the Client Secret was reset in the Developer Portal (or belongs to another app). Get a new one under OAuth2 → Reset Secret and put it in the Startup tab's "Discord sign-in secret" on Pterodactyl (it wins over `.env`), or in `DISCORD_CLIENT_SECRET`. Stray quotes or spaces around the secret are ignored now.
+
 ## [3.20.1] — 2026-11-27
 
 ### Fixed

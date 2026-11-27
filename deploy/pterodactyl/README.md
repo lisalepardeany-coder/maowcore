@@ -18,6 +18,24 @@
 
 **Already have a server from an older egg?** Update the egg (Admin > Nests > MaowCore > Update egg), then on the server's **Startup** tab set **Update on start** to `1` and restart.
 
+## Without the MaowCore egg (any Node.js egg)
+
+No admin access to import an egg? A server with Pterodactyl's standard **Node.js** egg (or any egg with a Node.js 22+ image) runs the bot too. The host's own system doesn't matter (Debian 13, Ubuntu, …): the bot runs inside the egg's Docker image.
+
+1. On the server's **Startup** tab, set the startup command to:
+
+   ```bash
+   if [[ ! -d .git ]]; then git init -q && git remote add origin "${GIT_ADDRESS:-https://github.com/lisalepardeany-coder/maowcore}" && git fetch -q origin "${BRANCH:-main}" && git reset -q --hard FETCH_HEAD; fi; exec bash deploy/pterodactyl/boot.sh
+   ```
+
+   If the panel doesn't let you edit the command, ask the panel admin to change it (or import the egg after all).
+2. Pick a **Node.js 22** (or 24) Docker image on the same tab.
+3. Start the server once. The first start downloads the bot, `yt-dlp` and the Node packages (a few minutes), makes a `.env` file and stops, asking you to fill it in.
+4. In the **File Manager**, edit `.env`: at least `DISCORD_TOKEN`, `CLIENT_ID` and `OWNER_USER_ID`. Everything the MaowCore egg has on the Startup tab goes here (for example `DISCORD_CLIENT_SECRET`, `PANEL_PUBLIC_URL`). The dashboard port is the server's port, by itself.
+5. Start it again. From then on every start updates the bot from GitHub, installs new Node packages when needed, and keeps `yt-dlp` up to date.
+
+Updates follow `AUTO_UPDATE`: the egg's Startup variable of that name when it has one (Pterodactyl's Node.js egg calls it **Auto Update**, set it to `1`), else `AUTO_UPDATE=` in `.env`; when neither says, it updates. Likewise `GIT_ADDRESS` and `BRANCH`, defaulting to this repo's `main`.
+
 ## Tools
 
 | Tool | Where it comes from |

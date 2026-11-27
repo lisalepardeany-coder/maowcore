@@ -682,6 +682,31 @@ button.link:hover { background: var(--accent-soft); }
   font-family: var(--font-mono);
 }
 
+/* ===== Library folders ===== */
+.install-inputs.lib-target { grid-template-columns: auto 1fr auto; margin-top: 8px; }
+.install-inputs.lib-target button { background: var(--bg-input-2); color: var(--fg); border: 1px solid var(--border); font-weight: 500; }
+.install-inputs.lib-target button:hover:not(:disabled) { background: var(--bg-input); border-color: var(--accent); }
+.lib-folders { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 6px; }
+.lib-folders button {
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--fg);
+  font-size: 12px;
+  cursor: pointer;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lib-folders button:hover { border-color: var(--accent); }
+.lib-folders button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.lib-folders .n { opacity: 0.7; margin-left: 4px; font-family: var(--font-mono); }
+.lib-folder-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 6px; }
+.lib-folder-actions button { padding: 5px 11px; font-size: 12px; border-radius: 6px; }
+.u-folder { color: var(--accent); }
+
 /* ===== Pagination ===== */
 .pagination {
   display: flex;
@@ -738,7 +763,7 @@ button.link:hover { background: var(--accent-soft); }
 }
 
 @media (max-width: 720px) {
-  .install-inputs { grid-template-columns: 1fr; }
+  .install-inputs, .install-inputs.lib-target { grid-template-columns: 1fr; }
   .lib-controls { grid-template-columns: 1fr; }
 }
 
