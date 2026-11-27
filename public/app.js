@@ -5149,7 +5149,8 @@
         const warnBadge = s.losslessInLossyContainer
           ? ' <span class="u-badge-warn" title="Lossless container wrapping a lossy source — no real fidelity gain">lossy source</span>'
           : '';
-        const sourceTag = s.source === 'install' ? ' · installed' : '';
+        const sourceTag = s.source === 'install' ? ' · installed'
+          : s.source === 'played' ? ` · saved while playing${s.uploader ? ' · ' + escapeHtmlSafe(s.uploader) : ''}` : '';
         row.innerHTML = `
           <div style="min-width:0">
             <div class="u-name">${escapeHtmlSafe(s.name)}${warnBadge}</div>
@@ -5443,6 +5444,11 @@
       uploadsState.downloadConfig = cfg;
       if (cfgConcurrency) cfgConcurrency.value = cfg.concurrency;
       if (cfgLimitRate) cfgLimitRate.value = cfg.limitRate || '';
+      if ($('cfg-autosave')) $('cfg-autosave').checked = cfg.autoSave !== false;
+      if ($('cfg-autosave-mb')) $('cfg-autosave-mb').value = cfg.autoSaveMaxMB || 1024;
+      if ($('cfg-autosave-used') && cfg.autoSaved) {
+        $('cfg-autosave-used').textContent = `${cfg.autoSaved.count} saved · ${(cfg.autoSaved.bytes / 1048576).toFixed(0)} MB used`;
+      }
       refreshCfgSummary();
     } catch { /* server not ready yet */ }
   };
@@ -5454,6 +5460,8 @@
       const body = {
         concurrency: Number(cfgConcurrency.value) || 5,
         limitRate: cfgLimitRate.value || null,
+        ...($('cfg-autosave') ? { autoSave: $('cfg-autosave').checked } : {}),
+        ...($('cfg-autosave-mb') ? { autoSaveMaxMB: Number($('cfg-autosave-mb').value) || 1024 } : {}),
       };
       const res = await fetch('/api/library/config', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },

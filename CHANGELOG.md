@@ -6,6 +6,14 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.20.0] — 2026-11-27
+
+### Added
+- **Every YouTube song the bot plays is saved to the library.** No extra download: the bot keeps a copy of the audio it's already streaming. A song is saved once its download is complete and it has started playing. Saved songs show up in the dashboard library (marked "saved while playing", with the artist) and in `/library play`, so you can pick them like any upload.
+- **Songs already in the library play from there.** When a song that's saved, installed or uploaded-from-YouTube comes up again, the bot plays the library copy: no YouTube download, so it starts sooner and doesn't count toward YouTube's rate limit.
+- Setting in Library → Uploads → Download settings: **Save played songs** (on by default) and the **space for saved songs** (1 GB by default, about 250 songs). When it's full, the saved songs that haven't played for the longest are removed. Your own uploads and installs are never removed.
+- Not saved: videos over 20 minutes and live streams, or when the disk has less than 1 GB free.
+
 ## [3.19.0] — 2026-11-27
 
 ### Changed

@@ -107,6 +107,11 @@ ytDlpPlugin.getStreamURL = async (song) => {
   // yt-dlp on our own control server instead (lib/yt-stream.js).
   const ytStream = require('./lib/yt-stream');
   if (ytStream.isYouTube(song.url)) {
+    // Already in the library (saved while it played before, or installed)?
+    // Play that copy: starts at once, and no YouTube download (lib/auto-save.js).
+    const library = require('./lib/library');
+    const copy = library.findByVideoId(ytStream.videoId(song.url));
+    if (copy && client.control) { library.touch(copy.id); return client.control._libraryUrl(copy.file); }
     return ytStream.urlFor(client.control?.port || Number(process.env.CONTROL_PORT) || 8765, song.url);
   }
   // a private copy per run (yt-dlp writes cookies back; see yt-cookies.runCopy)
@@ -406,6 +411,8 @@ const taste = require('./lib/taste');
 client.distube.on('deleteQueue', (queue) => taste.forget(queue.id));
 // Download every server's welcome sound once, so it can play instantly.
 client.once(Events.ClientReady, () => {
+  // YouTube songs are saved to the library as they play (lib/auto-save.js).
+  require('./lib/auto-save').start({ log: (t, l) => control.log(t, l, 'library', { subsystem: 'library' }) });
   for (const g of client.guilds.cache.values()) {
     const url = getGuild(g.id).welcomeSoundUrl;
     if (url) welcomeIntro.warm(url, (t) => control.log(t, 'warn', 'play'));
@@ -447,6 +454,8 @@ client.distube
     sponsorblock.onPlay(queue, song, (text, level) => control.log(text, level));
     session.set(queue.id, queue);
     spotifyFeatures.attachFeatures(song).catch(() => {});  // best-effort
+    // Saved to the library once its download is complete (lib/auto-save.js).
+    try { require('./lib/auto-save').notePlayed(song); } catch { /* best effort */ }
     // Get the NEXT song ready now, so it starts without the ~4 s yt-dlp wait.
     try { if (queue.songs[1]?.url) require('./lib/yt-stream').prefetch(queue.songs[1].url); } catch { /* best effort */ }
 
