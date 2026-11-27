@@ -18,7 +18,7 @@ ys._setSpawn(() => {
   const p = new EventEmitter();
   p.stdout = new PassThrough(); p.stderr = new PassThrough(); p.exitCode = null;
   p.end = (code = 0) => { p.stdout.end(); p.stderr.end(); setImmediate(() => { p.exitCode = code; p.emit('close', code); }); };
-  p.kill = () => { if (p.exitCode === null) p.end(null); };
+  p.kill = () => { p.killed = true; if (p.exitCode === null) p.end(null); };
   fakes.push(p);
   return p;
 });
@@ -57,6 +57,18 @@ test('auto-save: also when the song starts playing before the download ends', as
   assert.ok(library.findByVideoId('BBBBBBBBBBB'));
 });
 
+test('auto-save: a Spotify song is saved under the YouTube video it played', async () => {
+  ys.prefetch('https://www.youtube.com/watch?v=GGGGGGGGGGG');
+  fakes.at(-1).stdout.write(WEBM); fakes.at(-1).end(0);
+  await wait(50);
+  const spotify = { url: 'https://open.spotify.com/track/abc', name: 'Spotify Title', uploader: { name: 'Band' }, duration: 180,
+    stream: { playFromSource: false, song: song('GGGGGGGGGGG', { name: 'YouTube Title (Official Video)' }) } };
+  const entry = autoSave.notePlayed(spotify);
+  assert.ok(entry, 'saved');
+  assert.equal(entry.name, 'Spotify Title');
+  assert.equal(library.findByVideoId('GGGGGGGGGGG').id, entry.id);
+});
+
 test('auto-save: a skipped (stopped) download is thrown away', async () => {
   ys.prefetch('https://www.youtube.com/watch?v=CCCCCCCCCCC');
   autoSave.notePlayed(song('CCCCCCCCCCC'));
@@ -65,6 +77,35 @@ test('auto-save: a skipped (stopped) download is thrown away', async () => {
   await wait(50);
   assert.equal(library.findByVideoId('CCCCCCCCCCC'), null);
   assert.deepEqual(incoming(), []);
+});
+
+test('auto-save: a song skipped while playing still finishes downloading and is saved', async () => {
+  const http = require('node:http');
+  const srv = http.createServer((req, res) => ys.handle(req, res, new URL(req.url, 'http://x'))).listen(0, '127.0.0.1');
+  await new Promise((r) => srv.once('listening', r));
+  const listen = (id) => new Promise((r) => {
+    const req = http.get(ys.urlFor(srv.address().port, `https://www.youtube.com/watch?v=${id}`), (res) => res.once('data', () => r(req)));
+  });
+  // playing, then skipped: keeps downloading
+  const p1 = listen('HHHHHHHHHHH'); await wait(20); fakes.at(-1).stdout.write(WEBM);
+  const req1 = await p1; const proc1 = fakes.at(-1);
+  autoSave.notePlayed(song('HHHHHHHHHHH'));
+  req1.destroy(); await wait(50);
+  assert.ok(!proc1.killed, 'not killed');
+  assert.equal(ys.finishingCount(), 1);
+  proc1.stdout.write(Buffer.from('-rest-of-the-song')); proc1.end(0); await wait(50);
+  const saved = library.findByVideoId('HHHHHHHHHHH');
+  assert.ok(saved, 'saved after the skip');
+  assert.ok(fs.readFileSync(path.join(library.LIB_DIR, saved.file)).toString().endsWith('-rest-of-the-song'));
+  assert.equal(ys.finishingCount(), 0);
+  // never played (ffmpeg let go before playSong): stopped as before
+  const p2 = listen('IIIIIIIIIII'); await wait(20); fakes.at(-1).stdout.write(WEBM);
+  const req2 = await p2; const proc2 = fakes.at(-1);
+  req2.destroy(); await wait(50);
+  assert.ok(proc2.killed, 'killed');
+  await wait(20);
+  assert.equal(library.findByVideoId('IIIIIIIIIII'), null);
+  srv.closeAllConnections?.(); srv.close();
 });
 
 test('auto-save: long videos and unknown formats are not saved', async () => {

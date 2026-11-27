@@ -6,6 +6,12 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.20.1] — 2026-11-27
+
+### Fixed
+- **Songs from Spotify links are now saved to the library too.** They play through a YouTube match, and the save was looking for the Spotify link instead, so they were never saved. They're saved under their Spotify title.
+- **Skipping a song no longer stops it from being saved.** A song finishes downloading only at its end, so a skipped song was thrown away. Now a song that already started playing keeps downloading in the background after a skip or stop (at most 2 at once) and is saved. Songs that never played, live streams and songs over 20 minutes are still stopped right away.
+
 ## [3.20.0] — 2026-11-27
 
 ### Added
