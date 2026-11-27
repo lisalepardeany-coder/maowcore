@@ -6,6 +6,15 @@ All notable changes to MaowCore are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.19.0] — 2026-11-27
+
+### Changed
+- **YouTube songs start about 1.5 s sooner.** The first song's download now starts the moment it's requested, while the bot is still looking up the title and joining the voice channel, instead of after. This works for every way a song starts: `/play`, the dashboard, song requests and the rest. Measured: about 4.1 s → 2.6 s from request to first sound.
+
+### Fixed
+- **Skipping right after a song started could make the next one wait the full ~3 s.** If the next song was still downloading, the bot threw that download away and started again from zero. It now keeps it.
+- The same song pasted as a different link (`youtu.be/…`, `?t=30`, YouTube Music) is now recognised as the song that's already downloading.
+
 ## [3.18.1] — 2026-11-26
 
 ### Fixed

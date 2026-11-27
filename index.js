@@ -163,6 +163,29 @@ client.distube = new DisTube(client, {
   ],
 });
 
+// A YouTube song that will play right away (nothing playing yet, or "play now")
+// starts downloading at once, while DisTube is still looking up the title and
+// joining the voice channel. Covers every way a song is started (/play, the
+// dashboard, song requests ...). Other songs get it from the playSong/addSong
+// prefetch below.
+{
+  const origPlay = client.distube.play.bind(client.distube);
+  client.distube.play = (voiceChannel, song, options = {}) => {
+    const ytStream = require('./lib/yt-stream');
+    let early = false;
+    try {
+      const gid = voiceChannel?.guild?.id || voiceChannel?.guildId;
+      const q = gid ? client.distube.getQueue(gid) : null;
+      // (a playlist link may start on a different song: leave those alone)
+      if (typeof song === 'string' && !/[?&]list=/.test(song) && (!q?.songs?.length || options.skip)) early = ytStream.prefetch(song);
+    } catch { /* best effort */ }
+    const p = origPlay(voiceChannel, song, options);
+    // The song couldn't be played after all: stop its download.
+    if (early) p.catch(() => ytStream.dropPrefetch(song));
+    return p;
+  };
+}
+
 // Allow multiple listeners on DisTube events without spamming MaxListeners warnings.
 // We attach from index.js + control-server.js (and potentially more).
 client.distube.setMaxListeners(30);
